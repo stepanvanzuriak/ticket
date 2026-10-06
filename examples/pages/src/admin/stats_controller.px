@@ -1,0 +1,34 @@
+module StatsController
+
+uses
+  Std.Http
+  Std.List
+  Std.Option
+  Std.Result
+  Layout
+  Models.Article
+  Ticket.Action
+  Ticket.Conn
+  Ticket.Params
+  Ticket.Response
+  Views.Admin
+
+functions
+  show(conn: Conn) -> Response / {Mut} {
+    Action.before([require_token], stats)(conn)
+  }
+
+  stats(conn: Conn) -> Response / {Mut} {
+    Response.render(Layout.app(conn, "Stats", Admin.stats(List.length(Article.all()))))
+  }
+
+  require_token(conn: Conn) -> Result<Response, Conn> {
+    if Params.string(conn, "token") == Some("secret") {
+      Ok(conn)
+    } else {
+      Err(Response.text(401, "unauthorized"))
+    }
+  }
+
+exports
+  show

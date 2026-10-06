@@ -1,0 +1,6 @@
+[project]
+name = "migrate_tests"
+hosts = ["Node"]
+
+[dependencies]
+ticket = { path = "../.." }

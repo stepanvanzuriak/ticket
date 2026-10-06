@@ -1,0 +1,19 @@
+module PagesController
+
+uses
+  Std.Http
+  Ticket.Conn
+  Ticket.Response
+
+functions
+  home(x: Conn) -> Response {
+    Response.text(200, "home")
+  }
+
+  about(x: Conn) -> Response {
+    Response.text(200, "about")
+  }
+
+exports
+  about
+  home

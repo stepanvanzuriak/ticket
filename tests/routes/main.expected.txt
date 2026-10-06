@@ -1,0 +1,25 @@
+6 table_resources: 8 rows
+  GET /posts PostsController.index posts
+  GET /posts/new PostsController.new new_post
+  POST /posts PostsController.create -
+  GET /posts/:id PostsController.show post
+  GET /posts/:id/edit PostsController.edit edit_post
+  PATCH /posts/:id PostsController.update -
+  PUT /posts/:id PostsController.update -
+  DELETE /posts/:id PostsController.destroy -
+7 table_only_except: only create destroy: 2 rows, except destroy: 7 rows
+8 table_nested: 2 rows
+  POST /posts/:post_id/comments CommentsController.create post_comments
+  DELETE /posts/:post_id/comments/:id CommentsController.destroy post_comment
+9 table_member_collection: POST /posts/:id/publish publish_post, GET /posts/drafts drafts_posts
+10 table_namespace: 7 rows
+  GET /admin/users UsersController.index admin_users
+  GET /admin/users/new UsersController.new new_admin_user
+  POST /admin/users UsersController.create -
+  GET /admin/users/:id UsersController.show admin_user
+  GET /admin/users/:id/edit UsersController.edit edit_admin_user
+  PATCH /admin/users/:id UsersController.update -
+  PUT /admin/users/:id UsersController.update -
+20 helper_names_and_values: / /about /webhooks/github /posts /posts/new /posts/3 /posts/3/edit /posts/2/comments /posts/2/comments/9 /posts/3/publish /posts/drafts /admin/users /admin/users/new /admin/users/4 /admin/users/4/edit
+21 helper_encodes: /webhooks/a%20b
+15 head_as_get (router): 200 body="" headers=1

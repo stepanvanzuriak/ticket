@@ -1,0 +1,7 @@
+[project]
+name = "test_helpers_tests"
+hosts = ["Node"]
+main = "src/main.px"
+
+[dependencies]
+ticket = { path = "../.." }

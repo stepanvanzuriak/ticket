@@ -1,0 +1,60 @@
+module App
+
+uses
+  Std.Fs
+  Std.List
+  Std.Option
+  Std.Path
+  Std.Result
+
+hosts
+  Node
+
+functions
+  root(from: String) -> Option<String> / {Fs} {
+    let dir = Path.normalize(from)
+
+    if is_app(Path.join(dir, "polar.toml")) {
+      Some(dir)
+    } else if dir == "/" || dir == "." {
+      None
+    } else {
+      root(Path.dirname(dir))
+    }
+  }
+
+  is_app(config: String) -> Bool / {Fs} {
+    match Fs.read(config) {
+      Ok(text) -> depends_on_ticket(text),
+      Err(_) -> false,
+    }
+  }
+
+  depends_on_ticket(text: String) -> Bool {
+    let lines = List.map(String.split(text, "\n"), String.trim)
+
+    List.any(lines, function(line) { line == "[project]" }) && depends(lines, "")
+  }
+
+  depends(lines: List<String>, section: String) -> Bool {
+    match lines {
+      [] -> false,
+      [line, ..rest] -> if String.starts_with(line, "[") {
+        depends(rest, line)
+      } else if section == "[dependencies]" && key(line) == "ticket" {
+        true
+      } else {
+        depends(rest, section)
+      },
+    }
+  }
+
+  key(line: String) -> String {
+    match String.split(line, "=") {
+      [name, _, .._] -> String.trim(name),
+      _ -> "",
+    }
+  }
+
+exports
+  root

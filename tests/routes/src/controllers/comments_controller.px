@@ -1,0 +1,19 @@
+module CommentsController
+
+uses
+  Std.Http
+  Ticket.Conn
+  Stub
+
+functions
+  create(conn: Conn) -> Response {
+    Stub.reply(conn, "CommentsController#create")
+  }
+
+  destroy(conn: Conn) -> Response {
+    Stub.reply(conn, "CommentsController#destroy")
+  }
+
+exports
+  create
+  destroy

@@ -1,0 +1,270 @@
+module PostsController
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Process
+  Std.Result
+  Std.Time
+  Models.Post
+  Paths
+  Schema
+  Ticket.Conn
+  Ticket.Db
+  Ticket.Error
+  Ticket.Errors
+  Ticket.Flash
+  Ticket.Html
+  Ticket.Params
+  Ticket.Query
+  Ticket.Response
+  Ticket.Session
+  Views.Layout
+  Views.PostViews
+
+functions
+  index(conn: Conn) -> Response / {
+    Posts,
+    Users,
+    Throws<DbFailure>,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, list)
+  }
+
+  show(conn: Conn) -> Response / {
+    Posts,
+    Users,
+    Comments,
+    Throws<DbFailure>,
+    Throws<Halt>,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, details)
+  }
+
+  new(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, blank)
+  }
+
+  create(conn: Conn) -> Response / {
+    Posts,
+    Users,
+    Throws<DbFailure>,
+    Throws<Halt>,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, save)
+  }
+
+  edit(conn: Conn) -> Response / {
+    Posts,
+    Throws<DbFailure>,
+    Throws<Halt>,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, form)
+  }
+
+  update(conn: Conn) -> Response / {
+    Posts,
+    Throws<DbFailure>,
+    Throws<Halt>,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, change)
+  }
+
+  destroy(conn: Conn) -> Response / {
+    Posts,
+    Throws<DbFailure>,
+    Throws<Halt>,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, remove)
+  }
+
+  list(conn: Conn) -> Response / {Posts, Users, Throws<DbFailure>} {
+    let posts = Posts.filter([], [Query.order_desc(Schema.post_id)])
+    let entries = List.map(
+      posts,
+      function(post) { { post: post, author: Schema.post_author(post) } },
+    )
+
+    Response.render(Layout.app(conn, "Posts", PostViews.index(conn, entries)))
+  }
+
+  details(conn: Conn) -> Response / {
+    Posts,
+    Users,
+    Comments,
+    Throws<DbFailure>,
+    Throws<Halt>,
+  } {
+    let post = find_or_halt(conn)
+
+    Response.render(
+      Layout.app(conn, post.title, show_page(conn, post, Map.empty(), Errors.empty())),
+    )
+  }
+
+  show_page(
+    conn: Conn,
+    post: Post,
+    fields: Map<String, String>,
+    errors: Errors,
+  ) -> Html / {Users, Comments, Throws<DbFailure>} {
+    let comments = Schema.post_comments_filter(
+      post,
+      [],
+      [Query.order_asc(Schema.comment_id)],
+    )
+
+    PostViews.show(conn, post, Schema.post_author(post), comments, fields, errors)
+  }
+
+  blank(conn: Conn) -> Response {
+    Response.render(
+      Layout.app(
+        conn,
+        "New post",
+        PostViews.new(conn, Params.nested(conn, "post"), Errors.empty()),
+      ),
+    )
+  }
+
+  save(conn: Conn) -> Response / {Posts, Users, Throws<DbFailure>, Throws<Halt>} {
+    let author = current_author(conn)
+    let decoded: Result<Errors, NewPost> = Params.record(
+      with_author(conn, author),
+      "post",
+    )
+
+    match Result.and_then(decoded, Post.validate) {
+      Ok(row) -> {
+        let post = Posts.insert(row)
+
+        Response.redirect_to(
+          Flash.put(conn, "notice", "Post was created."),
+          Paths.post_path(post.id),
+        )
+      }
+      Err(errors) -> Response.render_status(
+        422,
+        Layout.app(
+          conn,
+          "New post",
+          PostViews.new(conn, Params.nested(conn, "post"), errors),
+        ),
+      ),
+    }
+  }
+
+  form(conn: Conn) -> Response / {Posts, Throws<DbFailure>, Throws<Halt>} {
+    let post = find_or_halt(conn)
+
+    Response.render(
+      Layout.app(
+        conn,
+        "Edit post",
+        PostViews.edit(conn, post, PostViews.values(post), Errors.empty()),
+      ),
+    )
+  }
+
+  change(conn: Conn) -> Response / {Posts, Throws<DbFailure>, Throws<Halt>} {
+    let post = find_or_halt(conn)
+    let decoded: Result<Errors, NewPost> = Params.record(
+      with_author_id(conn, post.author_id),
+      "post",
+    )
+    let merged = Result.map(
+      decoded,
+      function(row) {
+        { ..post, title: row.title, body: row.body, published: row.published }
+      },
+    )
+
+    match Result.and_then(merged, Post.validate_update) {
+      Ok(row) -> {
+        let saved = Posts.update(row)
+
+        Response.redirect_to(
+          Flash.put(conn, "notice", "Post was updated."),
+          Paths.post_path(saved.id),
+        )
+      }
+      Err(errors) -> Response.render_status(
+        422,
+        Layout.app(
+          conn,
+          "Edit post",
+          PostViews.edit(conn, post, Params.nested(conn, "post"), errors),
+        ),
+      ),
+    }
+  }
+
+  remove(conn: Conn) -> Response / {Posts, Throws<DbFailure>, Throws<Halt>} {
+    let post = find_or_halt(conn)
+    let _ = Posts.delete(post.id)
+
+    Response.redirect_to(
+      Flash.put(conn, "notice", "Post was destroyed."),
+      Paths.posts_path(),
+    )
+  }
+
+  current_author(conn: Conn) -> User / {Users, Throws<DbFailure>, Throws<Halt>} {
+    let email = Option.with_default(Params.string(conn, "as"), "ann@example.com")
+
+    match List.head(Users.filter([Query.eq(Schema.user_email, email)], [])) {
+      Some(user) -> user,
+      None -> throw Halt(Response.text(401, "unknown author #{email}")),
+    }
+  }
+
+  with_author(conn: Conn, author: User) -> Conn {
+    with_author_id(conn, author.id)
+  }
+
+  with_author_id(conn: Conn, id: Id<User>) -> Conn {
+    {
+      ..conn,
+      form: Map.insert(conn.form, "post[author_id]", Int.to_string(Id.value(id))),
+    }
+  }
+
+  find_or_halt(conn: Conn) -> Post / {Posts, Throws<DbFailure>, Throws<Halt>} {
+    match Option.and_then(Params.id(conn, "id"), Posts.find) {
+      Some(post) -> post,
+      None -> throw Halt(Response.not_found()),
+    }
+  }
+
+exports
+  create
+  destroy
+  edit
+  find_or_halt
+  index
+  new
+  show
+  show_page
+  update

@@ -1,0 +1,19 @@
+
+module Stub
+
+uses
+  Std.Http
+  Std.List
+  Std.Map
+  Ticket.Conn
+  Ticket.Response
+
+functions
+  reply(conn: Conn, action: String) -> Response {
+    let params = List.map(Map.to_list(conn.path_params), function(p) { "#{p.key}=#{p.value}" })
+
+    Response.text(200, String.trim("#{action} #{List.join(params, " ")}"))
+  }
+
+exports
+  reply

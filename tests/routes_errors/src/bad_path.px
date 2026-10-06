@@ -1,0 +1,13 @@
+module BadPath
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  PagesController
+  PostsController
+
+routes
+  get  /posts/  -> PagesController.about
+  get  /a b    -> PagesController.home

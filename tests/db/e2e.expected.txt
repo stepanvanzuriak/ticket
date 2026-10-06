@@ -1,0 +1,14 @@
+18 tx_serialises: Ok({}) | 0 errors; Ok(5)
+19 no_database: Err(kind=connection code= message=no database: set `[database]` in ticket.toml or `TICKET_DATABASE`, or call `Db.connect` sql=select n from counter)
+19 unknown_adapter: Err(kind=connection code= message=unknown database adapter `oracle`; the adapters are: sqlite sql=select n from counter)
+20 file_database: Ok({}) Ok(changes=1 last_id=1) Ok(1) | reopened Ok(1) | journal=wal
+21 database_config: sqlite:/app/db/development.sqlite3 sqlite:/app/data/app.db sqlite:/app/other.db sqlite:/abs/x.db sqlite::memory: sqlite:/app/db/development.sqlite3
+21 unknown_adapter: unknown database adapter `pg`; the adapters are: sqlite
+22 parse_config: {"database":{"adapter":"sqlite","database":"db/a \"b\".sqlite3"}} {"database":{"database":"x.db"}}
+23 config_error unknown_table: ticket.toml:1: unknown table `[db]`; the tables are: [database], [session], [server]
+23 config_error unknown_key: ticket.toml:2: unknown key `path` in `[database]`; the keys are: adapter, database, migrate
+23 config_error wrong_type: ticket.toml:2: `database` must be a string
+23 config_error outside_table: ticket.toml:1: `database` must be inside a table, like `[database]`
+23 config_error duplicate_key: ticket.toml:3: `database` is defined twice in `[database]`
+23 config_error not_toml: ticket.toml:2: expected `key = value` or `[table]`, found `database`
+24 use_database: sqlite true true sqlite {}

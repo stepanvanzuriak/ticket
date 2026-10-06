@@ -1,0 +1,38 @@
+module Database
+
+uses
+  Std.List
+  Std.Option
+  Std.Process
+  Args
+
+hosts
+  Node
+
+functions
+  run(root: String, task: String, parsed: Parsed) -> Int / {Process} {
+    let options = Process.in_dir(Process.inherit(), root)
+    let build = Process.output("polar", ["build"], options)
+
+    if build.code == 0 {
+      Process.run("polar", ["start", "--", task, ..flags(parsed)], options)
+    } else {
+      Log.error(String.trim("#{build.stdout}#{build.stderr}"))
+      build.code
+    }
+  }
+
+  flags(parsed: Parsed) -> List<String> {
+    List.concat_map(
+      ["version", "step"],
+      function(name) {
+        match Args.flag(parsed, name) {
+          Some(value) -> ["--#{name}", value],
+          None -> [],
+        }
+      },
+    )
+  }
+
+exports
+  run

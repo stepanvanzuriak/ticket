@@ -1,0 +1,12 @@
+module Pages
+
+uses
+  Ticket.Html
+
+views
+  home()
+    <h1>Welcome to {{App}}</h1>
+    <p>Edit <code>src/views/pages.px</code> to change this page.</p>
+
+exports
+  home

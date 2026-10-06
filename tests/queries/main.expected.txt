@@ -1,0 +1,22 @@
+1 insert_returns: Id(1) First true 1.5 None
+2 timestamps_filled: true true
+3 find: Some(First) None
+4 all: [First, Second, Third, Fourth]
+5 filter_eq_order: [Fourth, Third, First]
+6 filter_comparisons: [First, Second, Third] [Fourth] [Second]
+7 filter_like: [First, Third]
+8 filter_nullable: [Second] [First, Fourth]
+9 filters_and: [First, Third]
+10 paging: [Second, Third] [Fourth]
+11 count: 4 3 2
+12 ordering_by_several: [Fourth, First, Third, Second]
+13 update_returns: Renamed false Some(Renamed)
+14 update_touches: true true
+15 update_missing: Err(kind=not_found message=no row matched)
+16 delete: true false 3
+17 unique_violation: Err(kind=unique message=UNIQUE constraint failed: users.email)
+18 foreign_key: Err(kind=foreign_key message=FOREIGN KEY constraint failed)
+19 time_column: Some(1970-01-01T00:00:01.000Z) None
+20 sql_select: SELECT * FROM "posts" WHERE ("posts"."title" = ?) AND ("posts"."author_id" IS NULL) ORDER BY "posts"."id" DESC LIMIT 5 1
+21 sql_count_find: SELECT COUNT(*) AS n FROM "posts" 0 | SELECT * FROM "posts" WHERE "id" = ? 1
+22 sql_insert_update_delete: INSERT INTO "posts" ("title") VALUES (?) RETURNING * 1 | INSERT INTO "posts" DEFAULT VALUES RETURNING * 0 | UPDATE "posts" SET "title" = ?, "updated_at" = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE "id" = ? RETURNING * 2 | DELETE FROM "posts" WHERE "id" = ? 1

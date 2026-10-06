@@ -1,0 +1,26 @@
+module Routes
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  Controllers.PagesController
+  Controllers.PostsController
+  Controllers.CommentsController
+  Admin.UsersController
+
+routes
+  root                     -> PagesController.home
+  get   /about             -> PagesController.about    as about
+  post  /webhooks/:source  -> PagesController.webhook  as webhook
+
+  resources posts       -> PostsController
+    resources comments  -> CommentsController  only create destroy
+    member
+      post  publish     -> PostsController.publish
+    collection
+      get   drafts      -> PostsController.drafts
+
+  namespace admin
+    resources users  -> UsersController  except destroy

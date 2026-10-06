@@ -1,0 +1,577 @@
+module Generate
+
+uses
+  Std.Fs
+  Std.List
+  Std.Option
+  Std.Path
+  Std.Process
+  Std.Result
+  Std.Time
+  Args
+  Ticket.Inflect
+
+hosts
+  Node
+
+types
+  Entry = { change: String, table: String, record: String, lines: List<String> }
+
+  Planned = { text: String, version: String, existed: Bool, present: Bool }
+
+constants
+  schema_file: String = "src/schema.px"
+
+  schema_header: String = "module Schema\n\nuses\n  Std.Id\n  Std.Json\n  Std.List\n  Std.Option\n  Std.Result\n  Std.Time\n  Ticket.Db\n  Ticket.Form\n  Ticket.Migration\n  Ticket.Model\n  Ticket.Query\n\nmigrations\n"
+
+functions
+  run(root: String, parsed: Parsed) -> Int / {Process, Fs, Clock} {
+    match parsed.positional {
+      ["migration", name, ..fields] -> if pascal_name(name) {
+        generate(root, migration_entry(Inflect.snake(name), fields), None)
+      } else {
+        usage("`#{name}` isn't a valid name: use PascalCase, like `AddAuthorToPosts`")
+      },
+      ["model", name, ..fields] -> if pascal_name(name) {
+        generate(root, model_entry(name, fields), Some(name))
+      } else {
+        usage("`#{name}` isn't a valid name: use PascalCase, like `Post`")
+      },
+      _ -> usage(
+        "`ticket g` takes `migration <Name> [field:Type…]` or `model <Name> [field:Type…]`",
+      ),
+    }
+  }
+
+  plan_schema(root: String, e: Entry) -> Result<String, Planned> / {Fs, Clock} {
+    let schema = Path.join(root, schema_file)
+    let existed = Fs.exists(schema)
+    let existing = if existed { Fs.read(schema) } else { Ok(schema_header) }
+
+    match existing {
+      Err(error) -> Err(error.message),
+      Ok(text) -> if has_table_entry(text, e.table) {
+        Ok({ text: text, version: "", existed: existed, present: true })
+      } else {
+        match stamp(last_version(text)) {
+          Err(message) -> Err(message),
+          Ok(version) -> match add_entry(text, version, e) {
+            Err(message) -> Err(message),
+            Ok(updated) -> Ok(
+              { text: updated, version: version, existed: existed, present: false },
+            ),
+          },
+        }
+      },
+    }
+  }
+
+  has_table_entry(text: String, table: String) -> Bool {
+    List.any(
+      String.split(text, "\n"),
+      function(line) { entry_table(line) == Some(table) },
+    )
+  }
+
+  entry_table(line: String) -> Option<String> {
+    if entry_line(line) {
+      match List.filter(String.split(line, " "), function(word) { word != "" }) {
+        [_, "create_table", table, .._] -> Some(table),
+        _ -> None,
+      }
+    } else {
+      None
+    }
+  }
+
+  table_lines(text: String, table: String) -> Option<List<String>> {
+    let lines = String.split(text, "\n")
+
+    match List.filter(
+      List.map(indexed(lines, 0), function(pair) { pair }),
+      function(pair) { entry_table(pair.line) == Some(table) },
+    ) {
+      [first, .._] -> Some(column_lines(drop(lines, first.at + 1))),
+
+      [] -> None,
+    }
+  }
+
+  indexed(lines: List<String>, at: Int) -> List<{ at: Int, line: String }> {
+    match lines {
+      [] -> [],
+      [line, ..rest] -> [{ at: at, line: line }, ..indexed(rest, at + 1)],
+    }
+  }
+
+  column_lines(lines: List<String>) -> List<String> {
+    match lines {
+      [line, ..rest] -> if String.starts_with(line, "    ") {
+        [squeeze(line), ..column_lines(rest)]
+      } else {
+        []
+      },
+      [] -> [],
+    }
+  }
+
+  squeeze(line: String) -> String {
+    List.join(
+      List.filter(
+        List.map(String.split(String.trim(line), "  "), String.trim),
+        function(part) { part != "" },
+      ),
+      "  ",
+    )
+  }
+
+  generate(root: String, entry: Result<String, Entry>, model: Option<String>) -> Int / {
+    Process,
+    Fs,
+    Clock,
+  } {
+    match entry {
+      Err(message) -> usage(message),
+      Ok(e) -> {
+        let schema = Path.join(root, schema_file)
+        let model_path = match model {
+          Some(name) -> Some(Path.join(root, "src/models/#{Inflect.snake(name)}.px")),
+          None -> None,
+        }
+
+        if model_path != None && Fs.exists(Option.with_default(model_path, "")) {
+          Log.error("error: #{Option.with_default(model_path, "")} already exists")
+          1
+        } else {
+          let existing = if Fs.exists(schema) {
+            Fs.read(schema)
+          } else {
+            Ok(schema_header)
+          }
+
+          match existing {
+            Err(error) -> failed(error.message),
+            Ok(text) -> match stamp(last_version(text)) {
+              Err(message) -> failed(message),
+              Ok(version) -> match add_entry(text, version, e) {
+                Err(message) -> failed(message),
+                Ok(updated) -> write_all(
+                  root,
+                  schema,
+                  updated,
+                  version,
+                  e,
+                  model,
+                  model_path,
+                  Fs.exists(schema),
+                ),
+              },
+            },
+          }
+        }
+      }
+    }
+  }
+
+  write_all(
+    root: String,
+    schema: String,
+    text: String,
+    version: String,
+    e: Entry,
+    model: Option<String>,
+    model_path: Option<String>,
+    existed: Bool,
+  ) -> Int / {Process, Fs} {
+    let written = Fs.mkdir_all(Path.dirname(schema))
+      |> Result.and_then(function(_) { Fs.write(schema, text) })
+
+    match written {
+      Err(error) -> failed(error.message),
+      Ok(_) -> {
+        Log.info(
+          "      #{if existed { "append" } else { "create" }}  #{schema_file}  #{version} #{e.change} #{e.table}",
+        )
+
+        let wired = if existed { Ok({}) } else { wire_main(root) }
+        let modelled = match model_path {
+          Some(path) -> Fs.mkdir_all(Path.dirname(path))
+            |> Result.and_then(
+              function(_) {
+                Fs.write(
+                  path,
+                  "module #{Option.with_default(model, "")}\n\nuses\n  Schema\n",
+                )
+              },
+            )
+            |> Result.map(
+              function(_) { Log.info("      create  src/models/#{Path.basename(path)}") },
+            ),
+          None -> Ok({}),
+        }
+
+        match Result.and_then(wired, function(_) { modelled }) {
+          Err(error) -> failed(error.message),
+          Ok(_) -> format(root, schema),
+        }
+      }
+    }
+  }
+
+  format(root: String, file: String) -> Int / {Process} {
+    let result = Process.output(
+      "polar",
+      ["fmt", "--no-color", file],
+      Process.in_dir(Process.inherit(), root),
+    )
+
+    if result.code == 0 {
+      0
+    } else {
+      Log.error(String.trim("#{result.stdout}#{result.stderr}"))
+      1
+    }
+  }
+
+  wire_main(root: String) -> Result<FsError, {}> / {Fs} {
+    let path = Path.join(root, "src/main.px")
+
+    if !Fs.exists(path) {
+      Ok({})
+    } else {
+      match Fs.read(path) {
+        Err(error) -> Err(error),
+        Ok(text) -> if String.contains(text, "migrate(")
+          || !String.contains(text, "\nfunctions\n")
+          || !String.contains(text, "\nexports\n") {
+          Ok({})
+        } else {
+          let wired = List.fold(
+            ["Schema", "Ticket.Migrate", "Ticket.Db", "Std.Time"],
+            text,
+            add_use,
+          )
+          let wired = wired
+            |> String.replace(
+              "\nfunctions\n",
+              "\nfunctions\n  /// For `ticket db:*`.\n  migrate(command: String, step: Int, version: String) -> Int / {Db, Clock} {\n    Migrate.run(Schema.migrations, command, step, version)\n  }\n\n",
+            )
+            |> String.replace("\nexports\n", "\nexports\n  migrate\n")
+            |> String.replace("Console.boot([])", "Console.boot(Schema.migrations)")
+
+          Log.info("        wire  src/main.px  migrate")
+          Fs.write(path, wired)
+        },
+      }
+    }
+  }
+
+  add_use(text: String, name: String) -> String {
+    if String.contains(text, "\n  #{name}\n") {
+      text
+    } else {
+      String.replace(text, "\nuses\n", "\nuses\n  #{name}\n")
+    }
+  }
+
+  migration_entry(name: String, fields: List<String>) -> Result<String, Entry> {
+    if String.starts_with(name, "create_") {
+      create_entry(String.slice(name, 7, String.length(name)), "", fields)
+    } else if String.starts_with(name, "add_") {
+      match String.split(String.slice(name, 4, String.length(name)), "_to_") {
+        [_, ..rest] -> match List.nth(rest, List.length(rest) - 1) {
+          Some(table) -> columns_entry("add_column", table, fields),
+          None -> unknown(name),
+        },
+        [] -> unknown(name),
+      }
+    } else if String.starts_with(name, "remove_") {
+      match String.split(String.slice(name, 7, String.length(name)), "_from_") {
+        [_, ..rest] -> match List.nth(rest, List.length(rest) - 1) {
+          Some(table) -> removed_entry(table, fields),
+          None -> unknown(name),
+        },
+        [] -> unknown(name),
+      }
+    } else {
+      unknown(name)
+    }
+  }
+
+  unknown(name: String) -> Result<String, Entry> {
+    Err(
+      "can't tell what `#{Inflect.pascal(name)}` changes: name it `Create<Table>`, `Add<Column>To<Table>` or `Remove<Column>From<Table>`, or write the entry in src/schema.px",
+    )
+  }
+
+  model_entry(name: String, fields: List<String>) -> Result<String, Entry> {
+    let table = Inflect.plural(Inflect.snake(name))
+    let record = match Inflect.singular(table) {
+      Some(singular) -> if Inflect.pascal(singular) == name { "" } else { name },
+      None -> name,
+    }
+
+    create_entry(table, record, fields)
+  }
+
+  create_entry(
+    table: String,
+    record: String,
+    fields: List<String>,
+  ) -> Result<String, Entry> {
+    columns_entry("create_table", table, fields)
+      |> Result.map(function(e) { { ..e, record: record } })
+  }
+
+  columns_entry(
+    change: String,
+    table: String,
+    fields: List<String>,
+  ) -> Result<String, Entry> {
+    if List.is_empty(fields) {
+      Err("`#{change}` needs at least one field, like `title:String`")
+    } else {
+      match parse_fields(fields, []) {
+        Err(message) -> Err(message),
+        Ok(lines) -> Ok({ change: change, table: table, record: "", lines: lines }),
+      }
+    }
+  }
+
+  removed_entry(table: String, fields: List<String>) -> Result<String, Entry> {
+    if List.is_empty(fields) {
+      Err("`remove_column` needs at least one column name")
+    } else {
+      Ok(
+        {
+          change: "remove_column",
+          table: table,
+          record: "",
+          lines: List.map(fields, function(f) { String.replace(f, ":", " ") })
+            |> List.map(first_word),
+        },
+      )
+    }
+  }
+
+  first_word(text: String) -> String {
+    match String.split(text, " ") {
+      [word, .._] -> word,
+      [] -> text,
+    }
+  }
+
+  parse_fields(fields: List<String>, done: List<String>) -> Result<String, List<String>> {
+    match fields {
+      [] -> Ok(List.reverse(done)),
+      [field, ..rest] -> match parse_field(field) {
+        Err(message) -> Err(message),
+        Ok(line) -> parse_fields(rest, [line, ..done]),
+      },
+    }
+  }
+
+  parse_field(field: String) -> Result<String, String> {
+    match String.split(field, ":") {
+      [name, "references"] -> if snake_name(name) {
+        Ok(
+          "#{name}_id  Option<Id<#{Inflect.pascal(name)}>>  references #{Inflect.plural(name)}",
+        )
+      } else {
+        bad_field(field)
+      },
+      [name, kind, ..modifiers] -> if snake_name(name) && kind != "" {
+        match parse_modifiers(modifiers, []) {
+          Err(message) -> Err(message),
+          Ok(parts) -> Ok(List.join(["#{name}", optional(kind), ..parts], "  ")),
+        }
+      } else {
+        bad_field(field)
+      },
+      _ -> bad_field(field),
+    }
+  }
+
+  optional(kind: String) -> String {
+    if String.ends_with(kind, "?") {
+      "Option<#{String.slice(kind, 0, String.length(kind) - 1)}>"
+    } else {
+      kind
+    }
+  }
+
+  parse_modifiers(
+    modifiers: List<String>,
+    done: List<String>,
+  ) -> Result<String, List<String>> {
+    match modifiers {
+      [] -> Ok(List.reverse(done)),
+      [modifier, ..rest] -> if modifier == "unique" {
+        parse_modifiers(rest, ["unique", ..done])
+      } else if String.starts_with(modifier, "default=") && String.length(modifier) > 8 {
+        parse_modifiers(
+          rest,
+          ["default #{String.slice(modifier, 8, String.length(modifier))}", ..done],
+        )
+      } else {
+        Err("unknown modifier `#{modifier}`: use `unique` or `default=V`")
+      },
+    }
+  }
+
+  bad_field(field: String) -> Result<String, String> {
+    Err(
+      "`#{field}` isn't a field: write `name:Type`, `name:Type?`, `name:Type:unique`, `name:Type:default=V` or `author:references`",
+    )
+  }
+
+  add_entry(text: String, version: String, e: Entry) -> Result<String, String> {
+    let lines = String.split(text, "\n")
+
+    match index_of(lines, "migrations", 0) {
+      None -> Err("#{schema_file} has no `migrations` zone"),
+      Some(start) -> {
+        let end = zone_end(lines, start + 1, start + 1)
+        let as_record = if e.record == "" { "" } else { " as #{e.record}" }
+        let entry = [
+          "  #{version} #{e.change} #{e.table}#{as_record}",
+          ..List.map(e.lines, function(line) { "    #{line}" }),
+        ]
+        let separator = if end > start + 1 { [""] } else { [] }
+
+        Ok(
+          List.join(
+            List.append(
+              List.append(take(lines, end), List.append(separator, entry)),
+              drop(lines, end),
+            ),
+            "\n",
+          ),
+        )
+      }
+    }
+  }
+
+  zone_end(lines: List<String>, at: Int, end: Int) -> Int {
+    match List.nth(lines, at) {
+      None -> end,
+      Some(line) -> if line == "" {
+        zone_end(lines, at + 1, end)
+      } else if String.starts_with(line, " ") {
+        zone_end(lines, at + 1, at + 1)
+      } else {
+        end
+      },
+    }
+  }
+
+  index_of(lines: List<String>, line: String, at: Int) -> Option<Int> {
+    match lines {
+      [] -> None,
+      [first, ..rest] -> if first == line {
+        Some(at)
+      } else {
+        index_of(rest, line, at + 1)
+      },
+    }
+  }
+
+  last_version(text: String) -> String {
+    List.fold(
+      String.split(text, "\n"),
+      "",
+      function(last, line) {
+        if entry_line(line) { String.slice(line, 2, 17) } else { last }
+      },
+    )
+  }
+
+  entry_line(line: String) -> Bool {
+    String.length(line) > 17
+      && String.starts_with(line, "  ")
+      && String.slice(line, 10, 11) == "_"
+      && String.slice(line, 2, 3) >= "0"
+      && String.slice(line, 2, 3) <= "9"
+  }
+
+  stamp(last: String) -> Result<String, String> / {Clock} {
+    let now = Time.millis(Clock.now())
+
+    bump(now, last, 0)
+  }
+
+  bump(now: Int, last: String, seconds: Int) -> Result<String, String> {
+    let version = Time.compact(Time.from_millis(now + seconds * 1000))
+
+    if version > last {
+      Ok(version)
+    } else if seconds >= 3600 {
+      Err("the last migration (#{last}) is more than an hour in the future")
+    } else {
+      bump(now, last, seconds + 1)
+    }
+  }
+
+  take(list: List<a>, n: Int) -> List<a> {
+    match list {
+      [] -> [],
+      [x, ..rest] -> if n <= 0 { [] } else { [x, ..take(rest, n - 1)] },
+    }
+  }
+
+  drop(list: List<a>, n: Int) -> List<a> {
+    match list {
+      [] -> [],
+      [_, ..rest] -> if n <= 0 { list } else { drop(rest, n - 1) },
+    }
+  }
+
+  pascal_name(name: String) -> Bool {
+    match String.split(name, "") {
+      [] -> false,
+      [first, ..rest] -> first >= "A" && first <= "Z" && List.all(rest, alphanumeric),
+    }
+  }
+
+  snake_name(name: String) -> Bool {
+    match String.split(name, "") {
+      [] -> false,
+      [first, ..rest] -> first >= "a"
+        && first <= "z"
+        && List.all(
+          rest,
+          function(c) { c == "_" || c >= "a" && c <= "z" || c >= "0" && c <= "9" },
+        ),
+    }
+  }
+
+  alphanumeric(c: String) -> Bool {
+    c >= "A" && c <= "Z" || c >= "a" && c <= "z" || c >= "0" && c <= "9"
+  }
+
+  failed(message: String) -> Int {
+    Log.error("error: #{message}")
+    1
+  }
+
+  usage(message: String) -> Int {
+    Log.error("error: #{message}")
+    2
+  }
+
+exports
+  drop
+  failed
+  format
+  index_of
+  model_entry
+  parse_field
+  pascal_name
+  plan_schema
+  run
+  snake_name
+  table_lines
+  take
+  usage
+  wire_main
+  zone_end

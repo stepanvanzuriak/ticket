@@ -1,0 +1,24 @@
+module Schema
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+hosts
+  Node
+
+migrations
+  20261001_120000 create_table posts
+    title    String
+    status   String
+    slug     String  unique
+    summary  Option<String>
+    views    Int

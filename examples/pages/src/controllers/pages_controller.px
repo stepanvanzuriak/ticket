@@ -1,0 +1,29 @@
+module PagesController
+
+uses
+  Std.Http
+  Layout
+  Ticket.Conn
+  Ticket.Response
+  Views.Pages
+
+types
+  Boom = Boom(String)
+
+functions
+  home(conn: Conn) -> Response {
+    Response.render(Layout.app(conn, "Home", Pages.home()))
+  }
+
+  about(conn: Conn) -> Response {
+    Response.render(Layout.app(conn, "About", Pages.about()))
+  }
+
+  boom(conn: Conn) -> Response / {Throws<Boom>} {
+    throw Boom("the boom action blew up")
+  }
+
+exports
+  about
+  boom
+  home

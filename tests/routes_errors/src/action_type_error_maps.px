@@ -1,0 +1,11 @@
+module ActionTypeError
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  Bad.PostsController
+
+routes
+  resources posts  -> PostsController  only index

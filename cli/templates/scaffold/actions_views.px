@@ -1,0 +1,11 @@
+module {{Model}}Views
+
+uses
+  Paths
+  Ticket.Html
+
+views
+{{views}}
+
+exports
+{{exports}}

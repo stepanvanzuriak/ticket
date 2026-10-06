@@ -1,0 +1,101 @@
+module Repl
+
+uses
+  Std.Fs
+  Std.List
+  Std.Option
+  Std.Path
+  Std.Process
+  Std.Result
+  Args
+
+hosts
+  Node
+
+functions
+  run(root: String, home: String, parsed: Parsed) -> Int / {Process, Fs} {
+    if !has_repl() {
+      Log.error(
+        "error: `ticket console` needs a `polar` that has `repl`: update polar-lang",
+      )
+      2
+    } else if !has_boot(root) {
+      Log.error("error: src/main.px has no `boot`. Add it, next to `migrate`:")
+      Log.error(
+        "  boot() -> {} / {Db, Process} {\n    Console.boot(Schema.migrations)\n  }",
+      )
+      Log.error(
+        "with `Ticket.Console` in `uses`, `boot` in `exports`, and `Std.Process` and `Ticket.Db` imported.",
+      )
+      1
+    } else {
+      match database(home, root) {
+        Err(message) -> {
+          Log.error(message)
+          1
+        }
+        Ok(database) -> Process.run(
+          "polar",
+          arguments(parsed),
+          environment(root, database, parsed),
+        ),
+      }
+    }
+  }
+
+  arguments(parsed: Parsed) -> List<String> {
+    match Args.flag(parsed, "eval") {
+      Some(expression) -> ["repl", "--setup", "Main.boot", "-e", expression],
+      None -> ["repl", "--setup", "Main.boot"],
+    }
+  }
+
+  environment(root: String, database: List<String>, parsed: Parsed) -> RunOptions / {
+    Process,
+  } {
+    let base = Process.in_dir(Process.inherit(), root)
+    let mode = Option.with_default(Process.env("TICKET_ENV"), "development")
+    let configured = match database {
+      [adapter, name, .._] -> Process.with_env(
+        Process.with_env(base, "TICKET_DATABASE_ADAPTER", adapter),
+        "TICKET_DATABASE",
+        name,
+      ),
+      _ -> base,
+    }
+    let moded = Process.with_env(configured, "TICKET_ENV", mode)
+
+    if Args.has(parsed, "sandbox") {
+      Process.with_env(moded, "TICKET_CONSOLE_SANDBOX", "1")
+    } else {
+      moded
+    }
+  }
+
+  has_repl() -> Bool / {Process} {
+    Process.output("polar", ["repl", "--help"], Process.inherit()).code == 0
+  }
+
+  has_boot(root: String) -> Bool / {Fs} {
+    match Fs.read(Path.join(root, "src/main.px")) {
+      Ok(text) -> String.contains(text, "boot()"),
+      Err(_) -> false,
+    }
+  }
+
+  database(home: String, root: String) -> Result<String, List<String>> / {Process} {
+    let output = Process.output(
+      "node",
+      [Path.join(home, "launcher/database.mjs"), root],
+      Process.inherit(),
+    )
+
+    if output.code == 0 {
+      Ok(List.filter(String.split(output.stdout, "\n"), function(line) { line != "" }))
+    } else {
+      Err(String.trim(output.stderr))
+    }
+  }
+
+exports
+  run

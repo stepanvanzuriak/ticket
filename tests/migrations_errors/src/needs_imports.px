@@ -1,0 +1,8 @@
+module NeedsImports
+
+uses
+  Std.Id
+
+migrations
+  20261001_000000 create_table users
+    name  String

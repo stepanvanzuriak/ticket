@@ -1,0 +1,6 @@
+[project]
+name = "validations_errors"
+hosts = ["Node"]
+
+[dependencies]
+ticket = { path = "../.." }

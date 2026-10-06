@@ -1,0 +1,26 @@
+module Routes
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  Admin.StatsController
+  Controllers.ArticlesController
+  Controllers.PagesController
+
+hosts
+  Node
+
+routes
+  root         -> PagesController.home
+  get  /about  -> PagesController.about  as about
+  get  /boom   -> PagesController.boom
+
+  resources articles  -> ArticlesController  only index show new create
+
+  namespace admin
+    get  /stats  -> StatsController.show  as stats
+
+exports
+  Node

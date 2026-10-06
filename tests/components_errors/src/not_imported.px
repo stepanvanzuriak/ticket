@@ -1,0 +1,12 @@
+module NotImported
+
+uses
+  Ticket.Html
+  UI
+
+views
+  page()
+    <Nope.Button name="x" />
+
+exports
+  page

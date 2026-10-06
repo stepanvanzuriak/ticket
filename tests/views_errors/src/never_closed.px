@@ -1,0 +1,16 @@
+module Unclosed
+
+uses
+  Std.List
+  Ticket.Html
+
+types
+  Post = { id: Int, title: String }
+
+views
+  card(post: Post)
+    <div>
+      x
+
+exports
+  card

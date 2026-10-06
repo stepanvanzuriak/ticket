@@ -1,0 +1,209 @@
+module Migrate
+
+uses
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Migration
+
+hosts
+  Node
+
+types
+  Applied = { version: String } derive(Json)
+
+functions
+  run(
+    migrations: List<Migration>,
+    command: String,
+    step: Int,
+    version: String,
+  ) -> Int / {Db, Clock} {
+    match command {
+      "migrate" -> finish(up(migrations, version)),
+      "rollback" -> finish(down(migrations, step)),
+      "reset" -> finish(reset(migrations)),
+      "status" -> finish(print_status(migrations)),
+      other -> {
+        Log.error("unknown migration command `#{other}`")
+        2
+      }
+    }
+  }
+
+  finish(result: Result<DbError, {}>) -> Int {
+    match result {
+      Ok(_) -> 0,
+      Err(error) -> {
+        Log.error("error: #{error.message}")
+
+        if error.sql != "" {
+          Log.error("  in: #{error.sql}")
+        } else {
+          {}
+        }
+
+        1
+      }
+    }
+  }
+
+  applied() -> Result<DbError, List<String>> / {Db} {
+    match Db.script("CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY)") {
+      Err(error) -> Err(error),
+      Ok(_) -> {
+        let rows: Result<DbError, List<Applied>> = Db.all(
+          "SELECT version FROM schema_migrations ORDER BY version",
+          [],
+        )
+
+        rows |> Result.map(function(list) { List.map(list, function(row) { row.version }) })
+      }
+    }
+  }
+
+  up(migrations: List<Migration>, version: String) -> Result<DbError, {}> / {Db, Clock} {
+    match applied() {
+      Err(error) -> Err(error),
+      Ok(done) -> if version != "" && !List.any(migrations, function(m) { m.version == version }) {
+        Err(failure("no migration has version `#{version}`"))
+      } else {
+        let pending = List.filter(
+          migrations,
+          function(m) {
+            !List.any(done, function(v) { v == m.version }) && (version == "" || m.version <= version)
+          },
+        )
+
+        apply(pending, true)
+      }
+    }
+  }
+
+  down(migrations: List<Migration>, step: Int) -> Result<DbError, {}> / {Db, Clock} {
+    match applied() {
+      Err(error) -> Err(error),
+      Ok(done) -> {
+        let ran = List.filter(
+          List.reverse(migrations),
+          function(m) { List.any(done, function(v) { v == m.version }) },
+        )
+
+        apply(take(ran, step), false)
+      }
+    }
+  }
+
+  reset(migrations: List<Migration>) -> Result<DbError, {}> / {Db, Clock} {
+    match down(migrations, List.length(migrations)) {
+      Err(error) -> Err(error),
+      Ok(_) -> up(migrations, ""),
+    }
+  }
+
+  apply(list: List<Migration>, forward: Bool) -> Result<DbError, {}> / {Db, Clock} {
+    match list {
+      [] -> Ok({}),
+      [m, ..rest] -> match apply_one(m, forward) {
+        Err(error) -> Err(error),
+        Ok(_) -> apply(rest, forward),
+      },
+    }
+  }
+
+  apply_one(m: Migration, forward: Bool) -> Result<DbError, {}> / {Db, Clock} {
+    let verb = if forward { "migrat" } else { "revert" }
+    let statements = if forward { Migration.up_sql(m) } else { Migration.down_sql(m) }
+
+    Log.info("== #{m.version} #{m.name}: #{verb}ing")
+
+    let start = Time.millis(Clock.now())
+    let result = Db.transaction(
+      function() {
+        match statements_in(statements) {
+          Err(error) -> Err(error),
+          Ok(_) -> record(m.version, forward),
+        }
+      },
+    )
+
+    match result {
+      Err(error) -> Err(error),
+      Ok(_) -> {
+        Log.info("== #{m.version} #{m.name}: #{verb}ed (#{Time.millis(Clock.now()) - start}ms)")
+        Ok({})
+      }
+    }
+  }
+
+  statements_in(statements: List<String>) -> Result<DbError, {}> / {Db} {
+    match statements {
+      [] -> Ok({}),
+      [statement, ..rest] -> match Db.script(statement) {
+        Err(error) -> Err(error),
+        Ok(_) -> statements_in(rest),
+      },
+    }
+  }
+
+  record(version: String, forward: Bool) -> Result<DbError, {}> / {Db} {
+    let sql = if forward {
+      "INSERT INTO schema_migrations (version) VALUES (?)"
+    } else {
+      "DELETE FROM schema_migrations WHERE version = ?"
+    }
+
+    Db.exec(sql, [SqlText(version)]) |> Result.map(function(_) { {} })
+  }
+
+  print_status(migrations: List<Migration>) -> Result<DbError, {}> / {Db} {
+    match applied() {
+      Err(error) -> Err(error),
+      Ok(done) -> {
+        Log.info(" Status   Migration ID     Migration Name")
+        Log.info("--------------------------------------------------")
+
+        List.fold(
+          migrations,
+          {},
+          function(_, m) {
+            let ran = List.any(done, function(v) { v == m.version })
+
+            Log.info("#{if ran { "   up  " } else { "  down " }}   #{m.version}  #{m.name}")
+          },
+        )
+        List.fold(
+          done,
+          {},
+          function(_, version) {
+            if !List.any(migrations, function(m) { m.version == version }) {
+              Log.info("   up     #{version}  ********** NO FILE **********")
+            } else {
+              {}
+            }
+          },
+        )
+        Ok({})
+      }
+    }
+  }
+
+  take(list: List<a>, n: Int) -> List<a> {
+    match list {
+      [] -> [],
+      [x, ..rest] -> if n <= 0 { [] } else { [x, ..take(rest, n - 1)] },
+    }
+  }
+
+  failure(message: String) -> DbError {
+    { kind: "other", code: "", message: message, sql: "" }
+  }
+
+exports
+  run
+  up
+  down
+  applied

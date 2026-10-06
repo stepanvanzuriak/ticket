@@ -1,0 +1,32 @@
+1 first_gets_cookie: 1 cookie
+1 round_trip: true tok-A
+1 put_then_get: 200 ann (set 1 cookie)
+2 tampered_payload: 200 nobody
+2 bad_signature: 200 nobody
+2 not_base64url: 200 nobody
+2 no_dot: 200 nobody
+2 other_secret: 200 nobody
+3 expired: 200 nobody
+3 not_yet_expired: 200 ann
+4 attributes: _ticket_session=…; Path=/; Max-Age=1209600; HttpOnly; SameSite=Lax
+5 secure_in_production: _ticket_session=…; Path=/; Max-Age=1209600; HttpOnly; SameSite=Lax; Secure
+6 two_cookies: 2 then 1
+7 flash_next_request: 200 Saved., then 200 none
+9 flash_cleared_by_render: 1 cookie on the displaying response, then 0
+10 flash_same_request: 200 none
+1 no_change_no_cookie: 0 cookies
+11 csrf_get_passes: 200 touched
+12 csrf_field_passes: 200 touched
+13 csrf_header_passes: 200 touched
+13 csrf_override_passes: 200 touched
+14 csrf_missing: 403 Invalid authenticity token
+15 csrf_wrong: 403 Invalid authenticity token
+16 csrf_no_session: 403 Invalid authenticity token
+16 csrf_unprotected: 200 touched
+17 csrf_stable: true
+18 csrf_differs: true
+19 form_field: <input type="hidden" name="authenticity_token" value="abc&quot;&lt;">
+19 meta: <meta name="csrf-token" content="abc&quot;&lt;">
+19 button_field: <form method="post" action="/p/1"><input type="hidden" name="_method" value="delete"><input type="hidden" name="authenticity_token" value="abc&quot;&lt;"><button type="submit">Delete</button></form>
+19 get_form_has_none: <form method="get" action="/"></form>
+20 too_big: 500 the session cookie is 6933 bytes, over the 4000 byte limit

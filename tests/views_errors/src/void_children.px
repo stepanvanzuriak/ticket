@@ -1,0 +1,15 @@
+module VoidKids
+
+uses
+  Std.List
+  Ticket.Html
+
+types
+  Post = { id: Int, title: String }
+
+views
+  card(post: Post)
+    <br>x</br>
+
+exports
+  card

@@ -1,0 +1,75 @@
+module Main
+
+uses
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Time
+  Ticket.Console
+  Ticket.Db
+  Ticket.Migrate
+  Routes
+  Schema
+
+hosts
+  Node
+
+constants
+  route_table: List<{
+    method: String,
+    path: String,
+    action: String,
+    name: String,
+  }> = Routes.route_table
+
+functions
+  migrate(command: String, step: Int, version: String) -> Int / {Db, Clock} {
+    Migrate.run(Schema.migrations, command, step, version)
+  }
+
+  seed() -> {} / {Users, Posts, Comments, Db, Throws<DbFailure>} {
+    let ann = Users.insert({ name: "Ann", email: "ann@example.com" })
+    let bob = Users.insert({ name: "Bob", email: "bob@example.com" })
+    let first = Posts.insert(
+      {
+        title: "Hello, Ticket",
+        body: "The first post.",
+        published: true,
+        author_id: ann.id,
+      },
+    )
+    let second = Posts.insert(
+      {
+        title: "Forms and flash",
+        body: "Helpers for forms.",
+        published: true,
+        author_id: bob.id,
+      },
+    )
+    let _ = Posts.insert(
+      { title: "A draft", body: "Not done yet.", published: false, author_id: ann.id },
+    )
+    let _ = Comments.insert({ body: "Nice start.", post_id: first.id })
+    let _ = Comments.insert({ body: "Looking forward to more.", post_id: first.id })
+    let _ = Comments.insert({ body: "Thanks for the helpers.", post_id: second.id })
+
+    {}
+  }
+
+  boot() -> {} / {Db, Process} {
+    Console.boot(Schema.migrations)
+  }
+
+  router(request: Request) {
+    Routes.router(request)
+  }
+
+exports
+  Node
+  boot
+  migrate
+  route_table
+  router
+  seed

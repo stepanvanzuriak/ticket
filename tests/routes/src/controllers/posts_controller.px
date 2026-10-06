@@ -1,0 +1,54 @@
+module PostsController
+
+uses
+  Std.Http
+  Ticket.Conn
+  Stub
+
+functions
+  index(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#index")
+  }
+
+  new(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#new")
+  }
+
+  create(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#create")
+  }
+
+  show(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#show")
+  }
+
+  edit(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#edit")
+  }
+
+  update(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#update")
+  }
+
+  destroy(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#destroy")
+  }
+
+  publish(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#publish")
+  }
+
+  drafts(conn: Conn) -> Response {
+    Stub.reply(conn, "PostsController#drafts")
+  }
+
+exports
+  create
+  destroy
+  drafts
+  edit
+  index
+  new
+  publish
+  show
+  update

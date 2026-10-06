@@ -1,0 +1,179 @@
+error[POLAR0901]: the range `9..3` is empty
+  --> src/empty_range.px:13:10
+   |
+13 |   title  length 9..3
+   |          ^^^^^^
+
+error[POLAR0901]: `format` takes a plain pattern, not an interpolation
+  --> src/format_interpolation.px:13:17
+   |
+13 |   title  format "a#{1}"
+   |                 ^
+
+error[POLAR0901]: `format` takes a regular expression
+  --> src/format_without_pattern.px:13:10
+   |
+13 |   title  format
+   |          ^^^^^^
+   |
+   = help: write `format "^[a-z0-9-]+$"`
+
+error[POLAR0901]: `inclusion` takes plain values, not interpolations
+  --> src/inclusion_interpolation.px:13:20
+   |
+13 |   title  inclusion "a#{1}"
+   |                    ^
+
+error[POLAR0901]: `inclusion` needs the values it allows
+  --> src/inclusion_without_values.px:13:10
+   |
+13 |   title  inclusion
+   |          ^^^^^^^^^
+   |
+   = help: write `inclusion "draft" "live"`
+
+error[POLAR0501]: mismatched types
+  --> src/inclusion_wrong_type.px:13:9
+   |
+13 |   name  inclusion 1 2
+   |         ^^^^^^^^^ expected `List<String>`, found `List<Int>`
+   |
+   = note: argument 1 of `List` differs: expected `String`, found `Int`
+
+error[POLAR0707]: `Int` has no `Sized` impl
+  --> src/length_on_int.px:13:10
+   |
+13 |   likes  length 1..5
+   |          ^^^^^^ this needs `Sized`
+   |
+   = note: required by `Validations.length_between`, which says `where Sized<a>`
+
+error[POLAR0901]: `length` takes a range
+  --> src/length_without_bounds.px:13:10
+   |
+13 |   title  length ..
+   |          ^^^^^^
+   |
+   = help: a length is `3..120`, `3..` or `..120`
+
+error[POLAR0901]: `length` takes a range
+  --> src/length_without_range.px:13:10
+   |
+13 |   title  length 5
+   |          ^^^^^^
+   |
+   = help: a length is `3..120`, `3..` or `..120`
+
+error[POLAR0502]: missing field `titel`
+  --> src/misspelled_field.px:13:3
+   |
+13 |   titel  presence
+   |   ^^^^^ the type `{ title: String, views: Int }` has no field `titel`
+   |
+   = help: did you mean `title`?
+
+error[POLAR0708]: cannot tell which type this is
+  --> src/misspelled_field.px:13:10
+   |
+13 |   titel  presence
+   |          ^^^^^^^^ the type of this is unknown, and it must have `Blank`
+   |
+   = help: add a type annotation, like `let x: Post = …`
+
+error[POLAR0305]: `Schema` exports no function `note_txt`
+  --> src/misspelled_uniqueness_field.px:13:8
+   |
+13 |   txt  uniqueness
+   |        ^^^^^^^^^^
+   |
+   = help: available: `migrations`, `post_id`, `post_title`, `post_views`, `comment_id`, `comment_body`, `comment_likes`, `tag_id`, `tag_name`, `note_id`, `note_text`
+
+error[POLAR0901]: the `validations` zone needs `Std.Result`
+ --> src/needs_imports.px:6:1
+  |
+6 | validations
+  | ^^^^^^^^^^^
+  |
+  = help: add `Std.Result` to the `uses` zone
+
+error[POLAR0901]: the `validations` zone needs `Ticket.Errors`
+ --> src/needs_imports.px:6:1
+  |
+6 | validations
+  | ^^^^^^^^^^^
+  |
+  = help: add `Ticket.Errors` to the `uses` zone
+
+error[POLAR0901]: the `validations` zone needs `Ticket.Validations`
+ --> src/needs_imports.px:6:1
+  |
+6 | validations
+  | ^^^^^^^^^^^
+  |
+  = help: add `Ticket.Validations` to the `uses` zone
+
+error[POLAR0901]: the `validations` zone needs `Schema`
+ --> src/needs_imports.px:6:1
+  |
+6 | validations
+  | ^^^^^^^^^^^
+  |
+  = help: add `Schema` to the `uses` zone
+
+error[POLAR0901]: the `validations` zone needs `Ticket.Db`
+ --> src/needs_imports.px:6:1
+  |
+6 | validations
+  | ^^^^^^^^^^^
+  |
+  = help: add `Ticket.Db` to the `uses` zone
+
+error[POLAR0901]: the `validations` zone needs `Ticket.Query`
+ --> src/needs_imports.px:6:1
+  |
+6 | validations
+  | ^^^^^^^^^^^
+  |
+  = help: add `Ticket.Query` to the `uses` zone
+
+error[POLAR0901]: `title` has no rules
+  --> src/no_rules.px:13:3
+   |
+13 |   title
+   |   ^^^^^
+   |
+   = help: the rules are `presence`, `length`, `format`, `inclusion` and `uniqueness`
+
+error[POLAR0901]: a validation starts with a field name
+  --> src/not_a_field.px:13:3
+   |
+13 |   Title  presence
+   |   ^^^^^
+   |
+   = help: write `title  presence  length 3..120`
+
+error[POLAR0901]: `presnce` is not a validation rule
+  --> src/two_mistakes.px:13:10
+   |
+13 |   title  presnce  length 5  presence
+   |          ^^^^^^^
+   |
+   = help: the rules are `presence`, `length`, `format`, `inclusion` and `uniqueness`
+
+error[POLAR0901]: `length` takes a range
+  --> src/two_mistakes.px:13:29
+   |
+13 |   title  presnce  length 5  presence
+   |                             ^^^^^^^^
+   |
+   = help: a length is `3..120`, `3..` or `..120`
+
+error[POLAR0901]: `presnce` is not a validation rule
+  --> src/unknown_rule.px:13:10
+   |
+13 |   title  presnce
+   |          ^^^^^^^
+   |
+   = help: the rules are `presence`, `length`, `format`, `inclusion` and `uniqueness`
+
+error: aborting due to 23 errors

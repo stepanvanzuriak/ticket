@@ -1,0 +1,11 @@
+1 console_e: exit=0 console: sqlite ~/app/db/console.sqlite3 | Int = 0
+2 console_announces: console: sqlite ~/app/db/console.sqlite3
+3 console_sandbox: exit=0 console: sqlite :memory: (sandbox: migrations applied, nothing persists)
+3 console_sandbox_left_db_alone: exit=0 Int = 0
+3 console_sandbox_starts_empty: exit=0 Int = 0
+4 console_models: exit=0 Int = 1
+5 console_piped: exit=0 Int = 0 | n: Int = 2 | Int = 42
+5 console_error_exit: exit=1
+6 console_no_repl: exit=2 error: `ticket console` needs a `polar` that has `repl`: update polar-lang
+7 console_needs_boot: exit=1 error: src/main.px has no `boot`. Add it, next to `migrate`:
+7 console_needs_app: exit=1

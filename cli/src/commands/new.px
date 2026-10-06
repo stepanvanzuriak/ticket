@@ -1,0 +1,160 @@
+module New
+
+uses
+  Std.Fs
+  Std.List
+  Std.Path
+  Std.Process
+  Std.Result
+  Args
+  Ticket.Inflect
+
+hosts
+  Node
+
+types
+  Substitution = { placeholder: String, value: String }
+
+functions
+  run(parsed: Parsed, home: String) -> Int / {Process, Fs} {
+    match parsed.positional {
+      [name] -> if valid(name) {
+        create(name, Path.join(Process.cwd(), name), home, Args.has(parsed, "skip-build"))
+      } else {
+        usage("`#{name}` isn't a valid app name: use snake_case, like `my_app`")
+      },
+      [] -> usage("`ticket new` needs an app name, like `ticket new my_app`"),
+      _ -> usage("`ticket new` takes one app name"),
+    }
+  }
+
+  create(name: String, target: String, home: String, skip_build: Bool) -> Int / {
+    Process,
+    Fs,
+  } {
+    if occupied(target) {
+      Log.error("error: `#{name}` already exists and isn't empty")
+      1
+    } else {
+      let templates = Path.join(home, "cli/templates/new")
+      let substitutions = [
+        { placeholder: "{{app}}", value: name },
+        { placeholder: "{{App}}", value: Inflect.pascal(name) },
+        { placeholder: "{{ticket_path}}", value: ticket_path(target, home) },
+      ]
+      let written = Result.and_then(
+        Fs.walk(templates),
+        function(files) { copy_all(files, templates, target, substitutions) },
+      )
+
+      match written {
+        Err(error) -> {
+          Log.error("error: #{error.message}")
+          1
+        }
+        Ok(_) -> if skip_build {
+          next_steps(name)
+        } else {
+          let code = Process.run(
+            "polar",
+            ["build"],
+            Process.in_dir(Process.inherit(), target),
+          )
+
+          if code == 0 { next_steps(name) } else { code }
+        },
+      }
+    }
+  }
+
+  copy_all(
+    files: List<String>,
+    from: String,
+    to: String,
+    substitutions: List<Substitution>,
+  ) -> Result<FsError, {}> / {Fs} {
+    match files {
+      [] -> Ok({}),
+      [file, ..rest] -> {
+        let target = Path.join(to, file)
+        let copied = Fs.read(Path.join(from, file))
+          |> Result.and_then(
+            function(text) {
+              Fs.mkdir_all(Path.dirname(target))
+                |> Result.and_then(
+                  function(_) { Fs.write(target, substitute(text, substitutions)) },
+                )
+            },
+          )
+
+        match copied {
+          Ok(_) -> {
+            Log.info("      create  #{file}")
+            copy_all(rest, from, to, substitutions)
+          }
+          Err(error) -> Err(error),
+        }
+      }
+    }
+  }
+
+  substitute(text: String, substitutions: List<Substitution>) -> String {
+    List.fold(
+      substitutions,
+      text,
+      function(out, s) { String.replace(out, s.placeholder, s.value) },
+    )
+  }
+
+  ticket_path(target: String, home: String) -> String {
+    let parent = Path.dirname(home)
+
+    if parent != "/" && String.starts_with(target, "#{parent}/") {
+      Path.relative(target, home)
+    } else {
+      home
+    }
+  }
+
+  occupied(target: String) -> Bool / {Fs} {
+    if Fs.is_dir(target) {
+      match Fs.list(target) {
+        Ok(entries) -> !List.is_empty(entries),
+        Err(_) -> true,
+      }
+    } else {
+      Fs.exists(target)
+    }
+  }
+
+  valid(name: String) -> Bool {
+    match String.split(name, "") {
+      [] -> false,
+      [first, ..rest] -> lower(first)
+        && List.all(rest, function(c) { lower(c) || digit(c) || c == "_" }),
+    }
+  }
+
+  lower(c: String) -> Bool {
+    c >= "a" && c <= "z" && String.length(c) == 1
+  }
+
+  digit(c: String) -> Bool {
+    c >= "0" && c <= "9" && String.length(c) == 1
+  }
+
+  next_steps(name: String) -> Int {
+    Log.info("")
+    Log.info("Created #{name}. Next:")
+    Log.info("  cd #{name}")
+    Log.info("  ticket server")
+    0
+  }
+
+  usage(message: String) -> Int {
+    Log.error("error: #{message}")
+    2
+  }
+
+exports
+  run

@@ -1,0 +1,18 @@
+module MissingArg
+
+uses
+  Std.List
+  Ticket.Html
+
+types
+  Post = { id: Int, title: String }
+
+views
+  frame(title: String)
+    <h1>{title}</h1>
+
+  card(post: Post)
+    <Frame />
+
+exports
+  card

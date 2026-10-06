@@ -1,0 +1,21 @@
+module TimestampsAddColumn
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+migrations
+  20261001_000000 create_table users
+    name  String
+
+  20261002_000000 add_column users
+    timestamps

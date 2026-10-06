@@ -1,0 +1,14 @@
+module IsNullNotOption
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Ticket.Db
+  Ticket.Query
+  Schema
+
+functions
+  no_title() -> Filter<Post> {
+    Query.is_null(Schema.post_title)
+  }

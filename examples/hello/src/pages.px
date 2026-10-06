@@ -1,0 +1,11 @@
+module Pages
+
+uses
+  Ticket.Html
+
+views
+  home(name: String)
+    <h1>Hello from {name}</h1>
+
+exports
+  home

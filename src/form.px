@@ -1,0 +1,127 @@
+module Form
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Errors
+
+traits
+  Form<a> {
+    from_form(fields: Map<String, String>) -> Result<Errors, a>
+  }
+
+functions
+  required(fields: Map<String, String>, key: String, parse: function(String) -> Result<String, a>) -> Result<String, a> {
+    parse(Option.with_default(Map.get(fields, key), ""))
+  }
+
+  optional(fields: Map<String, String>, key: String, parse: function(String) -> Result<String, a>) -> Result<String, Option<a>> {
+    let text = Option.with_default(Map.get(fields, key), "")
+
+    if String.trim(text) == "" {
+      Ok(None)
+    } else {
+      Result.map(parse(text), Some)
+    }
+  }
+
+  text(value: String) -> Result<String, String> {
+    Ok(value)
+  }
+
+  int(value: String) -> Result<String, Int> {
+    match number(value) {
+      Err(message) -> Err(message),
+      Ok(text) -> match Int.parse(text) {
+        Some(n) -> Ok(n),
+        None -> Err("is not a whole number"),
+      },
+    }
+  }
+
+  float(value: String) -> Result<String, Float> {
+    match number(value) {
+      Err(message) -> Err(message),
+      Ok(text) -> {
+        let decoded: Result<JsonError, Float> = Json.decode(text)
+
+        match decoded {
+          Ok(n) -> Ok(n),
+          Err(_) -> Err("is not a number"),
+        }
+      },
+    }
+  }
+
+  bool(value: String) -> Result<String, Bool> {
+    let text = String.lowercase(String.trim(value))
+
+    if text == "true" || text == "on" || text == "1" {
+      Ok(true)
+    } else if text == "" || text == "false" || text == "off" || text == "0" {
+      Ok(false)
+    } else {
+      Err("must be true or false")
+    }
+  }
+
+  id(value: String) -> Result<String, Id<r>> {
+    match number(value) {
+      Err(message) -> Err(message),
+      Ok(text) -> match Int.parse(text) {
+        Some(n) -> Ok(Id(n)),
+        None -> Err("is not a valid id"),
+      },
+    }
+  }
+
+  time(value: String) -> Result<String, Time> {
+    match Time.from_iso(String.trim(value)) {
+      Some(t) -> Ok(t),
+      None -> Err("is not a valid time"),
+    }
+  }
+
+  number(value: String) -> Result<String, String> {
+    let text = String.trim(value)
+
+    if text == "" {
+      Err("can't be blank")
+    } else {
+      Ok(text)
+    }
+  }
+
+  failure(field: String, result: Result<String, a>) -> Option<FieldError> {
+    match result {
+      Err(message) -> Some({ field: field, message: message }),
+      Ok(_) -> None,
+    }
+  }
+
+  errors(failures: List<Option<FieldError>>) -> Errors {
+    Errors.of(List.concat_map(failures, function(failure) {
+      match failure {
+        Some(error) -> [error],
+        None -> [],
+      }
+    }))
+  }
+
+exports
+  Form { from_form }
+  required
+  optional
+  text
+  int
+  float
+  bool
+  id
+  time
+  failure
+  errors

@@ -1,0 +1,53 @@
+
+module Ported
+
+uses
+  Std.List
+  Ticket.Html
+
+types
+  Post = { id: Int, title: String }
+
+views
+  card(post: Post)
+    <article class="post" data-id={post.id}>
+      <h2>{post.title}</h2>
+    </article>
+
+  spaces(post: Post)
+    <p>
+      Written by {post.title} today,
+      not yesterday
+    </p>
+
+  characters()
+    <p>Don't; 50% off? Q&amp;A @me $5 — “ok”</p>
+
+  comment()
+    <p>kept
+    </p>
+
+  void()
+    <div>
+      <br />
+      <span />
+    </div>
+
+  frame(title: String, children: Html)
+    <section>
+      <h1>{title}</h1>
+      {children}
+    </section>
+
+  framed(post: Post)
+    <Frame title={post.title}>
+      <p>body</p>
+    </Frame>
+
+exports
+  card
+  characters
+  comment
+  framed
+  spaces
+  void

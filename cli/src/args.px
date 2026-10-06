@@ -1,0 +1,137 @@
+module Args
+
+uses
+  Std.List
+  Std.Option
+  Std.Result
+
+types
+  Flag = { name: String, value: Option<String> } derive(Show)
+
+  Parsed = { command: String, positional: List<String>, flags: List<Flag> } derive(Show)
+
+  ArgError = UnknownFlag(String) | MissingValue(String) derive(Show)
+
+constants
+  value_flags: List<String> = ["port", "step", "version", "eval"]
+
+  boolean_flags: List<String> = [
+    "help",
+    "skip-build",
+    "force",
+    "skip",
+    "pretend",
+    "validations",
+    "sandbox",
+  ]
+
+functions
+  parse(args: List<String>) -> Result<ArgError, Parsed> {
+    Result.map(
+      collect(args, { command: "", positional: [], flags: [] }),
+      function(parsed) {
+        match parsed.positional {
+          [] -> parsed,
+          [command, ..rest] -> { ..parsed, command: alias(command), positional: rest },
+        }
+      },
+    )
+  }
+
+  flag(parsed: Parsed, name: String) -> Option<String> {
+    List.fold(
+      parsed.flags,
+      None,
+      function(found, f) {
+        if f.name == name && f.value != None { f.value } else { found }
+      },
+    )
+  }
+
+  has(parsed: Parsed, name: String) -> Bool {
+    List.any(parsed.flags, function(f) { f.name == name })
+  }
+
+  alias(command: String) -> String {
+    match command {
+      "s" -> "server",
+      "g" -> "generate",
+      "c" -> "console",
+      other -> other,
+    }
+  }
+
+  long(name: String) -> String {
+    match name {
+      "p" -> "port",
+      "e" -> "eval",
+      "h" -> "help",
+      other -> other,
+    }
+  }
+
+  collect(args: List<String>, parsed: Parsed) -> Result<ArgError, Parsed> {
+    match args {
+      [] -> Ok(
+        {
+          ..parsed,
+          positional: List.reverse(parsed.positional),
+          flags: List.reverse(parsed.flags),
+        },
+      ),
+      ["--", ..rest] -> Ok(
+        {
+          ..parsed,
+          positional: List.append(List.reverse(parsed.positional), rest),
+          flags: List.reverse(parsed.flags),
+        },
+      ),
+      [arg, ..rest] -> match flag_name(arg) {
+        None -> collect(rest, { ..parsed, positional: [arg, ..parsed.positional] }),
+        Some(name) -> match String.split(name, "=") {
+          [key, ..value] -> if List.is_empty(value) {
+            given(long(key), rest, parsed)
+          } else {
+            collect(rest, with_flag(parsed, long(key), Some(List.join(value, "="))))
+          },
+          [] -> Err(UnknownFlag(arg)),
+        },
+      },
+    }
+  }
+
+  flag_name(arg: String) -> Option<String> {
+    if String.starts_with(arg, "--") && String.length(arg) > 2 {
+      Some(String.slice(arg, 2, String.length(arg)))
+    } else if String.starts_with(arg, "-") && String.length(arg) > 1 {
+      Some(String.slice(arg, 1, String.length(arg)))
+    } else {
+      None
+    }
+  }
+
+  given(name: String, rest: List<String>, parsed: Parsed) -> Result<ArgError, Parsed> {
+    if List.any(value_flags, function(f) { f == name }) {
+      match rest {
+        [value, ..after] -> if flag_name(value) == None {
+          collect(after, with_flag(parsed, name, Some(value)))
+        } else {
+          Err(MissingValue(name))
+        },
+        [] -> Err(MissingValue(name)),
+      }
+    } else if List.any(boolean_flags, function(f) { f == name }) {
+      collect(rest, with_flag(parsed, name, None))
+    } else {
+      Err(UnknownFlag(name))
+    }
+  }
+
+  with_flag(parsed: Parsed, name: String, value: Option<String>) -> Parsed {
+    { ..parsed, flags: [{ name: name, value: value }, ..parsed.flags] }
+  }
+
+exports
+  flag
+  has
+  parse

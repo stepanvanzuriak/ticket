@@ -1,0 +1,74 @@
+error[POLAR0502]: missing field `name`
+ --> src/cross_module_missing_prop.px:9:5
+  |
+9 |     <UI.Button />
+  |     ^^^^^^^^^^ this record has no field `name`
+
+error[POLAR0501]: mismatched types
+ --> src/cross_module_wrong_type.px:9:5
+  |
+9 |     <UI.Button name={1} />
+  |     ^^^^^^^^^^ expected `{ name: String }`, found `{ name: Int }`
+  |
+  = note: field `name` differs: expected `String`, found `Int`
+
+error[POLAR0901]: `data-x` can't be a prop
+ --> src/dashed_prop.px:9:16
+  |
+9 |     <UI.Button data-x="1" name="x" />
+  |                ^^^^^^
+  |
+  = help: a prop is one of the component's parameters, like `label={…}`
+
+error[POLAR0901]: `<Chip>` has children, but `chip` takes none
+  --> src/local_children_for_none.px:12:5
+   |
+12 |     <Chip text="x">y</Chip>
+   |     ^^^^^
+   |
+   = help: give `Chip` a `children: Html` parameter, or write `<Chip />`
+
+error[POLAR0901]: `<Chip>` needs `text`
+  --> src/local_missing_prop.px:12:5
+   |
+12 |     <Chip />
+   |     ^^^^^
+   |
+   = help: pass it like `text={…}`
+
+error[POLAR0503]: unexpected field `size`
+  --> src/local_unknown_prop.px:13:5
+   |
+ 8 |   Chip(text: String)
+   |   ---- expected because of this
+...
+13 |     <Chip text="x" size={1} />
+   |     ^^^^^ the type `{ text: String }` has no field `size`
+   |
+   = note: this record type is closed; write `| rest` in the annotation to accept extra fields
+
+error[POLAR0901]: a component starts with its name, in PascalCase
+ --> src/lowercase_name.px:8:3
+  |
+8 |   chip(text: String)
+  |   ^^^^
+  |
+  = help: write a component like `Button(label: String)`, with its markup on the lines below
+
+error[POLAR0901]: the `view_component` zone needs `Ticket.Html`
+ --> src/needs_ticket_html.px:3:1
+  |
+3 | view_component
+  | ^^^^^^^^^^^^^^
+  |
+  = help: add `Ticket.Html` to the `uses` zone
+
+error[POLAR0901]: `<Nope.Button>` needs the module `Nope`, which isn't imported
+ --> src/not_imported.px:9:5
+  |
+9 |     <Nope.Button name="x" />
+  |     ^^^^^^^^^^^^
+  |
+  = help: add `Nope` to the `uses` zone
+
+error: aborting due to 9 errors

@@ -1,0 +1,32 @@
+
+module Article
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Table
+
+types
+  Article = { id: Id<Article>, title: String }
+
+constants
+  store: Table<Article> = Table.new()
+
+functions
+  all() -> List<Article> / {Mut} {
+    Table.all(store)
+  }
+
+  find(id: Id<Article>) -> Option<Article> / {Mut} {
+    Table.find(store, Id.value(id))
+  }
+
+  create(title: String) -> Article / {Mut} {
+    Table.insert(store, function(n) { { id: Id(n), title: title } })
+  }
+
+exports
+  all
+  create
+  find

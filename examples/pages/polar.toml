@@ -1,0 +1,11 @@
+[project]
+name = "pages"
+hosts = ["Node"]
+main = "src/routes.px"
+
+[dependencies]
+ticket = { path = "../.." }
+
+[run]
+launcher = "ticket"
+options = { port = 3000, env = "development" }

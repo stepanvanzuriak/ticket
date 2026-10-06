@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filters and Halting – Ticket</title>
+<meta name="description" content="Before-filters as plain functions, and Halt for answering early from deep inside an action.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="filters-and-halting">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Filters and Halting</h1>
+      <p class="lead">Filters are Rails' before_action, written as plain functions. Halt answers a request early from anywhere under an action.</p>
+      <h2 id="filters">Filters</h2>
+      <p>A filter is a function <code>Conn -> Result&lt;Response, Conn&gt;</code>. <code>Ok(conn)</code> lets the request through, with a possibly changed conn. <code>Err(response)</code> stops it and sends that response.</p>
+      <p><code>Action.before(filters, action)</code> returns a new action that runs the filters in order, then the action. The first <code>Err</code> wins, and nothing after it runs.</p>
+      <pre class="code" data-lang="polar"><code>module StatsController
+
+uses
+  Std.Http
+  Std.List
+  Std.Option
+  Std.Result
+  Layout
+  Models.Article
+  Ticket.Action
+  Ticket.Conn
+  Ticket.Params
+  Ticket.Response
+  Views.Admin
+
+functions
+  show(conn: Conn) -&gt; Response / {Mut} {
+    Action.before([require_token], stats)(conn)
+  }
+
+  stats(conn: Conn) -&gt; Response / {Mut} {
+    Response.render(Layout.app("Stats", Admin.stats(List.length(Article.all()))))
+  }
+
+  /// Halts with 401 unless `?token=secret`.
+  require_token(conn: Conn) -&gt; Result&lt;Response, Conn&gt; {
+    if Params.string(conn, "token") == Some("secret") {
+      Ok(conn)
+    } else {
+      Err(Response.text(401, "unauthorized"))
+    }
+  }
+
+exports
+  show</code></pre>
+      <pre class="code out"><code>GET /admin/stats              -&gt; 401 "unauthorized"
+GET /admin/stats?token=secret -&gt; 200 &lt;dl&gt;&lt;dt&gt;Articles&lt;/dt&gt;&lt;dd&gt;1&lt;/dd&gt;&lt;/dl&gt;</code></pre>
+      <p>Filters and the action can use effects, and <code>before</code> keeps them in its result.</p>
+      <div class="callout"><p><span class="label">Note:</span> <code>Action.Filter</code> names the pure filter type. A value annotated <code>Filter</code> can't go in a list with effectful filters, so pass filters by name instead. This goes away once Polar supports effect rows in type aliases.</p></div>
+      <h2 id="halt">Halting</h2>
+      <p>Sometimes the reason to stop is deep in a helper, like a record that doesn't exist. <code>throw Halt(response)</code> from <code>Ticket.Error</code> answers with <code>response</code>, however deep the call. The router catches it.</p>
+      <pre class="code" data-lang="polar"><code>/// The article `:id` names, or a 404 from wherever this is called.
+find_or_halt(conn: Conn) -&gt; Article / {Mut, Throws&lt;Halt&gt;} {
+  match Option.and_then(Params.id(conn, "id"), Article.find) {
+    Some(article) -&gt; article,
+    None -&gt; throw Halt(Response.not_found()),
+  }
+}</code></pre>
+      <p>The <code>Throws&lt;Halt&gt;</code> in the signature is how you know a function might end the request.</p>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

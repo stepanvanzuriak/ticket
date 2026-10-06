@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generators – Ticket</title>
+<meta name="description" content="ticket g scaffold, g controller and ticket destroy.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="generators">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Generators</h1>
+      <p class="lead">A scaffold writes the migration, model, controller, views, test and route for a resource, and the result runs.</p>
+      <pre class="code" data-lang="polar"><code>$ ticket g scaffold Post title:String body:String? published:Bool:default=false
+      create  src/schema.px  20261006_101500 create_table posts
+      create  src/models/post.px
+      create  src/controllers/posts_controller.px
+      create  src/views/post_views.px
+      create  src/controllers/posts_controller_test.px
+      append  src/routes.px  resources posts -&gt; PostsController</code></pre>
+      <p>The generated code is ordinary code that uses the public API (<code>Posts</code>, <code>Params.record</code>, <code>Post.validate</code>, <code>Forms</code>, <code>Flash</code>), so you can edit it. The model gets <code>presence</code> for each required <code>String</code> and <code>uniqueness</code> for each <code>unique</code> column. Fields map to components: <code>String</code> to <code>TextField</code> (<code>TextArea</code> for <code>body</code>, <code>description</code>, <code>content</code>), <code>Int</code>, <code>Float</code> and ids to <code>NumberField</code>, <code>Bool</code> to <code>Checkbox</code>.</p>
+      <div class="table-wrap"><table><thead><tr><th>Command</th><th>What</th></tr></thead><tbody><tr><td><code>ticket g scaffold &lt;Name&gt; [f:T…]</code></td><td>the files above</td></tr><tr><td><code>ticket g controller &lt;Names&gt; &lt;action…&gt;</code></td><td>a controller, a stub view per action and a <code>get</code> route each</td></tr><tr><td><code>ticket g model &lt;Name&gt; [f:T…] --validations</code></td><td>a model with a <code>validations</code> zone</td></tr><tr><td><code>ticket destroy scaffold|model|controller &lt;Name&gt;</code></td><td>removes the files and route lines. The migration stays, and a file you edited needs <code>--force</code></td></tr></tbody></table></div>
+      <p>If a target file exists and differs, nothing is written and the files are listed. <code>--force</code> overwrites, <code>--skip</code> keeps them and writes the rest, and <code>--pretend</code> prints the plan and writes nothing.</p>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

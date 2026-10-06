@@ -1,0 +1,149 @@
+
+module HelpersTest
+
+uses
+  Std.Assert
+  Std.Http
+  Std.List
+  Std.Map
+  Std.Option
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Forms
+  Ticket.Html
+  Ticket.Links
+  Ticket.Params
+  Ticket.Form
+  Pages
+
+functions
+  conn() -> Conn {
+    Conn.from_request({ method: "GET", path: "/", query: "", headers: [], body: "" })
+  }
+
+  form(body: String) -> Conn {
+    Conn.from_request(
+      {
+        method: "POST",
+        path: "/",
+        query: "",
+        headers: [{ name: "Content-Type", value: "application/x-www-form-urlencoded" }],
+        body: body,
+      },
+    )
+  }
+
+  blank() -> Errors {
+    Errors.add(Errors.empty(), "title", "can't be blank")
+  }
+
+  test_text_field() {
+    Assert.equal(Html.to_string(Pages.title("Hi", Errors.empty())), "<div class=\"field\"><label for=\"post_title\">Title</label><input type=\"text\" id=\"post_title\" name=\"post[title]\" value=\"Hi\"></div>")
+  }
+
+  test_text_field_errors() {
+    Assert.equal(Html.to_string(Pages.title("", blank())), "<div class=\"field field_with_errors\"><label for=\"post_title\">Title</label><input type=\"text\" id=\"post_title\" name=\"post[title]\" value=\"\"><span class=\"error\">can&#39;t be blank</span></div>")
+  }
+
+  test_escaping() {
+    Assert.equal(Html.to_string(Pages.title("<script>\"&'", Errors.add(Errors.empty(), "title", "<b>\"&'"))), "<div class=\"field field_with_errors\"><label for=\"post_title\">Title</label><input type=\"text\" id=\"post_title\" name=\"post[title]\" value=\"&lt;script&gt;&quot;&amp;&#39;\"><span class=\"error\">&lt;b&gt;&quot;&amp;&#39;</span></div>")
+  }
+
+  test_escaping_path() {
+    Assert.equal(Html.to_string(Links.link_to({ text: "<i>", path: "/a?b=\"c\"&d='e'" })), "<a href=\"/a?b=&quot;c&quot;&amp;d=&#39;e&#39;\">&lt;i&gt;</a>")
+  }
+
+  test_form_post() {
+    Assert.equal(Html.to_string(Pages.method_form(conn(), "post")), "<form method=\"post\" action=\"/posts/1\"><input type=\"submit\" name=\"commit\" value=\"Go\"></form>")
+  }
+
+  test_form_patch() {
+    Assert.equal(Html.to_string(Pages.method_form(conn(), "patch")), "<form method=\"post\" action=\"/posts/1\"><input type=\"hidden\" name=\"_method\" value=\"patch\"><input type=\"submit\" name=\"commit\" value=\"Go\"></form>")
+  }
+
+  test_form_get() {
+    Assert.equal(Html.to_string(Pages.method_form(conn(), "get")), "<form method=\"get\" action=\"/posts/1\"><input type=\"submit\" name=\"commit\" value=\"Go\"></form>")
+  }
+
+  test_form_csrf_slot() {
+    Assert.equal(Html.to_string(Pages.post_form(conn(), Map.empty(), Errors.empty())), "<form method=\"post\" action=\"/posts\"><div class=\"field\"><label for=\"post_title\">Title</label><input type=\"text\" id=\"post_title\" name=\"post[title]\" value=\"\"></div><div class=\"field\"><label for=\"post_body\">Body</label><textarea id=\"post_body\" name=\"post[body]\"></textarea></div><div class=\"field\"><label for=\"post_published\">Published</label><input type=\"checkbox\" id=\"post_published\" name=\"post[published]\" value=\"on\"></div><input type=\"submit\" name=\"commit\" value=\"Create post\"></form>")
+  }
+
+  test_checkbox_true() {
+    Assert.equal(Html.to_string(Pages.checkbox(true)), "<div class=\"field\"><label for=\"post_published\">Published</label><input type=\"checkbox\" id=\"post_published\" name=\"post[published]\" value=\"on\" checked></div>")
+  }
+
+  test_checkbox_false() {
+    Assert.equal(Html.to_string(Pages.checkbox(false)), "<div class=\"field\"><label for=\"post_published\">Published</label><input type=\"checkbox\" id=\"post_published\" name=\"post[published]\" value=\"on\"></div>")
+  }
+
+  test_select() {
+    Assert.equal(Html.to_string(Pages.select("<b>")), "<div class=\"field\"><label for=\"post_kind\">Kind</label><select id=\"post_kind\" name=\"post[kind]\"><option value=\"a\">Alpha</option><option value=\"&lt;b&gt;\" selected>Beta &amp; co</option></select></div>")
+  }
+
+  test_password_no_value() {
+    Assert.equal(Html.to_string(Pages.password("secret")), "<div class=\"field\"><label for=\"user_password\">Password</label><input type=\"password\" id=\"user_password\" name=\"user[password]\"></div>")
+  }
+
+  test_error_summary_none() {
+    Assert.equal(Html.to_string(Forms.error_summary({ errors: Errors.empty(), noun: "post" })), "")
+  }
+
+  test_error_summary_one() {
+    Assert.equal(Html.to_string(Forms.error_summary({ errors: blank(), noun: "post" })), "<div class=\"errors\"><h2>1 error prohibited this post from being saved</h2><ul><li>Title can&#39;t be blank</li></ul></div>")
+  }
+
+  test_error_summary_two() {
+    Assert.equal(Html.to_string(Forms.error_summary(
+        { errors: Errors.add(blank(), "body", "is too short"), noun: "post" },
+      )), "<div class=\"errors\"><h2>2 errors prohibited this post from being saved</h2><ul><li>Title can&#39;t be blank</li><li>Body is too short</li></ul></div>")
+  }
+
+  test_button_to_delete() {
+    Assert.equal(Html.to_string(Pages.delete_button(conn())), "<form method=\"post\" action=\"/posts/1\"><input type=\"hidden\" name=\"_method\" value=\"delete\"><button type=\"submit\">Delete</button></form>")
+  }
+
+  test_link_to() {
+    Assert.equal(Html.to_string(Pages.link()), "<a href=\"/posts\">Posts</a>")
+  }
+
+  test_link_to_if_false() {
+    Assert.equal(Html.to_string(Links.link_to_if(false, "Posts", "/posts")), "Posts")
+  }
+
+  test_link_to_if_true() {
+    Assert.equal(Html.to_string(Links.link_to_if(true, "Posts", "/posts")), "<a href=\"/posts\">Posts</a>")
+  }
+
+  test_other_fields() {
+    Assert.equal(Html.to_string(Pages.fields()), "<p><div class=\"field\"><label for=\"user_email\">Email</label><input type=\"email\" id=\"user_email\" name=\"user[email]\" value=\"a@b.c\"></div><div class=\"field\"><label for=\"user_age\">Age</label><input type=\"number\" id=\"user_age\" name=\"user[age]\" value=\"3\"></div><input type=\"hidden\" id=\"user_token\" name=\"user[token]\" value=\"t\"></p>")
+  }
+
+  test_round_trip() {
+    let typed = form("post[title]=Hi%20%3Cthere%3E&post[body]=&post[published]=on")
+
+    Assert.equal(Html.to_string(Pages.post_form(conn(), Params.nested(typed, "post"), blank())), "<form method=\"post\" action=\"/posts\"><div class=\"errors\"><h2>1 error prohibited this post from being saved</h2><ul><li>Title can&#39;t be blank</li></ul></div><div class=\"field field_with_errors\"><label for=\"post_title\">Title</label><input type=\"text\" id=\"post_title\" name=\"post[title]\" value=\"Hi &lt;there&gt;\"><span class=\"error\">can&#39;t be blank</span></div><div class=\"field\"><label for=\"post_body\">Body</label><textarea id=\"post_body\" name=\"post[body]\"></textarea></div><div class=\"field\"><label for=\"post_published\">Published</label><input type=\"checkbox\" id=\"post_published\" name=\"post[published]\" value=\"on\" checked></div><input type=\"submit\" name=\"commit\" value=\"Create post\"></form>")
+  }
+
+exports
+  test_text_field
+  test_text_field_errors
+  test_escaping
+  test_escaping_path
+  test_form_post
+  test_form_patch
+  test_form_get
+  test_form_csrf_slot
+  test_checkbox_true
+  test_checkbox_false
+  test_select
+  test_password_no_value
+  test_error_summary_none
+  test_error_summary_one
+  test_error_summary_two
+  test_button_to_delete
+  test_link_to
+  test_link_to_if_false
+  test_link_to_if_true
+  test_other_fields
+  test_round_trip

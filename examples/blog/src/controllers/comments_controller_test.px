@@ -1,0 +1,108 @@
+module CommentsControllerTest
+
+uses
+  Std.Assert
+  Std.Crypto
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Time
+  Routes
+  Schema
+  Ticket.Db
+  Ticket.Test
+
+hosts
+  Node
+
+functions
+  seed() {
+    let ann = Users.insert({ name: "Ann", email: "ann@example.com" })
+    let post = Posts.insert(
+      {
+        title: "Hello, Ticket",
+        body: "The first post.",
+        published: true,
+        author_id: ann.id,
+      },
+    )
+    let _ = Comments.insert({ body: "First!", post_id: post.id })
+
+    {}
+  }
+
+  test_a_comment_is_added_to_its_post() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.post(
+          Routes.router,
+          Test.client(),
+          "/posts/1/comments",
+          [{ name: "comment[body]", value: "Second!" }],
+        )
+
+        Test.assert_redirect(reply, "/posts/1")
+        Test.assert_body_contains(Test.follow(Routes.router, reply), "Second!")
+      },
+    )
+  }
+
+  test_a_blank_comment_re_renders_the_post() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.post(
+          Routes.router,
+          Test.client(),
+          "/posts/1/comments",
+          [{ name: "comment[body]", value: "" }],
+        )
+
+        Test.assert_status(reply, 422)
+        Test.assert_body_contains(reply, "can&#39;t be blank")
+        Test.assert_body_contains(reply, "First!")
+      },
+    )
+  }
+
+  test_a_comment_can_be_removed() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.delete(Routes.router, Test.client(), "/posts/1/comments/1")
+
+        Test.assert_redirect(reply, "/posts/1")
+        Test.assert_body_not_contains(Test.follow(Routes.router, reply), "First!")
+      },
+    )
+  }
+
+  test_a_comment_on_a_missing_post_is_404() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        Test.assert_status(
+          Test.post(
+            Routes.router,
+            Test.client(),
+            "/posts/99/comments",
+            [{ name: "comment[body]", value: "x" }],
+          ),
+          404,
+        )
+      },
+    )
+  }
+
+exports
+  test_a_blank_comment_re_renders_the_post
+  test_a_comment_can_be_removed
+  test_a_comment_is_added_to_its_post
+  test_a_comment_on_a_missing_post_is_404

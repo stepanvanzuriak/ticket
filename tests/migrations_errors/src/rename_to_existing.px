@@ -1,0 +1,21 @@
+module RenameToExisting
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+migrations
+  20261001_000000 create_table users
+    name  String
+    email  String
+
+  20261002_000000 rename_column users
+    name -> email

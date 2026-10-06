@@ -1,0 +1,7 @@
+module Error
+
+uses
+  Std.Http
+
+types
+  Halt = Halt(Response)

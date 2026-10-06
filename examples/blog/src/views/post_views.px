@@ -1,0 +1,98 @@
+module PostViews
+
+uses
+  Std.Id
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Time
+  Paths
+  Schema
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Forms
+  Ticket.Html
+  Ticket.Links
+
+types
+  Entry = { post: Post, author: User }
+
+view_component
+  PostFields(conn: Conn, action: String, method: String, fields: Map<String, String>, errors: Errors, submit: String)
+    <Forms.MethodForm conn={conn} action={action} method={method}>
+      <Forms.ErrorSummary errors={errors} noun="post" />
+      <Forms.TextField prefix="post" field="title" value={Forms.value(fields, "title")} errors={errors} />
+      <Forms.TextArea prefix="post" field="body" value={Forms.value(fields, "body")} errors={errors} />
+      <Forms.Checkbox prefix="post" field="published" checked={Forms.checked(fields, "published")} errors={errors} />
+      <Forms.Submit text={submit} />
+    </Forms.MethodForm>
+
+  CommentFields(conn: Conn, post: Post, fields: Map<String, String>, errors: Errors)
+    <Forms.Form conn={conn} action={Paths.post_comments_path(post.id)}>
+      <Forms.ErrorSummary errors={errors} noun="comment" />
+      <Forms.TextArea prefix="comment" field="body" value={Forms.value(fields, "body")} errors={errors} />
+      <Forms.Submit text="Add comment" />
+    </Forms.Form>
+
+views
+  index(conn: Conn, entries: List<Entry>)
+    <section>
+      <h1>Posts</h1>
+      <ul class="posts">{List.map(entries, function(entry) { item(entry) })}</ul>
+    </section>
+
+  item(entry: Entry)
+    <li>
+      <a href={Paths.post_path(entry.post.id)}>{entry.post.title}</a>
+      <span class="byline"> by {entry.author.name}</span>
+    </li>
+
+  show(conn: Conn, post: Post, author: User, comments: List<Comment>, fields: Map<String, String>, errors: Errors)
+    <article>
+      <h1>{post.title}</h1>
+      <p class="byline">by {author.name}</p>
+      <p>{post.body}</p>
+      <p>
+        <Links.LinkTo text="Edit" path={Paths.edit_post_path(post.id)} />
+        <Links.ButtonTo conn={conn} text="Delete" path={Paths.post_path(post.id)} method="delete" />
+      </p>
+      <h2>Comments</h2>
+      <ul class="comments">{List.map(comments, function(comment) { remark(conn, post, comment) })}</ul>
+      <CommentFields conn={conn} post={post} fields={fields} errors={errors} />
+    </article>
+
+  remark(conn: Conn, post: Post, comment: Comment)
+    <li>
+      {comment.body}
+      <Links.ButtonTo conn={conn} text="Delete" path={Paths.post_comment_path(post.id, comment.id)} method="delete" />
+    </li>
+
+  new(conn: Conn, fields: Map<String, String>, errors: Errors)
+    <section>
+      <h1>New post</h1>
+      <PostFields conn={conn} action={Paths.posts_path()} method="post" fields={fields} errors={errors} submit="Create post" />
+    </section>
+
+  edit(conn: Conn, post: Post, fields: Map<String, String>, errors: Errors)
+    <section>
+      <h1>Edit post</h1>
+      <PostFields conn={conn} action={Paths.post_path(post.id)} method="patch" fields={fields} errors={errors} submit="Update post" />
+      <Links.LinkTo text="Back" path={Paths.post_path(post.id)} />
+    </section>
+
+functions
+  values(post: Post) -> Map<String, String> {
+    let fields = Map.empty()
+    let fields = Map.insert(fields, "title", post.title)
+    let fields = Map.insert(fields, "body", post.body)
+    let fields = Map.insert(fields, "published", if post.published { "on" } else { "" })
+
+    fields
+  }
+
+exports
+  edit
+  index
+  new
+  show
+  values

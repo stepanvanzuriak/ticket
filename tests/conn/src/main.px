@@ -1,0 +1,179 @@
+
+module Main
+
+uses
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Map
+  Std.Option
+  Ticket.Conn
+  Ticket.Cookies
+  Ticket.Params
+  Ticket.QueryString
+
+functions
+  show_map(map: Map<String, String>) -> String {
+    let entries = List.map(
+      List.reverse(Map.to_list(map)),
+      function(e) { "#{e.key}: \"#{e.value}\"" },
+    )
+
+    "{#{List.join(entries, ", ")}}"
+  }
+
+  show_option(option: Option<String>) -> String {
+    match option {
+      Some(value) -> "Some(\"#{value}\")",
+      None -> "None",
+    }
+  }
+
+  request(
+    method: String,
+    path: String,
+    query: String,
+    headers: List<Header>,
+    body: String,
+  ) -> Request {
+    { method: method, path: path, query: query, headers: headers, body: body }
+  }
+
+  get(path: String, query: String) -> Conn {
+    Conn.from_request(request("GET", path, query, [], ""))
+  }
+
+  form(body: String) -> Conn {
+    let headers = [
+      { name: "Content-Type", value: "application/x-www-form-urlencoded; charset=utf-8" },
+    ]
+
+    Conn.from_request(request("POST", "/", "", headers, body))
+  }
+
+  row(n: Int, name: String, result: String) -> {} {
+    Log.info("#{n} #{name}: #{result}")
+  }
+
+  main() {
+    row(
+      1,
+      "query_empty",
+      "#{show_map(QueryString.parse(""))} #{show_map(QueryString.parse("?"))}",
+    )
+    row(2, "query_basic", show_map(QueryString.parse("a=1&b=two")))
+    row(3, "query_first_equals", show_map(QueryString.parse("q=a=b")))
+    row(4, "query_bare_key", show_map(QueryString.parse("flag")))
+    row(5, "query_decodes", show_map(QueryString.parse("name=Ada%20L+ove")))
+    row(6, "query_skips_empty", show_map(QueryString.parse("a=1&&b=2")))
+    row(7, "query_last_wins", show_map(QueryString.parse("a=1&a=2")))
+    row(8, "cookies_basic", show_map(Cookies.parse("sid=abc; theme=dark")))
+    row(9, "cookies_malformed", show_map(Cookies.parse("junk; =x; ok=1")))
+    row(
+      10,
+      "conn_method_upper",
+      Conn.from_request(request("post", "/", "", [], "")).method,
+    )
+    row(11, "conn_path_strips_query", get("/posts?x=1", "").path)
+    row(12, "conn_segments", List.join(get("//posts/3/", "").segments, ", "))
+
+    let json = [{ name: "content-type", value: "application/json" }]
+
+    row(
+      13,
+      "conn_form_only_urlencoded",
+      show_map(Conn.from_request(request("POST", "/", "", json, "a=1")).form),
+    )
+    row(14, "conn_form_parsed", show_map(form("post%5Btitle%5D=Hi").form))
+
+    let mixed = Conn.from_request(
+      request(
+        "POST",
+        "/posts/1",
+        "id=3",
+        [{ name: "content-type", value: "application/x-www-form-urlencoded" }],
+        "id=2",
+      ),
+    )
+    let routed = Conn.with_path_params(mixed, Map.insert(Map.empty(), "id", "1"))
+
+    row(15, "params_precedence", show_option(Params.string(routed, "id")))
+
+    let bad = match Params.int(get("/", "id=abc"), "id") {
+      Some(n) -> "Some(#{n})",
+      None -> "None",
+    }
+
+    row(16, "params_int_bad", bad)
+    row(
+      17,
+      "params_nested",
+      show_map(
+        Params.nested(form("post[title]=Hi&post[body]=B&other=x&post[bad=1"), "post"),
+      ),
+    )
+    row(18, "query_malformed_escape", show_map(QueryString.parse("q=%E0%A4%A")))
+
+    row(19, "conn_empty_path", get("", "").path)
+    row(20, "conn_segments_decoded", List.join(get("/posts/a%20b", "").segments, ", "))
+    row(21, "conn_query", show_map(get("/", "?page=2").query))
+    row(
+      22,
+      "conn_cookies",
+      show_map(
+        Conn.from_request(
+          request("GET", "/", "", [{ name: "Cookie", value: "sid=a%20b" }], ""),
+        ).cookies,
+      ),
+    )
+    row(23, "conn_header_any_case", Conn.header(form(""), "CONTENT-TYPE"))
+    row(
+      24,
+      "params_int_ok",
+      Option.with_default(
+        Option.map(Params.int(get("/", "n=-42"), "n"), Int.to_string),
+        "None",
+      ),
+    )
+    row(
+      25,
+      "params_id",
+      Option.with_default(
+        Option.map(
+          Params.id(get("/", "id=7"), "id"),
+          function(id: Id<{}>) { Prelude.show(id) },
+        ),
+        "None",
+      ),
+    )
+    row(26, "params_missing", show_option(Params.string(get("/", ""), "id")))
+    row(
+      27,
+      "params_nested_form_over_query",
+      show_map(
+        Params.nested(
+          Conn.from_request(
+            request(
+              "POST",
+              "/",
+              "post[a]=q&post[b]=q",
+              [{ name: "content-type", value: "application/x-www-form-urlencoded" }],
+              "post[a]=f",
+            ),
+          ),
+          "post",
+        ),
+      ),
+    )
+    row(
+      28,
+      "params_nested_ignores_deep",
+      show_map(
+        Params.nested(form("post[a][b]=1&post[]=2&poster[x]=3&post[ok]=4"), "post"),
+      ),
+    )
+    row(29, "params_form_over_query", show_option(Params.string(mixed, "id")))
+  }
+
+exports
+  main

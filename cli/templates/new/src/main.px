@@ -1,0 +1,36 @@
+module Main
+
+uses
+  Std.Http
+  Std.List
+  Std.Option
+  Std.Process
+  Ticket.Console
+  Ticket.Db
+  Routes
+
+hosts
+  Node
+
+constants
+  route_table: List<{
+    method: String,
+    path: String,
+    action: String,
+    name: String,
+  }> = Routes.route_table
+
+functions
+  boot() -> {} / {Db, Process} {
+    Console.boot([])
+  }
+
+  router(request: Request) {
+    Routes.router(request)
+  }
+
+exports
+  Node
+  boot
+  route_table
+  router

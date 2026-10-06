@@ -1,0 +1,1123 @@
+module Scaffold
+
+uses
+  Std.Fs
+  Std.List
+  Std.Option
+  Std.Path
+  Std.Process
+  Std.Result
+  Std.Time
+  Args
+  Commands.Generate
+  Ticket.Errors
+  Ticket.Inflect
+
+hosts
+  Node
+
+types
+  File = { path: String, text: String }
+
+  Flags = { overwrite: Bool, skip: Bool, pretend: Bool }
+
+  Names = {
+    model: String,
+    pascal: String,
+    table: String,
+    plural: String,
+    words: String,
+    title: String,
+  }
+
+  Field = { name: String, kind: String, mods: List<String> }
+
+  Pair = { key: String, value: String }
+
+  Target = { path: String, acceptable: List<String> }
+
+  Routing = Add(String) | Present | NoZone | NoFile
+
+functions
+  run(root: String, home: String, parsed: Parsed) -> Int / {Process, Fs, Clock} {
+    let flags = flags_of(parsed)
+
+    match parsed.positional {
+      ["scaffold", name, ..fields] -> scaffold(root, home, name, fields, flags),
+      ["controller", name, ..actions] -> controller(root, home, name, actions, flags),
+      ["model", name, ..fields] -> model(root, home, name, fields, flags),
+      _ -> Generate.usage(
+        "`ticket g` takes `scaffold <Name> [field:Type…]` or `controller <Name> [action…]`",
+      ),
+    }
+  }
+
+  flags_of(parsed: Parsed) -> Flags {
+    {
+      overwrite: Args.has(parsed, "force"),
+      skip: Args.has(parsed, "skip"),
+      pretend: Args.has(parsed, "pretend"),
+    }
+  }
+
+  names_for(name: String) -> Result<String, Names> {
+    let model = Inflect.snake(name)
+    let table = Inflect.plural(model)
+
+    if !Generate.pascal_name(name) {
+      Err("`#{name}` isn't a valid name: use PascalCase, like `Post`")
+    } else if Inflect.singular(table) != Some(model) {
+      Err(
+        "`#{name}` can't be turned into a table name and back: pick a name `Inflect` can pluralise",
+      )
+    } else {
+      Ok(names(name, model, table))
+    }
+  }
+
+  names(pascal: String, model: String, table: String) -> Names {
+    let words = String.replace(model, "_", " ")
+
+    {
+      model: model,
+      pascal: pascal,
+      table: table,
+      plural: Inflect.pascal(table),
+      words: words,
+      title: capitalised(words),
+    }
+  }
+
+  controller_names(name: String) -> Result<String, Names> {
+    let table = Inflect.snake(name)
+
+    if !Generate.pascal_name(name) {
+      Err("`#{name}` isn't a valid name: use PascalCase, like `Posts`")
+    } else {
+      match Inflect.singular(table) {
+        None -> Err(
+          "`#{name}` can't be made singular: name the controller after a plural, like `Posts`",
+        ),
+        Some(model) -> Ok(names(Inflect.pascal(model), model, table)),
+      }
+    }
+  }
+
+  capitalised(text: String) -> String {
+    "#{String.uppercase(String.slice(text, 0, 1))}#{String.slice(text, 1, String.length(text))}"
+  }
+
+  field_of(line: String) -> Option<Field> {
+    match String.split(line, "  ") {
+      [name, kind, ..mods] -> Some({ name: name, kind: kind, mods: mods }),
+      _ -> None,
+    }
+  }
+
+  fields_of(lines: List<String>) -> List<Field> {
+    List.concat_map(
+      lines,
+      function(line) {
+        match field_of(line) {
+          Some(field) -> [field],
+          None -> [],
+        }
+      },
+    )
+  }
+
+  is_option(kind: String) -> Bool {
+    String.starts_with(kind, "Option<") && String.ends_with(kind, ">")
+  }
+
+  base(kind: String) -> String {
+    if is_option(kind) { String.slice(kind, 7, String.length(kind) - 1) } else { kind }
+  }
+
+  component(field: Field) -> String {
+    let kind = base(field.kind)
+
+    if kind == "String" {
+      if field.name == "body" || field.name == "description" || field.name == "content" {
+        "TextArea"
+      } else {
+        "TextField"
+      }
+    } else if kind == "Int" || kind == "Float" || String.starts_with(kind, "Id<") {
+      "NumberField"
+    } else if kind == "Bool" {
+      "Checkbox"
+    } else {
+      "TextField"
+    }
+  }
+
+  shown(kind: String, access: String) -> String {
+    if kind == "Time" {
+      "Time.to_iso(#{access})"
+    } else if kind == "Option<Time>" {
+      "Option.map(#{access}, Time.to_iso)"
+    } else {
+      access
+    }
+  }
+
+  form_text(kind: String, access: String) -> String {
+    if kind == "Option<String>" {
+      "Option.with_default(#{access}, \"\")"
+    } else if is_option(kind) {
+      "Option.with_default(Option.map(#{access}, function(v) { #{form_text(base(kind), "v")} }), \"\")"
+    } else if kind == "String" {
+      access
+    } else if kind == "Int" {
+      "Int.to_string(#{access})"
+    } else if kind == "Float" {
+      "Float.to_string(#{access})"
+    } else if kind == "Bool" {
+      "if #{access} { \"on\" } else { \"\" }"
+    } else if kind == "Time" {
+      "Time.to_iso(#{access})"
+    } else if String.starts_with(kind, "Id<") {
+      "Int.to_string(Id.value(#{access}))"
+    } else {
+      access
+    }
+  }
+
+  braced(expression: String) -> String {
+    List.join(["{", expression, "}"], "")
+  }
+
+  fill(text: String, pairs: List<Pair>) -> String {
+    List.fold(
+      pairs,
+      text,
+      function(acc, pair) { String.replace(acc, "{{#{pair.key}}}", pair.value) },
+    )
+  }
+
+  template(home: String, name: String) -> Result<String, String> / {Fs} {
+    match Fs.read(Path.join(home, "cli/templates/scaffold/#{name}")) {
+      Ok(text) -> Ok(text),
+      Err(error) -> Err("can't read the template: #{error.message}"),
+    }
+  }
+
+  pairs(n: Names, fields: List<Field>) -> List<Pair> {
+    [
+      { key: "form_fields", value: List.join(List.map(fields, form_field), "\n") },
+      {
+        key: "head_cells",
+        value: List.join(
+          List.map(
+            fields,
+            function(f) { "            <th>#{Errors.label(f.name)}</th>" },
+          ),
+          "\n",
+        ),
+      },
+      {
+        key: "row_cells",
+        value: List.join(
+          List.map(
+            fields,
+            function(f) {
+              "      <td>#{braced(shown(f.kind, "{{model}}.#{f.name}"))}</td>"
+            },
+          ),
+          "\n",
+        ),
+      },
+      {
+        key: "show_lines",
+        value: List.join(
+          List.map(
+            fields,
+            function(f) {
+              "      <p><strong>#{Errors.label(f.name)}:</strong> #{braced(shown(f.kind, "{{model}}.#{f.name}"))}</p>"
+            },
+          ),
+          "\n",
+        ),
+      },
+      {
+        key: "values",
+        value: List.join(
+          List.map(
+            fields,
+            function(f) {
+              "    let fields = Map.insert(fields, \"#{f.name}\", #{form_text(f.kind, "{{model}}.#{f.name}")})"
+            },
+          ),
+          "\n",
+        ),
+      },
+      {
+        key: "permit",
+        value: List.join(
+          List.map(fields, function(f) { "#{f.name}: row.#{f.name}" }),
+          ", ",
+        ),
+      },
+      { key: "model", value: n.model },
+      { key: "Model", value: n.pascal },
+      { key: "models", value: n.table },
+      { key: "Models", value: n.plural },
+      { key: "words", value: n.words },
+      { key: "Words", value: n.title },
+    ]
+  }
+
+  form_field(field: Field) -> String {
+    let helper = component(field)
+    let value = if helper == "Checkbox" {
+      "checked={Forms.checked(fields, \"#{field.name}\")}"
+    } else {
+      "value={Forms.value(fields, \"#{field.name}\")}"
+    }
+
+    "      <Forms.#{helper} prefix=\"{{model}}\" field=\"#{field.name}\" #{value} errors={errors} />"
+  }
+
+  rules(fields: List<Field>) -> List<String> {
+    List.concat_map(
+      fields,
+      function(field) {
+        let presence = if field.kind == "String" { ["presence"] } else { [] }
+        let unique = if List.any(field.mods, function(m) { m == "unique" }) {
+          ["uniqueness"]
+        } else {
+          []
+        }
+        let all = List.append(presence, unique)
+
+        if List.is_empty(all) { [] } else { ["  #{field.name}  #{List.join(all, "  ")}"] }
+      },
+    )
+  }
+
+  model_text(home: String, n: Names, fields: List<Field>) -> Result<String, String> / {
+    Fs,
+  } {
+    let lines = rules(fields)
+
+    if List.is_empty(lines) {
+      Result.map(
+        template(home, "model_plain.px"),
+        function(text) { fill(text, pairs(n, fields)) },
+      )
+    } else {
+      Result.map(
+        template(home, "model.px"),
+        function(text) {
+          fill(
+            fill(text, [{ key: "rules", value: List.join(lines, "\n") }]),
+            pairs(n, fields),
+          )
+        },
+      )
+    }
+  }
+
+  form_pairs(n: Names, fields: List<Field>, blank: Bool) -> String {
+    let required = List.filter(fields, function(f) { !is_option(f.kind) })
+    let strings = List.filter(required, function(f) { f.kind == "String" })
+    let chosen = if blank {
+      match List.head(strings) {
+        Some(f) -> [f],
+        None -> [],
+      }
+    } else {
+      required
+    }
+    let pair = function(f: Field) {
+      "{ name: \"#{n.model}[#{f.name}]\", value: \"#{if blank { "" } else { sample(f) }}\" }"
+    }
+
+    "[#{List.join(List.map(chosen, pair), ", ")}]"
+  }
+
+  sample(field: Field) -> String {
+    if field.kind == "String" {
+      "Example"
+    } else if field.kind == "Int" || String.starts_with(field.kind, "Id<") {
+      "1"
+    } else if field.kind == "Float" {
+      "1.5"
+    } else if field.kind == "Bool" {
+      "on"
+    } else if field.kind == "Time" {
+      "2026-01-01T00:00:00Z"
+    } else {
+      "1"
+    }
+  }
+
+  test_text(home: String, n: Names, fields: List<Field>) -> Result<String, String> / {
+    Fs,
+  } {
+    let invalid = List.any(fields, function(f) { f.kind == "String" })
+    let extras = [
+      { key: "valid_form", value: form_pairs(n, fields, false) },
+      { key: "invalid_form", value: form_pairs(n, fields, true) },
+    ]
+    let frag = if invalid { template(home, "invalid_test.px") } else { Ok("") }
+
+    match frag {
+      Err(message) -> Err(message),
+      Ok(text) -> Result.map(
+        template(home, "controller_test.px"),
+        function(body) {
+          fill(
+            fill(
+              String.replace(
+                String.replace(body, "{{invalid_test}}", text),
+                "{{invalid_export}}",
+                if invalid { "  test_create_invalid_is_422" } else { "" },
+              ),
+              extras,
+            ),
+            pairs(n, fields),
+          )
+        },
+      ),
+    }
+  }
+
+  scaffold_files(
+    home: String,
+    n: Names,
+    fields: List<Field>,
+  ) -> Result<String, List<File>> / {Fs} {
+    let model = model_text(home, n, fields)
+    let controller = Result.map(
+      template(home, "controller.px"),
+      function(text) { fill(text, pairs(n, fields)) },
+    )
+    let views = Result.map(
+      template(home, "views.px"),
+      function(text) { fill(text, pairs(n, fields)) },
+    )
+    let tests = test_text(home, n, fields)
+
+    match model {
+      Err(message) -> Err(message),
+      Ok(m) -> match controller {
+        Err(message) -> Err(message),
+        Ok(c) -> match views {
+          Err(message) -> Err(message),
+          Ok(v) -> match tests {
+            Err(message) -> Err(message),
+            Ok(t) -> Ok(
+              [
+                { path: "src/models/#{n.model}.px", text: m },
+                { path: "src/controllers/#{n.table}_controller.px", text: c },
+                { path: "src/views/#{n.model}_views.px", text: v },
+                { path: "src/controllers/#{n.table}_controller_test.px", text: t },
+              ],
+            ),
+          },
+        },
+      },
+    }
+  }
+
+  routes_file() -> String {
+    "src/routes.px"
+  }
+
+  routing(
+    text: String,
+    controller: String,
+    lines: List<String>,
+    present: function(String) -> Bool,
+  ) -> Routing {
+    let all = String.split(text, "\n")
+
+    match Generate.index_of(all, "routes", 0) {
+      None -> NoZone,
+      Some(zone) -> if List.any(all, present) {
+        Present
+      } else {
+        let end = Generate.zone_end(all, zone + 1, zone + 1)
+        let routed = List.append(
+          Generate.take(all, end),
+          List.append([""], List.append(lines, Generate.drop(all, end))),
+        )
+
+        Add(List.join(with_use(routed, controller), "\n"))
+      },
+    }
+  }
+
+  with_use(lines: List<String>, controller: String) -> List<String> {
+    let line = "  Controllers.#{controller}"
+
+    if List.any(lines, function(l) { l == line }) {
+      lines
+    } else {
+      match Generate.index_of(lines, "uses", 0) {
+        None -> lines,
+        Some(start) -> {
+          let end = Generate.zone_end(lines, start + 1, start + 1)
+
+          List.append(Generate.take(lines, end), [line, ..Generate.drop(lines, end)])
+        }
+      }
+    }
+  }
+
+  resources_present(table: String) -> function(String) -> Bool {
+    function(line) {
+      let words = List.filter(String.split(line, " "), function(word) { word != "" })
+
+      match words {
+        ["resources", name, .._] -> name == table,
+        _ -> false,
+      }
+    }
+  }
+
+  say(flags: Flags, verb: String, detail: String) -> {} {
+    let line = "#{String.slice("            ", 0, 12 - String.length(verb))}#{verb}  #{detail}"
+
+    if flags.pretend { Log.info("pretend #{line}") } else { Log.info(line) }
+  }
+
+  existing(root: String, path: String) -> Option<String> / {Fs} {
+    let full = Path.join(root, path)
+
+    if Fs.exists(full) {
+      match Fs.read(full) {
+        Ok(text) -> Some(text),
+        Err(_) -> None,
+      }
+    } else {
+      None
+    }
+  }
+
+  conflicts(root: String, files: List<File>) -> List<String> / {Fs} {
+    List.concat_map(
+      files,
+      function(file) {
+        match existing(root, file.path) {
+          Some(text) -> if text == file.text { [] } else { [file.path] },
+          None -> [],
+        }
+      },
+    )
+  }
+
+  write_file(root: String, flags: Flags, file: File) -> Result<String, {}> / {Fs} {
+    match existing(root, file.path) {
+      Some(text) -> if text == file.text {
+        say(flags, "identical", file.path)
+        Ok({})
+      } else if flags.skip {
+        say(flags, "skip", file.path)
+        Ok({})
+      } else {
+        say(flags, "force", file.path)
+        store(root, flags, file)
+      },
+      None -> {
+        say(flags, "create", file.path)
+        store(root, flags, file)
+      }
+    }
+  }
+
+  store(root: String, flags: Flags, file: File) -> Result<String, {}> / {Fs} {
+    if flags.pretend {
+      Ok({})
+    } else {
+      let full = Path.join(root, file.path)
+
+      match Result.and_then(
+        Fs.mkdir_all(Path.dirname(full)),
+        function(_) { Fs.write(full, file.text) },
+      ) {
+        Ok(_) -> Ok({}),
+        Err(error) -> Err(error.message),
+      }
+    }
+  }
+
+  write_files(root: String, flags: Flags, files: List<File>) -> Result<String, {}> / {
+    Fs,
+  } {
+    List.fold(
+      files,
+      Ok({}),
+      function(acc, file) {
+        Result.and_then(acc, function(_) { write_file(root, flags, file) })
+      },
+    )
+  }
+
+  write_schema(
+    root: String,
+    flags: Flags,
+    planned: Planned,
+    e: Entry,
+  ) -> Result<String, {}> / {Fs} {
+    let path = "src/schema.px"
+
+    if planned.present {
+      say(flags, "identical", "#{path}  create_table #{e.table}")
+      Ok({})
+    } else {
+      say(
+        flags,
+        if planned.existed { "append" } else { "create" },
+        "#{path}  #{planned.version} create_table #{e.table}",
+      )
+
+      if flags.pretend {
+        Ok({})
+      } else {
+        match Fs.write(Path.join(root, path), planned.text) {
+          Err(error) -> Err(error.message),
+          Ok(_) -> if planned.existed {
+            Ok({})
+          } else {
+            Generate.wire_main(root) |> Result.map_err(function(error) { error.message })
+          },
+        }
+      }
+    }
+  }
+
+  write_routes(
+    root: String,
+    flags: Flags,
+    routing: Routing,
+    what: String,
+  ) -> Result<String, {}> / {Fs} {
+    match routing {
+      Add(text) -> {
+        say(flags, "append", "#{routes_file()}  #{what}")
+
+        if flags.pretend {
+          Ok({})
+        } else {
+          Fs.write(Path.join(root, routes_file()), text)
+            |> Result.map_err(function(error) { error.message })
+        }
+      }
+      Present -> {
+        say(flags, "identical", "#{routes_file()}  #{what}")
+        Ok({})
+      }
+      NoZone -> {
+        say(
+          flags,
+          "skip",
+          "#{routes_file()}  has no `routes` zone: add `#{what}` yourself",
+        )
+        Ok({})
+      }
+      NoFile -> {
+        say(flags, "skip", "#{routes_file()}  doesn't exist: add `#{what}` yourself")
+        Ok({})
+      }
+    }
+  }
+
+  routes_text(root: String) -> Option<String> / {Fs} {
+    existing(root, routes_file())
+  }
+
+  conflict_error(paths: List<String>) -> Int {
+    Log.error("error: these files already exist and differ: #{List.join(paths, ", ")}")
+    Log.error(
+      "       nothing was written. Use `--force` to overwrite them, or `--skip` to keep them and write the rest.",
+    )
+    1
+  }
+
+  tidy(root: String, flags: Flags, paths: List<String>) -> Int / {Process} {
+    if flags.pretend {
+      0
+    } else {
+      List.fold(
+        paths,
+        0,
+        function(code, path) {
+          let result = Generate.format(root, Path.join(root, path))
+
+          if code == 0 { result } else { code }
+        },
+      )
+    }
+  }
+
+  scaffold(
+    root: String,
+    home: String,
+    name: String,
+    fields: List<String>,
+    flags: Flags,
+  ) -> Int / {Process, Fs, Clock} {
+    match names_for(name) {
+      Err(message) -> Generate.usage(message),
+      Ok(n) -> match Generate.model_entry(name, fields) {
+        Err(message) -> Generate.usage(message),
+        Ok(entry) -> match Generate.plan_schema(root, entry) {
+          Err(message) -> Generate.failed(message),
+          Ok(planned) -> match scaffold_files(home, n, fields_of(entry.lines)) {
+            Err(message) -> Generate.failed(message),
+            Ok(files) -> scaffold_write(root, flags, n, entry, planned, files),
+          },
+        },
+      },
+    }
+  }
+
+  scaffold_write(
+    root: String,
+    flags: Flags,
+    n: Names,
+    entry: Entry,
+    planned: Planned,
+    files: List<File>,
+  ) -> Int / {Process, Fs} {
+    let clashing = conflicts(root, files)
+
+    if !List.is_empty(clashing) && !flags.overwrite && !flags.skip {
+      conflict_error(clashing)
+    } else {
+      let routing = match routes_text(root) {
+        Some(text) -> routing(
+          text,
+          "#{n.plural}Controller",
+          ["  resources #{n.table}  -> #{n.plural}Controller"],
+          resources_present(n.table),
+        ),
+        None -> NoFile,
+      }
+      let written = write_schema(root, flags, planned, entry)
+        |> Result.and_then(function(_) { write_files(root, flags, files) })
+        |> Result.and_then(
+          function(_) {
+            write_routes(
+              root,
+              flags,
+              routing,
+              "resources #{n.table} -> #{n.plural}Controller",
+            )
+          },
+        )
+
+      match written {
+        Err(message) -> Generate.failed(message),
+        Ok(_) -> tidy(root, flags, ["src/schema.px", routes_file()]),
+      }
+    }
+  }
+
+  model(
+    root: String,
+    home: String,
+    name: String,
+    fields: List<String>,
+    flags: Flags,
+  ) -> Int / {Process, Fs, Clock} {
+    match names_for(name) {
+      Err(message) -> Generate.usage(message),
+      Ok(n) -> match Generate.model_entry(name, fields) {
+        Err(message) -> Generate.usage(message),
+        Ok(entry) -> match Generate.plan_schema(root, entry) {
+          Err(message) -> Generate.failed(message),
+          Ok(planned) -> match model_text(home, n, fields_of(entry.lines)) {
+            Err(message) -> Generate.failed(message),
+            Ok(text) -> {
+              let files = [{ path: "src/models/#{n.model}.px", text: text }]
+              let clashing = conflicts(root, files)
+
+              if !List.is_empty(clashing) && !flags.overwrite && !flags.skip {
+                conflict_error(clashing)
+              } else {
+                match write_schema(root, flags, planned, entry)
+                  |> Result.and_then(function(_) { write_files(root, flags, files) }) {
+                  Err(message) -> Generate.failed(message),
+                  Ok(_) -> tidy(root, flags, ["src/schema.px"]),
+                }
+              }
+            }
+          },
+        },
+      },
+    }
+  }
+
+  controller(
+    root: String,
+    home: String,
+    name: String,
+    actions: List<String>,
+    flags: Flags,
+  ) -> Int / {Process, Fs} {
+    match controller_names(name) {
+      Err(message) -> Generate.usage(message),
+      Ok(n) -> if List.is_empty(actions) {
+        Generate.usage("`g controller #{name}` needs at least one action, like `index`")
+      } else if !List.all(actions, Generate.snake_name) {
+        Generate.usage("an action is a snake_case name, like `index` or `show_all`")
+      } else {
+        match controller_files(home, n, actions) {
+          Err(message) -> Generate.failed(message),
+          Ok(files) -> controller_write(root, flags, n, actions, files),
+        }
+      },
+    }
+  }
+
+  controller_files(
+    home: String,
+    n: Names,
+    actions: List<String>,
+  ) -> Result<String, List<File>> / {Fs} {
+    let controller = Result.map(
+      template(home, "actions_controller.px"),
+      function(text) { fill(text, action_pairs(n, actions)) },
+    )
+    let views = Result.map(
+      template(home, "actions_views.px"),
+      function(text) { fill(text, action_pairs(n, actions)) },
+    )
+
+    match controller {
+      Err(message) -> Err(message),
+      Ok(c) -> match views {
+        Err(message) -> Err(message),
+        Ok(v) -> Ok(
+          [
+            { path: "src/controllers/#{n.table}_controller.px", text: c },
+            { path: "src/views/#{n.model}_views.px", text: v },
+          ],
+        ),
+      },
+    }
+  }
+
+  action_pairs(n: Names, actions: List<String>) -> List<Pair> {
+    [
+      {
+        key: "actions",
+        value: List.join(List.map(actions, function(a) { stub_action(n, a) }), "\n\n"),
+      },
+      {
+        key: "views",
+        value: List.join(List.map(actions, function(a) { stub_view(n, a) }), "\n\n"),
+      },
+      {
+        key: "exports",
+        value: List.join(List.map(actions, function(a) { "  #{a}" }), "\n"),
+      },
+      { key: "model", value: n.model },
+      { key: "Model", value: n.pascal },
+      { key: "Models", value: n.plural },
+    ]
+  }
+
+  stub_action(n: Names, action: String) -> String {
+    List.join(
+      [
+        "  #{action}(conn: Conn) -> Response {",
+        "    Response.render(Layout.app(conn, \"#{n.plural}##{action}\", #{n.pascal}Views.#{action}()))",
+        "  }",
+      ],
+      "\n",
+    )
+  }
+
+  stub_view(n: Names, action: String) -> String {
+    List.join(
+      [
+        "  #{action}()",
+        "    <section>",
+        "      <h1>#{n.plural}##{action}</h1>",
+        "      <p>Find me in src/views/#{n.model}_views.px</p>",
+        "    </section>",
+      ],
+      "\n",
+    )
+  }
+
+  controller_write(
+    root: String,
+    flags: Flags,
+    n: Names,
+    actions: List<String>,
+    files: List<File>,
+  ) -> Int / {Process, Fs} {
+    let clashing = conflicts(root, files)
+
+    if !List.is_empty(clashing) && !flags.overwrite && !flags.skip {
+      conflict_error(clashing)
+    } else {
+      let lines = List.map(
+        actions,
+        function(a) {
+          "  get  /#{n.table}/#{a}  -> #{n.plural}Controller.#{a}  as #{n.table}_#{a}"
+        },
+      )
+      let routing = match routes_text(root) {
+        Some(text) -> routing(
+          text,
+          "#{n.plural}Controller",
+          lines,
+          function(line) { String.contains(line, "-> #{n.plural}Controller.") },
+        ),
+        None -> NoFile,
+      }
+      let written = write_files(root, flags, files)
+        |> Result.and_then(
+          function(_) {
+            write_routes(
+              root,
+              flags,
+              routing,
+              "a route per action to #{n.plural}Controller",
+            )
+          },
+        )
+
+      match written {
+        Err(message) -> Generate.failed(message),
+        Ok(_) -> tidy(root, flags, [routes_file()]),
+      }
+    }
+  }
+
+  destroy(root: String, home: String, parsed: Parsed) -> Int / {Process, Fs} {
+    let flags = flags_of(parsed)
+
+    match parsed.positional {
+      ["scaffold", name] -> match names_for(name) {
+        Err(message) -> Generate.usage(message),
+        Ok(n) -> finish_destroy(
+          root,
+          flags,
+          n,
+          scaffold_targets(root, home, n),
+          true,
+          true,
+        ),
+      },
+      ["model", name] -> match names_for(name) {
+        Err(message) -> Generate.usage(message),
+        Ok(n) -> finish_destroy(
+          root,
+          flags,
+          n,
+          model_targets(root, home, n),
+          true,
+          false,
+        ),
+      },
+      ["controller", name] -> match controller_names(name) {
+        Err(message) -> Generate.usage(message),
+        Ok(n) -> finish_destroy(
+          root,
+          flags,
+          n,
+          controller_targets(root, home, n),
+          false,
+          true,
+        ),
+      },
+      _ -> Generate.usage(
+        "`ticket destroy` takes `scaffold <Name>`, `model <Name>` or `controller <Name>`",
+      ),
+    }
+  }
+
+  schema_fields(root: String, n: Names) -> Option<List<Field>> / {Fs} {
+    match existing(root, "src/schema.px") {
+      Some(text) -> Option.map(Generate.table_lines(text, n.table), fields_of),
+      None -> None,
+    }
+  }
+
+  plain_model(n: Names) -> String {
+    "module #{n.pascal}\n\nuses\n  Schema\n"
+  }
+
+  scaffold_targets(root: String, home: String, n: Names) -> List<Target> / {Fs} {
+    match schema_fields(root, n) {
+      None -> [
+        { path: "src/models/#{n.model}.px", acceptable: [plain_model(n)] },
+        { path: "src/controllers/#{n.table}_controller.px", acceptable: [] },
+        { path: "src/views/#{n.model}_views.px", acceptable: [] },
+        { path: "src/controllers/#{n.table}_controller_test.px", acceptable: [] },
+      ],
+      Some(fields) -> match scaffold_files(home, n, fields) {
+        Err(_) -> [],
+        Ok(files) -> List.map(
+          files,
+          function(file) {
+            {
+              path: file.path,
+              acceptable: if String.contains(file.path, "/models/") {
+                [file.text, plain_model(n)]
+              } else {
+                [file.text]
+              },
+            }
+          },
+        ),
+      },
+    }
+  }
+
+  model_targets(root: String, home: String, n: Names) -> List<Target> / {Fs} {
+    let path = "src/models/#{n.model}.px"
+
+    match schema_fields(root, n) {
+      None -> [{ path: path, acceptable: [plain_model(n)] }],
+      Some(fields) -> match model_text(home, n, fields) {
+        Ok(text) -> [{ path: path, acceptable: [text, plain_model(n)] }],
+        Err(_) -> [{ path: path, acceptable: [plain_model(n)] }],
+      },
+    }
+  }
+
+  controller_targets(root: String, home: String, n: Names) -> List<Target> / {Fs} {
+    let controller = "src/controllers/#{n.table}_controller.px"
+    let views = "src/views/#{n.model}_views.px"
+
+    match existing(root, controller) {
+      None -> [{ path: controller, acceptable: [] }, { path: views, acceptable: [] }],
+      Some(text) -> match controller_files(home, n, exported(String.split(text, "\n"))) {
+        Err(_) -> [{ path: controller, acceptable: [] }, { path: views, acceptable: [] }],
+        Ok(files) -> List.map(
+          files,
+          function(file) { { path: file.path, acceptable: [file.text] } },
+        ),
+      },
+    }
+  }
+
+  exported(lines: List<String>) -> List<String> {
+    match Generate.index_of(lines, "exports", 0) {
+      None -> [],
+      Some(start) -> List.map(
+        List.filter(
+          Generate.take(
+            Generate.drop(lines, start + 1),
+            Generate.zone_end(lines, start + 1, start + 1) - start - 1,
+          ),
+          function(line) { String.starts_with(line, "  ") },
+        ),
+        String.trim,
+      ),
+    }
+  }
+
+  finish_destroy(
+    root: String,
+    flags: Flags,
+    n: Names,
+    targets: List<Target>,
+    migration: Bool,
+    routed: Bool,
+  ) -> Int / {Process, Fs} {
+    let edited = List.concat_map(
+      targets,
+      function(target) {
+        match existing(root, target.path) {
+          Some(text) -> if List.any(target.acceptable, function(a) { a == text }) {
+            []
+          } else {
+            [target.path]
+          },
+          None -> [],
+        }
+      },
+    )
+
+    if !List.is_empty(edited) && !flags.overwrite {
+      Log.error(
+        "error: these files differ from what the generator writes: #{List.join(edited, ", ")}",
+      )
+      Log.error("       nothing was removed. Use `--force` to remove them anyway.")
+      1
+    } else {
+      let removed = List.fold(
+        targets,
+        Ok({}),
+        function(acc, target) {
+          Result.and_then(acc, function(_) { remove_file(root, flags, target.path) })
+        },
+      )
+
+      match Result.and_then(
+        removed,
+        function(_) { if routed { unroute(root, flags, n) } else { Ok(false) } },
+      ) {
+        Err(message) -> Generate.failed(message),
+        Ok(changed) -> {
+          if migration { note_migration(n) } else { {} }
+          tidy(root, flags, if changed { [routes_file()] } else { [] })
+        }
+      }
+    }
+  }
+
+  remove_file(root: String, flags: Flags, path: String) -> Result<String, {}> / {Fs} {
+    let full = Path.join(root, path)
+
+    if !Fs.exists(full) {
+      say(flags, "skip", path)
+      Ok({})
+    } else {
+      say(flags, "remove", path)
+
+      if flags.pretend {
+        Ok({})
+      } else {
+        Fs.remove(full) |> Result.map_err(function(error) { error.message })
+      }
+    }
+  }
+
+  unroute(root: String, flags: Flags, n: Names) -> Result<String, Bool> / {Fs} {
+    match routes_text(root) {
+      None -> Ok(false),
+      Some(text) -> {
+        let lines = String.split(text, "\n")
+        let kept = List.filter(
+          lines,
+          function(line) { !String.contains(line, "#{n.plural}Controller") },
+        )
+
+        if List.length(kept) == List.length(lines) {
+          say(flags, "skip", "#{routes_file()}  no lines for #{n.plural}Controller")
+          Ok(false)
+        } else {
+          say(flags, "remove", "#{routes_file()}  the #{n.plural}Controller lines")
+
+          if flags.pretend {
+            Ok(false)
+          } else {
+            Fs.write(Path.join(root, routes_file()), List.join(kept, "\n"))
+              |> Result.map(function(_) { true })
+              |> Result.map_err(function(error) { error.message })
+          }
+        }
+      }
+    }
+  }
+
+  note_migration(n: Names) -> {} {
+    Log.info(
+      "        note  the `create_table #{n.table}` migration in src/schema.px was kept: add a `drop_table #{n.table}` migration to remove the table",
+    )
+  }
+
+exports
+  destroy
+  run

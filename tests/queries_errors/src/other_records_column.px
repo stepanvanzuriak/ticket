@@ -1,0 +1,14 @@
+module OtherRecordsColumn
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Ticket.Db
+  Ticket.Query
+  Schema
+
+functions
+  by_user_name() -> List<Post> / {Posts, Throws<DbFailure>} {
+    Posts.filter([Query.eq(Schema.user_name, "Ada")], [])
+  }

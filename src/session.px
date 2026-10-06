@@ -1,0 +1,188 @@
+module Session
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Process
+  Std.Result
+  Std.Time
+  Ticket.Conn
+  Ticket.Csrf
+  Ticket.Response
+  Ticket.Signed
+
+types
+  Config = { secret: String, max_age: Int, secure: Bool }
+
+  Loaded = { conn: Conn, fresh: Bool }
+
+functions
+  config() -> Config / {Process} {
+    let production = Option.with_default(Process.env("TICKET_ENV"), "") == "production"
+    let given = Option.with_default(Process.env("TICKET_SECRET"), "")
+    let secret = if given != "" {
+      given
+    } else if production {
+      ""
+    } else {
+      "ticket-development-secret-do-not-use-in-production"
+    }
+
+    let max_age = Option.with_default(
+      Option.and_then(Process.env("TICKET_SESSION_MAX_AGE"), Int.parse),
+      1209600,
+    )
+
+    { secret: secret, max_age: max_age, secure: production }
+  }
+
+  wrap(
+    config: Config,
+    action: function(Conn) -> Response / {Random, Clock | e},
+  ) -> function(Conn) -> Response / {Random, Clock | e} {
+    function(conn) { run(config, true, conn, action) }
+  }
+
+  wrap_unprotected(
+    config: Config,
+    action: function(Conn) -> Response / {Random, Clock | e},
+  ) -> function(Conn) -> Response / {Random, Clock | e} {
+    function(conn) { run(config, false, conn, action) }
+  }
+
+  handle(
+    conn: Conn,
+    action: function(Conn) -> Response / {Process, Random, Clock | e},
+  ) -> Response / {Process, Random, Clock | e} {
+    run(config(), true, conn, action)
+  }
+
+  wrap_at(
+    config: Config,
+    now: Int,
+    token: String,
+    action: function(Conn) -> Response / {| e},
+  ) -> function(Conn) -> Response / {| e} {
+    function(conn) { run_at(config, true, now, token, conn, action) }
+  }
+
+  run(
+    config: Config,
+    protect: Bool,
+    conn: Conn,
+    action: function(Conn) -> Response / {Random, Clock | e},
+  ) -> Response / {Random, Clock | e} {
+    run_at(config, protect, Time.millis(Clock.now()), Random.bytes(16), conn, action)
+  }
+
+  run_at(
+    config: Config,
+    protect: Bool,
+    now: Int,
+    token: String,
+    conn: Conn,
+    action: function(Conn) -> Response / {| e},
+  ) -> Response / {| e} {
+    if config.secret == "" {
+      Response.text(500, "TICKET_SECRET is not set")
+    } else {
+      let loaded = load(config, now, token, conn)
+      let checked = if protect { Csrf.verify(loaded.conn) } else { Ok(loaded.conn) }
+
+      match checked {
+        Err(refused) -> refused,
+        Ok(passed) -> finish(loaded, action(passed)),
+      }
+    }
+  }
+
+  load(config: Config, now: Int, token: String, conn: Conn) -> Loaded {
+    let payload = Option.and_then(
+      Map.get(conn.cookies, Signed.name()),
+      function(value) { Signed.open(config.secret, value) },
+    )
+    let live = Option.and_then(
+      payload,
+      function(p) { if p.expires > now { Some(p) } else { None } },
+    )
+    let session = match live {
+      Some(p) -> Signed.to_map(p.session),
+      None -> Map.empty(),
+    }
+    let flash = match live {
+      Some(p) -> Signed.to_map(p.flash),
+      None -> Map.empty(),
+    }
+    let known = Option.with_default(Map.get(session, "_csrf"), token)
+
+    {
+      fresh: match live {
+        Some(_) -> false,
+        None -> true,
+      },
+      conn: {
+        ..conn,
+        session: Map.insert(session, "_csrf", known),
+        flash: flash,
+        flash_next: Map.empty(),
+        csrf: known,
+        signing: {
+          secret: config.secret,
+          max_age: config.max_age,
+          secure: config.secure,
+          expires: now + config.max_age * 1000,
+        },
+      },
+    }
+  }
+
+  finish(loaded: Loaded, response: Response) -> Response {
+    let written = List.any(
+      response.headers,
+      function(h) {
+        String.lowercase(h.name) == "set-cookie"
+          && String.starts_with(h.value, "#{Signed.name()}=")
+      },
+    )
+
+    if written || !(loaded.fresh || !Map.is_empty(loaded.conn.flash)) {
+      response
+    } else {
+      Response.commit(loaded.conn, response)
+    }
+  }
+
+  get(conn: Conn, key: String) -> Option<String> {
+    Map.get(conn.session, key)
+  }
+
+  put(conn: Conn, key: String, value: String) -> Conn {
+    { ..conn, session: Map.insert(conn.session, key, value) }
+  }
+
+  delete(conn: Conn, key: String) -> Conn {
+    { ..conn, session: Map.remove(conn.session, key) }
+  }
+
+  clear(conn: Conn) -> Conn {
+    { ..conn, session: Map.empty(), csrf: "" }
+  }
+
+  commit(conn: Conn, response: Response) -> Response {
+    Response.commit(conn, response)
+  }
+
+exports
+  clear
+  commit
+  config
+  delete
+  get
+  handle
+  put
+  wrap
+  wrap_at
+  wrap_unprotected

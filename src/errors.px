@@ -1,0 +1,71 @@
+module Errors
+
+uses
+  Std.List
+
+types
+  FieldError = { field: String, message: String } derive(Eq, Show)
+
+  Errors = Errors(List<FieldError>) derive(Eq, Show)
+
+functions
+  empty() -> Errors {
+    Errors([])
+  }
+
+  of(list: List<FieldError>) -> Errors {
+    Errors(list)
+  }
+
+  all(errors: Errors) -> List<FieldError> {
+    match errors {
+      Errors(list) -> list,
+    }
+  }
+
+  add(errors: Errors, field: String, message: String) -> Errors {
+    Errors(List.append(all(errors), [{ field: field, message: message }]))
+  }
+
+  merge(first: Errors, second: Errors) -> Errors {
+    Errors(List.append(all(first), all(second)))
+  }
+
+  is_empty(errors: Errors) -> Bool {
+    List.is_empty(all(errors))
+  }
+
+  count(errors: Errors) -> Int {
+    List.length(all(errors))
+  }
+
+  on(errors: Errors, field: String) -> List<String> {
+    List.map(List.filter(all(errors), function(e) { e.field == field }), function(e) { e.message })
+  }
+
+  has(errors: Errors, field: String) -> Bool {
+    List.any(all(errors), function(e) { e.field == field })
+  }
+
+  full_messages(errors: Errors) -> List<String> {
+    List.map(all(errors), function(e) { "#{label(e.field)} #{e.message}" })
+  }
+
+  label(field: String) -> String {
+    let spaced = String.replace(field, "_", " ")
+
+    "#{String.uppercase(String.slice(spaced, 0, 1))}#{String.slice(spaced, 1, String.length(spaced))}"
+  }
+
+exports
+  empty
+  of
+  all
+  add
+  merge
+  is_empty
+  count
+  on
+  has
+  label
+  full_messages

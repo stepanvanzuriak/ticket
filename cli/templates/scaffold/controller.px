@@ -1,0 +1,129 @@
+module {{Models}}Controller
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.Id
+  Std.Option
+  Std.Process
+  Std.Result
+  Std.Time
+  Models.{{Model}}
+  Paths
+  Schema
+  Ticket.Conn
+  Ticket.Db
+  Ticket.Error
+  Ticket.Errors
+  Ticket.Flash
+  Ticket.Params
+  Ticket.Response
+  Ticket.Session
+  Views.Layout
+  Views.{{Model}}Views
+
+functions
+  index(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Process, Random, Clock} {
+    Session.handle(conn, list)
+  }
+
+  show(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>, Process, Random, Clock} {
+    Session.handle(conn, details)
+  }
+
+  new(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, blank)
+  }
+
+  create(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Process, Random, Clock} {
+    Session.handle(conn, save)
+  }
+
+  edit(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>, Process, Random, Clock} {
+    Session.handle(conn, form)
+  }
+
+  update(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>, Process, Random, Clock} {
+    Session.handle(conn, change)
+  }
+
+  destroy(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>, Process, Random, Clock} {
+    Session.handle(conn, remove)
+  }
+
+  list(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>} {
+    Response.render(Layout.app(conn, "{{Models}}", {{Model}}Views.index(conn, {{Models}}.all())))
+  }
+
+  details(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+    let {{model}} = find_or_halt(conn)
+
+    Response.render(Layout.app(conn, "{{Words}}", {{Model}}Views.show(conn, {{model}})))
+  }
+
+  blank(conn: Conn) -> Response {
+    Response.render(Layout.app(conn, "New {{words}}", {{Model}}Views.new(conn, Params.nested(conn, "{{model}}"), Errors.empty())))
+  }
+
+  save(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>} {
+    let decoded: Result<Errors, New{{Model}}> = Params.record(conn, "{{model}}")
+
+    match Result.and_then(decoded, {{Model}}.validate) {
+      Ok(row) -> {
+        let {{model}} = {{Models}}.insert(row)
+
+        Response.redirect_to(Flash.put(conn, "notice", "{{Words}} was created."), Paths.{{model}}_path({{model}}.id))
+      },
+      Err(errors) -> Response.render_status(
+        422,
+        Layout.app(conn, "New {{words}}", {{Model}}Views.new(conn, Params.nested(conn, "{{model}}"), errors)),
+      ),
+    }
+  }
+
+  form(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+    let {{model}} = find_or_halt(conn)
+
+    Response.render(Layout.app(conn, "Edit {{words}}", {{Model}}Views.edit(conn, {{model}}, {{Model}}Views.values({{model}}), Errors.empty())))
+  }
+
+  change(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+    let {{model}} = find_or_halt(conn)
+    let decoded: Result<Errors, New{{Model}}> = Params.record(conn, "{{model}}")
+    let merged = Result.map(decoded, function(row) { { ..{{model}}, {{permit}} } })
+
+    match Result.and_then(merged, {{Model}}.validate_update) {
+      Ok(row) -> {
+        let saved = {{Models}}.update(row)
+
+        Response.redirect_to(Flash.put(conn, "notice", "{{Words}} was updated."), Paths.{{model}}_path(saved.id))
+      },
+      Err(errors) -> Response.render_status(
+        422,
+        Layout.app(conn, "Edit {{words}}", {{Model}}Views.edit(conn, {{model}}, Params.nested(conn, "{{model}}"), errors)),
+      ),
+    }
+  }
+
+  remove(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+    let {{model}} = find_or_halt(conn)
+    let _ = {{Models}}.delete({{model}}.id)
+
+    Response.redirect_to(Flash.put(conn, "notice", "{{Words}} was destroyed."), Paths.{{models}}_path())
+  }
+
+  find_or_halt(conn: Conn) -> {{Model}} / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+    match Option.and_then(Params.id(conn, "id"), {{Models}}.find) {
+      Some({{model}}) -> {{model}},
+      None -> throw Halt(Response.not_found()),
+    }
+  }
+
+exports
+  create
+  destroy
+  edit
+  index
+  new
+  show
+  update

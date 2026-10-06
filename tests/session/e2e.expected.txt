@@ -1,0 +1,12 @@
+no_session_dev: {"TICKET_ENV":"development"}
+no_session_production: {"TICKET_ENV":"production"}
+table_dev_warns: {"TICKET_ENV":"development"} (warns)
+table_production_refuses: refuses: sessions need a secret in production: set `secret` under `[session]` in ticket.toml, or `TICKET_SECRET`
+toml_secret: {"TICKET_ENV":"production","TICKET_SESSION_MAX_AGE":"60","TICKET_SECRET":"a"}
+env_beats_toml: {"TICKET_ENV":"production","TICKET_SECRET":"b"}
+env_alone_opts_in: {"TICKET_ENV":"test","TICKET_SECRET":"b"}
+21 production_without_secret: exit 1 error: sessions need a secret in production: set `secret` under `[session]` in ticket.toml, or `TICKET_SECRET`
+22 production_with_secret_env: serves
+22 production_with_secret_toml: serves
+22 development_warns: serves, stderr: warning: no session secret, using the development one (set `[session] secret` or `TICKET_SECRET`)
+22 no_session_table: serves

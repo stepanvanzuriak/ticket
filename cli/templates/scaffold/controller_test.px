@@ -1,0 +1,87 @@
+module {{Models}}ControllerTest
+
+uses
+  Std.Assert
+  Std.Crypto
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Time
+  Routes
+  Schema
+  Ticket.Db
+  Ticket.Test
+
+hosts
+  Node
+
+functions
+  test_index() {
+    Test.with_db(Schema.migrations, function() {
+      let reply = Test.get(Routes.router, Test.client(), "/{{models}}")
+
+      Test.assert_status(reply, 200)
+      Test.assert_body_contains(reply, "<h1>{{Models}}</h1>")
+    })
+  }
+
+  test_new() {
+    Test.with_db(Schema.migrations, function() {
+      let reply = Test.get(Routes.router, Test.client(), "/{{models}}/new")
+
+      Test.assert_status(reply, 200)
+      Test.assert_body_contains(reply, "<form")
+    })
+  }
+
+  test_create_redirects_with_a_notice() {
+    Test.with_db(Schema.migrations, function() {
+      let reply = Test.post(Routes.router, Test.client(), "/{{models}}", {{valid_form}})
+
+      Test.assert_redirect(reply, "/{{models}}/1")
+      Assert.equal(Test.flash(reply, "notice"), Some("{{Words}} was created."))
+      Test.assert_body_contains(Test.follow(Routes.router, reply), "{{Words}} was created.")
+    })
+  }
+{{invalid_test}}
+  test_show_missing_is_404() {
+    Test.with_db(Schema.migrations, function() {
+      Test.assert_status(Test.get(Routes.router, Test.client(), "/{{models}}/99"), 404)
+    })
+  }
+
+  test_update_redirects() {
+    Test.with_db(Schema.migrations, function() {
+      let client = Test.client()
+      let created = Test.post(Routes.router, client, "/{{models}}", {{valid_form}})
+      let reply = Test.patch(Routes.router, created.client, "/{{models}}/1", {{valid_form}})
+
+      Test.assert_redirect(reply, "/{{models}}/1")
+    })
+  }
+
+  test_destroy_removes_it() {
+    Test.with_db(Schema.migrations, function() {
+      let created = Test.post(Routes.router, Test.client(), "/{{models}}", {{valid_form}})
+      let reply = Test.delete(Routes.router, created.client, "/{{models}}/1")
+
+      Test.assert_redirect(reply, "/{{models}}")
+      Test.assert_status(Test.get(Routes.router, reply.client, "/{{models}}/1"), 404)
+    })
+  }
+
+  test_without_a_token_is_refused() {
+    Test.with_db(Schema.migrations, function() {
+      Test.assert_status(Test.post_without_token(Routes.router, Test.client(), "/{{models}}", {{valid_form}}), 403)
+    })
+  }
+
+exports
+  test_create_redirects_with_a_notice
+  test_destroy_removes_it
+  test_index
+  test_new
+  test_show_missing_is_404
+  test_update_redirects
+  test_without_a_token_is_refused
+{{invalid_export}}

@@ -1,0 +1,12 @@
+module CrossMissing
+
+uses
+  Ticket.Html
+  UI
+
+views
+  page()
+    <UI.Button />
+
+exports
+  page

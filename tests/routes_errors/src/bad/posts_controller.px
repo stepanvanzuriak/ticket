@@ -1,0 +1,44 @@
+module PostsController
+
+uses
+  Std.Http
+  Ticket.Conn
+  Ticket.Response
+
+functions
+  index(x: Int) -> Response {
+    Response.text(200, "index")
+  }
+
+  new(x: Int) -> Response {
+    Response.text(200, "new")
+  }
+
+  create(x: Int) -> Response {
+    Response.text(200, "create")
+  }
+
+  show(x: Int) -> Response {
+    Response.text(200, "show")
+  }
+
+  edit(x: Int) -> Response {
+    Response.text(200, "edit")
+  }
+
+  update(x: Int) -> Response {
+    Response.text(200, "update")
+  }
+
+  destroy(x: Int) -> Response {
+    Response.text(200, "destroy")
+  }
+
+exports
+  create
+  destroy
+  edit
+  index
+  new
+  show
+  update

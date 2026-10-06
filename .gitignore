@@ -1,0 +1,12 @@
+target/
+.DS_Store
+.idea
+
+node_modules/
+
+*.sqlite3*
+
+dist/
+.polar/
+
+tickets/

@@ -1,0 +1,32 @@
+module Schema
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+hosts
+  Node
+
+migrations
+  20261001_120000 create_table users
+    name   String
+    email  String  unique
+
+  20261001_130000 create_table items
+    name      String
+    count     Int
+    price     Float
+    active    Bool
+    note      Option<String>
+    owner_id  Option<Id<User>>  references users
+    due       Option<Time>
+    timestamps

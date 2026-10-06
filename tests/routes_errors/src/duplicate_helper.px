@@ -1,0 +1,13 @@
+module DuplicateHelper
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  PagesController
+  PostsController
+
+routes
+  get  /about  -> PagesController.about  as about
+  get  /info   -> PagesController.home   as about

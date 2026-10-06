@@ -1,0 +1,12 @@
+module CrossType
+
+uses
+  Ticket.Html
+  UI
+
+views
+  page()
+    <UI.Button name={1} />
+
+exports
+  page

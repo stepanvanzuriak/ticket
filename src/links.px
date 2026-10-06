@@ -1,0 +1,29 @@
+module Links
+
+uses
+  Ticket.Conn
+  Ticket.Forms
+  Ticket.Html
+
+view_component
+  LinkTo(text: String, path: String)
+    <a href={path}>{text}</a>
+
+  ButtonTo(conn: Conn, text: String, path: String, method: String)
+    <Forms.MethodForm conn={conn} action={path} method={method}>
+      <button type="submit">{text}</button>
+    </Forms.MethodForm>
+
+functions
+  link_to_if(condition: Bool, text: String, path: String) -> Html {
+    if condition {
+      link_to({ text: text, path: path })
+    } else {
+      Html.raw(Html.escape(text))
+    }
+  }
+
+exports
+  button_to
+  link_to
+  link_to_if

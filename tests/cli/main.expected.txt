@@ -1,0 +1,16 @@
+1 args_forms: command=server positional=[] flags=[port=1, x=2, skip-build]
+1 args_forms_lookup: port=Some("1") x=Some("2") skip-build=true help=false
+2 args_missing_value: Err(MissingValue("port"))
+6 root_from_nested: Some("demo")
+6 root_at_app: Some("demo")
+6 root_not_ticket: None
+17 inflect_plural: post -> posts, category -> categories, box -> boxes, day -> days
+17 inflect_singular: posts -> Some("post"), categories -> Some("category"), people -> None, s -> None, ies -> None
+17 inflect_case: blog_posts -> BlogPost, BlogPost -> blog_posts, blog_post -> BlogPost
+18 args_long_value: command=server positional=[] flags=[port=4000]
+19 args_equals_value: command=server positional=[] flags=[port=4000]
+20 args_value_is_flag: Err(MissingValue("port"))
+21 args_unknown_flag: Err(UnknownFlag("frobnicate"))
+22 args_aliases: command=generate positional=[model] flags=[]
+23 args_dashdash: command=new positional=[--skip-build] flags=[]
+24 args_empty: command= positional=[] flags=[]

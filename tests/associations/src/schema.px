@@ -1,0 +1,34 @@
+module Schema
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+hosts
+  Node
+
+migrations
+  20261001_120000 create_table users
+    name  String
+
+  20261001_130000 create_table posts
+    title      String
+    author_id  Id<User>          references users  on_delete cascade
+    editor_id  Option<Id<User>>  references users  on_delete set_null
+
+  20261001_140000 create_table comments
+    body       String
+    post_id    Id<Post>             references posts     on_delete cascade
+    parent_id  Option<Id<Comment>>  references comments  on_delete cascade
+
+  20261001_150000 create_table notes
+    body     String
+    user_id  Id<User>  references users

@@ -1,0 +1,17 @@
+module CannotSingularise
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+migrations
+  20261001_000000 create_table people
+    name  String

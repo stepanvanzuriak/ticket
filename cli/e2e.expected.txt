@@ -1,0 +1,32 @@
+3 unknown_command: exit=2 message=yes help=yes
+4 help_outside_app: exit=0 help=yes
+5 needs_app: exit=1 error: not inside a Ticket app (no polar.toml depending on ticket found)
+7 new_bad_name: exit=2 written=no
+8 new_non_empty: exit=1 files=notes.txt
+9 new_files: exit=0 created=.gitignore,README.md,polar.toml,public/404.html,public/500.html,public/robots.txt,src/controllers/pages_controller.px,src/main.px,src/routes.px,src/views/layout.px,src/views/pages.px,ticket.toml
++ new_public: 404.html,500.html,robots.txt
+9 new_files_on_disk: same=yes placeholders=0
+9 new_files_absolute_path: yes
+10 new_builds: exit=0 built=yes
+10 new_serves: status=200 <title>Demo</title>
+12 server_port: port=4001 status=200
+11 new_relative_path: exit=0 ticket = { path = "../ticket" }
+13 routes_table: exit=0 same=yes
+14 routes_build_error: exit=1 shown=yes
+15 shim_rebuilds: rebuilds=1,0
+16 shim_symlink: exit=0 ticket 0.1.0
+17 g_model: exit=0 create  src/schema.px  V create_table users |         wire  src/main.px  migrate |       create  src/models/user.px
+17 g_model_files: src/models/user.px,src/schema.px
+17 g_model_wired: yes
+18 g_model_more: exit=0 append  src/schema.px  V create_table posts |       create  src/models/post.px
+19 g_migration_add: exit=0 append  src/schema.px  V add_column posts
+19 g_migration_remove: exit=0 append  src/schema.px  V remove_column posts
+20 schema: migrations |   V create_table users |     name   String |     email  String  unique |  |   V create_table posts |     title      String |     published  Bool              default false |     user_id    Option<Id<User>>  references users |  |   V add_column posts |     slug  Option<String> |  |   V remove_column posts |     slug
+21 generated_migrates: exit=0 migrated=4
+22 g_model_exists: exit=1 error: ./src/models/post.px already exists
+23 g_migration_unknown: exit=2 error: can't tell what `Frobnicate` chan
+23 g_bad_modifier: exit=2 error: unknown modifier `bogus`: use `unique` or `default=V`
+24 g_bad_name: exit=2 error: `post` isn't a valid na
+24 g_no_fields: exit=2 error: `create_table` needs at least one field, like `title:String`
+24 g_bad_field: exit=2 error: `name` isn't a field: w
+24 g_needs_app: exit=1

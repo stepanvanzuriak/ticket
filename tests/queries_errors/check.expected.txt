@@ -1,0 +1,45 @@
+error[POLAR0502]: missing fields `author_id`, `published` and `score`
+  --> src/insert_missing_field.px:13:18
+   |
+13 |     Posts.insert({ title: "x" })
+   |                  ^^^^^^^^^^^^^^ this record has no fields `author_id`, `published` and `score`
+
+error[POLAR0501]: mismatched types
+  --> src/is_null_not_option.px:13:19
+   |
+13 |     Query.is_null(Schema.post_title)
+   |                   ^^^^^^^^^^^^^^^^^ expected `Column<a, Option<b>>`, found `Column<Post, String>`
+   |
+   = note: argument 2 of `Column` differs: expected `Option<b>`, found `String`
+
+error[POLAR0305]: `Schema` exports no function `post_titel`
+  --> src/misspelled_column.px:13:21
+   |
+13 |     Query.eq(Schema.post_titel, "x")
+   |                     ^^^^^^^^^^
+   |
+   = help: available: `post_author`, `user_posts_as_author`, `user_posts_as_author_filter`, `migrations`, `user_id`, `user_name`, `user_email`, `post_id`, `post_title`, `post_published`, `post_score`, `post_author_id`, `post_created_at`, `post_updated_at`, `event_id`, `event_name`, `event_seen_at`
+
+error[POLAR0501]: mismatched types
+  --> src/order_by_other_table.px:13:22
+   |
+13 |     Posts.filter([], [Query.order_desc(Schema.user_id)])
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `List<Clause<Post>>`, found `List<Clause<User>>`
+   |
+   = note: argument 1 of `Clause` differs: expected `Post`, found `User`
+
+error[POLAR0501]: mismatched types
+  --> src/other_records_column.px:13:18
+   |
+13 |     Posts.filter([Query.eq(Schema.user_name, "Ada")], [])
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `List<Filter<Post>>`, found `List<Filter<User>>`
+   |
+   = note: argument 1 of `Filter` differs: expected `Post`, found `User`
+
+error[POLAR0501]: mismatched types
+  --> src/wrong_value_type.px:13:33
+   |
+13 |     Query.eq(Schema.post_title, 5)
+   |                                 ^ expected `String`, found `Int`
+
+error: aborting due to 6 errors

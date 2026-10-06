@@ -1,0 +1,14 @@
+module User
+
+uses
+  Std.List
+  Std.Result
+  Ticket.Db
+  Ticket.Errors
+  Ticket.Query
+  Ticket.Validations
+  Schema
+
+validations
+  name   presence
+  email  presence uniqueness

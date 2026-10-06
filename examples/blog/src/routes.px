@@ -1,0 +1,21 @@
+module Routes
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  Controllers.CommentsController
+  Controllers.PostsController
+
+hosts
+  Node
+
+routes
+  root  -> PostsController.index
+
+  resources posts       -> PostsController
+    resources comments  -> CommentsController  only create destroy
+
+exports
+  Node

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Database – Ticket</title>
+<meta name="description" content="Migrations, the ticket db commands and generators, and typed model queries.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="database">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Database</h1>
+      <p class="lead">The schema is a list of migrations. From it Ticket generates your records and a typed query API, so SQL strings stay out of controllers.</p>
+      <h2 id="migrations">The migrations zone</h2>
+      <p>An app writes its migrations in one module, <code>Schema</code>. The zone is replayed in order on every build, so there is no schema file to keep in sync.</p>
+      <pre class="code" data-lang="polar"><code>module Schema
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Time
+  Ticket.Db
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+migrations
+  20261001_120000 create_table users
+    name   String
+    email  String  unique
+
+  20261001_130000 create_table posts
+    title      String
+    published  Bool              default false
+    author_id  Option&lt;Id&lt;User&gt;&gt;  references users
+    timestamps
+
+  20261002_090000 rename_column posts
+    title -> heading</code></pre>
+      <p>That generates <code>User</code> and <code>NewUser</code>, <code>Post</code> and <code>NewPost</code>, a <code>migrations</code> constant for the runner, and the model API below. <code>NewPost</code> is <code>Post</code> without <code>id</code> and without <code>timestamps</code> columns, which SQLite fills.</p>
+      <div class="table-wrap"><table><thead><tr><th>Change</th><th>Lines under it</th></tr></thead><tbody><tr><td><code>create_table &lt;table&gt; [as Record]</code></td><td>columns: <code>name  Type  [default v] [references table [on_delete action]] [unique]</code></td></tr><tr><td><code>add_column &lt;table&gt;</code></td><td>columns, which need a <code>default</code> or an <code>Option</code> type</td></tr><tr><td><code>remove_column &lt;table&gt;</code> / <code>drop_table &lt;table&gt;</code></td><td>column names / nothing</td></tr><tr><td><code>rename_column &lt;table&gt;</code></td><td><code>old -&gt; new</code></td></tr><tr><td><code>add_index &lt;table&gt;</code> / <code>remove_index &lt;table&gt;</code></td><td><code>column…  [unique]</code>, one index per line</td></tr></tbody></table></div>
+      <p>The column types are <code>Int</code>, <code>Float</code>, <code>String</code>, <code>Bool</code>, <code>Time</code>, <code>Id&lt;Record&gt;</code> (with <code>references</code>) and <code>Option&lt;…&gt;</code>. Each migration's <code>down</code> is worked out from the schema, so <code>remove_column</code> and <code>drop_table</code> can be rolled back. Mistakes are reported at the line that makes them.</p>
+      <p><code>Time</code> columns and <code>timestamps</code> (<code>created_at</code> and <code>updated_at</code>, filled by SQLite) need <code>Std.Time</code> in <code>uses</code>. <code>timestamps</code> goes in <code>create_table</code> only.</p>
+      <h2 id="cli">Running migrations</h2>
+      <p>The database comes from <code>[database]</code> in <code>ticket.toml</code>. SQLite is built in, through <code>node:sqlite</code>.</p>
+      <div class="table-wrap"><table><thead><tr><th>Command</th><th>What</th></tr></thead><tbody><tr><td><code>ticket db:migrate [--version V]</code></td><td>Applies the pending migrations, up to <code>V</code> if given</td></tr><tr><td><code>ticket db:rollback [--step N]</code></td><td>Undoes the last <code>N</code> migrations (one by default)</td></tr><tr><td><code>ticket db:status</code></td><td>Lists each migration and whether it has run</td></tr><tr><td><code>ticket db:reset</code></td><td>Rolls everything back, migrates again, then seeds</td></tr><tr><td><code>ticket db:seed</code></td><td>Runs the app's <code>seed()</code></td></tr></tbody></table></div>
+      <p>The app's <code>main</code> exports <code>migrate</code> and <code>seed</code>, as it exports <code>router</code>:</p>
+      <pre class="code" data-lang="polar"><code>migrate(command: String, step: Int, version: String) -&gt; Int / {Db, Clock} {
+  Migrate.run(Schema.migrations, command, step, version)
+}</code></pre>
+      <p>Set <code>[database] migrate = "auto"</code> in <code>ticket.toml</code> to apply pending migrations when the app boots.</p>
+      <h2 id="generators">Generators</h2>
+      <p><code>ticket g migration &lt;Name&gt; [field…]</code> appends an entry to <code>src/schema.px</code>, named from the migration (<code>Create…</code>, <code>Add…To…</code>, <code>Remove…From…</code>). <code>ticket g model &lt;Name&gt; [field…]</code> does the same and also writes <code>src/models/&lt;name&gt;.px</code>.</p>
+      <p>A field is <code>name:Type[:modifier…]</code>. <code>Type?</code> is <code>Option&lt;Type&gt;</code>, <code>author:references</code> is <code>author_id  Option&lt;Id&lt;Author&gt;&gt;  references authors</code>, and the modifiers are <code>unique</code> and <code>default=V</code>.</p>
+      <pre class="code" data-lang="sh"><code><span class="pr">$</span> ticket g model Post title:String body:String? published:Bool:default=false author:references</code></pre>
+      <h2 id="queries">Model queries</h2>
+      <p>Each table also gets a host-less effect, <code>Posts</code>, bound in Node to SQLite, and a typed constant per column, <code>post_title: Column&lt;Post, String&gt;</code>, named <code>&lt;record&gt;_&lt;column&gt;</code>.</p>
+      <pre class="code" data-lang="polar"><code>index(conn: Conn) -&gt; Response / {Posts, Throws&lt;DbFailure&gt;} {
+  let posts = Posts.filter(
+    [Query.eq(Schema.post_published, true)],
+    [Query.order_desc(Schema.post_id)],
+  )
+
+  Response.render(Layout.app("Posts", PostViews.index(posts)))
+}
+
+create(conn: Conn) -&gt; Response / {Posts, Throws&lt;DbFailure&gt;} {
+  let post = Posts.insert({ title: "Hello", published: false, author_id: None })
+
+  Response.redirect_to(conn, Paths.post_path(post.id))
+}</code></pre>
+      <div class="table-wrap"><table><thead><tr><th>Operation</th><th>Returns</th></tr></thead><tbody><tr><td><code>find(id)</code></td><td><code>Option&lt;Post&gt;</code></td></tr><tr><td><code>all()</code>, <code>filter(filters, clauses)</code></td><td><code>List&lt;Post&gt;</code></td></tr><tr><td><code>count(filters)</code></td><td><code>Int</code></td></tr><tr><td><code>insert(NewPost)</code>, <code>update(Post)</code></td><td>The stored <code>Post</code>. <code>update</code> sets every column, and <code>updated_at</code></td></tr><tr><td><code>delete(id)</code></td><td><code>Bool</code>: whether a row was there</td></tr></tbody></table></div>
+      <p>Filters are <code>Query.eq</code>, <code>not_eq</code>, <code>lt</code>, <code>gt</code>, <code>like</code> and <code>is_null</code>, and a list of them is ANDed. Clauses are <code>order_asc</code>, <code>order_desc</code>, <code>limit</code> and <code>offset</code>. Every value is bound to a <code>?</code>, never spliced into the SQL.</p>
+      <p>The column constants are phantom-typed, so these are compile errors rather than runtime ones:</p>
+      <ul><li><code>Query.eq(Schema.post_title, 5)</code>: the value isn't a <code>String</code></li><li><code>Posts.filter([Query.eq(Schema.user_name, "Ada")], [])</code>: a <code>User</code> column on <code>Posts</code></li><li><code>Query.is_null(Schema.post_title)</code>: the column isn't an <code>Option</code></li><li><code>Schema.post_titel</code>: no such column</li><li><code>Posts.insert({ title: "x" })</code>: missing fields</li></ul>
+      <h2 id="errors">Errors and tests</h2>
+      <p>Operations throw <code>DbFailure(DbError)</code> when the database refuses. <code>error.kind</code> is <code>unique</code>, <code>foreign_key</code>, <code>not_null</code> and so on, or <code>not_found</code> when <code>update</code> finds no row. Catch it with <code>try … catch</code>, or let it reach the router's 500.</p>
+      <pre class="code" data-lang="polar"><code>try {
+  Posts.insert(row)
+} catch {
+  DbFailure(error) -&gt; ...
+}</code></pre>
+      <p>A test can swap in its own storage by writing <code>binds Posts in Node { … }</code> in its module, for example over a <code>Std.Table</code>. Its bind replaces the generated one.</p>
+      <h2 id="associations">Associations</h2>
+      <p>A <code>references</code> column named <code>&lt;name&gt;_id</code> gives both ends of the relation, as functions in <code>Schema</code> over the two tables' effects. A test that rebinds <code>Users</code> or <code>Posts</code> keeps them working.</p>
+      <pre class="code" data-lang="polar"><code>// posts: author_id  Option&lt;Id&lt;User&gt;&gt;  references users
+// comments: post_id  Id&lt;Post&gt;  references posts
+Schema.post_author(post)            // belongs_to: Option&lt;User&gt; (User if the column is not an Option)
+Schema.user_posts_as_author(user)   // has_many: List&lt;Post&gt;, by id
+Schema.user_posts_as_author_filter(
+  user,
+  [Query.eq(Schema.post_title, "Hi")],
+  [Query.order_desc(Schema.post_id)],
+)
+Schema.post_comments(post)          // a column named &lt;record&gt;_id drops the _as_…</code></pre>
+      <p>The belongs_to is <code>&lt;record&gt;_&lt;name&gt;</code>. The has_many is <code>&lt;target record&gt;_&lt;referencing table&gt;</code>, with <code>_as_&lt;name&gt;</code> unless the column is <code>&lt;target record&gt;_id</code>, so two references to one table, or a <code>parent_id</code> on <code>comments</code>, never clash. A non-null belongs_to throws <code>DbFailure</code> (<code>not_found</code>) if the row is gone. A name that is already taken is reported at the column.</p>
+      <p><code>on_delete cascade</code>, <code>set_null</code> or <code>restrict</code> after <code>references</code> becomes <code>ON DELETE …</code>. SQLite can't change it later, so it is set where the column is created. Without it, deleting a referenced row is a <code>foreign_key</code> failure. <code>set_null</code> needs an <code>Option</code> column.</p>
+      <h2 id="validations">Forms and validations</h2>
+      <p><code>Params.record(conn, "post")</code> decodes the <code>post[…]</code> form fields into the insert type through a <code>Form</code> impl that the <code>migrations</code> zone generates. The insert type is the permit list: other keys are dropped, and a missing or ill-typed field is a message on that field. A model module's <code>validations</code> zone adds Rails' <code>validates</code>:</p>
+      <pre class="code" data-lang="polar"><code>module Post
+
+uses
+  Std.Result
+  Ticket.Errors
+  Ticket.Validations
+  Schema
+
+validations
+  title   presence  length 3..120
+  status  inclusion "draft" "live"
+  slug    presence  format "^[a-z0-9-]+$"  uniqueness</code></pre>
+      <pre class="code" data-lang="polar"><code>create(conn: Conn) -&gt; Response / {Posts, Throws&lt;DbFailure&gt;} {
+  let decoded: Result&lt;Errors, NewPost&gt; = Params.record(conn, "post")
+
+  match Result.and_then(decoded, Post.validate) {
+    Ok(row) -&gt; Response.redirect_to(conn, Paths.post_path(Posts.insert(row).id)),
+    Err(errors) -&gt; Response.render_status(422, PostViews.new(errors)),
+  }
+}</code></pre>
+      <p>The zone generates <code>validate(row: NewPost)</code> and <code>validate_update(row: Post)</code>, which differ only in that <code>uniqueness</code> skips the row itself. Both return every message at once as <code>Errors</code>: read a field's with <code>Errors.on(errors, "title")</code>, or all of them with <code>Errors.full_messages(errors)</code> (<code>"Title can't be blank"</code>).</p>
+      <div class="table-wrap"><table><thead><tr><th>Rule</th><th>Fails when</th></tr></thead><tbody><tr><td><code>presence</code></td><td>a string is blank, a list is empty, an <code>Option</code> is <code>None</code></td></tr><tr><td><code>length 3..120</code>, <code>3..</code>, <code>..120</code></td><td>the character count is out of range</td></tr><tr><td><code>inclusion "a" "b"</code></td><td>the value isn't listed</td></tr><tr><td><code>format "regex"</code></td><td>a <code>String</code> doesn't match. It is unanchored as in JS, so write <code>^…$</code>. Needs <code>Std.Regex</code> in the compiler's std</td></tr><tr><td><code>uniqueness</code></td><td>another row holds the value. It queries <code>Posts</code>, so it needs <code>Std.List</code>, <code>Ticket.Db</code> and <code>Ticket.Query</code> in <code>uses</code>, and <code>validate</code> then has the effects <code>{Posts, Throws&lt;DbFailure&gt;}</code></td></tr></tbody></table></div>
+      <p>Fields read as <code>Int</code>, <code>Float</code>, <code>String</code>, <code>Bool</code> (<code>true</code>, <code>on</code>, <code>1</code>; an absent checkbox is false), <code>Id&lt;…&gt;</code> and <code>Time</code>. A blank <code>Option</code> field is <code>None</code>. A misspelled field, or a rule the field's type can't take, is a type error on the rule's line.</p>
+      <div class="callout wip"><p><span class="label">Note:</span> <code>Posts.where</code> is spelled <code>Posts.filter</code> for now, because <code>where</code> is a reserved word in Polar.</p></div>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

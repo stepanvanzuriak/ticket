@@ -1,0 +1,35 @@
+
+module UI
+
+uses
+  Ticket.Html
+
+view_component
+  Button(name: String)
+    <button>{name}</button>
+
+  Card(title: String, children: Html)
+    <section class="card">
+      <h2>{title}</h2>
+      {children}
+    </section>
+
+  Toggle(on: Bool)
+    <input type="checkbox" checked={on} />
+
+  Divider()
+    <hr />
+
+  Labelled(label: String)
+    <label><Icon name="tag" /> {label}</label>
+
+  Icon(name: String)
+    <i class="icon" data-name={name}></i>
+
+exports
+  button
+  card
+  divider
+  icon
+  labelled
+  toggle

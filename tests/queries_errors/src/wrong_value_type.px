@@ -1,0 +1,14 @@
+module WrongValueType
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Ticket.Db
+  Ticket.Query
+  Schema
+
+functions
+  published_five() -> Filter<Post> {
+    Query.eq(Schema.post_title, 5)
+  }

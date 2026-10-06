@@ -1,0 +1,130 @@
+
+module Main
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Migration
+  Schema
+
+types
+  Name = { name: String } derive(Json)
+
+functions
+  row(n: Int, name: String, result: String) -> {} {
+    Log.info("#{n} #{name}: #{result}")
+  }
+
+  each(list: List<Migration>, sql: function(Migration) -> List<String>) -> {} / {Db} {
+    List.fold(
+      list,
+      {},
+      function(_, m) {
+        List.fold(
+          sql(m),
+          {},
+          function(_, statement) {
+            match Db.script(statement) {
+              Ok(_) -> {},
+              Err(e) -> Log.info("  FAILED #{m.version}: #{e.message} in #{statement}"),
+            }
+          },
+        )
+      },
+    )
+  }
+
+  tables() -> String / {Db} {
+    let names: Result<DbError, List<Name>> = Db.all(
+      "select name from sqlite_master where name not like 'sqlite_%' order by name",
+      [],
+    )
+
+    match names {
+      Ok(list) -> "[#{List.join(List.map(list, function(n) { n.name }), ", ")}]",
+      Err(e) -> e.message,
+    }
+  }
+
+  main() -> {} / {Db} {
+    List.fold(
+      Schema.migrations,
+      {},
+      function(_, m) {
+        Log.info("#{m.version} #{m.name}")
+        List.fold(Migration.up_sql(m), {}, function(_, s) { Log.info("  up    #{s}") })
+        List.fold(Migration.down_sql(m), {}, function(_, s) { Log.info("  down  #{s}") })
+      },
+    )
+
+    let user: User = { id: Id(1), name: "Ada", email: "ada@example.com" }
+    let post: NewPost = {
+      content: "Hello",
+      published: true,
+      score: 1.5,
+      author_id: Some(user.id),
+      status: "live",
+      hits: 3,
+    }
+
+    row(1, "records", "#{Json.encode(user)} #{Json.encode(post)}")
+
+    let _ = Db.connect({ adapter: "sqlite", database: ":memory:" })
+
+    each(Schema.migrations, Migration.up_sql)
+    row(2, "up_all", tables())
+
+    let _ = Db.exec("insert into users (name, email) values (?, ?)", [SqlText("Ada"), SqlText("ada@example.com")])
+    let _ = Db.exec("insert into posts (content, author_id) values (?, ?)", [SqlText("Hi"), SqlInt(1)])
+    let posts: Result<DbError, List<Post>> = Db.all("select * from posts", [])
+
+    row(
+      3,
+      "defaults_and_decode",
+      match posts {
+        Ok(list) -> Json.encode(list),
+        Err(e) -> e.message,
+      },
+    )
+
+    let duplicate = Db.exec("insert into users (name, email) values (?, ?)", [SqlText("B"), SqlText("ada@example.com")])
+
+    row(
+      4,
+      "unique_index",
+      match duplicate {
+        Ok(_) -> "inserted",
+        Err(e) -> e.kind,
+      },
+    )
+    let _ = Db.exec("insert into events (name, seen_at) values (?, ?)", [SqlText("boot"), SqlText("2026-10-02T09:30:00.123Z")])
+    let events: Result<DbError, List<Event>> = Db.all("select * from events", [])
+
+    row(
+      7,
+      "time_columns",
+      match events {
+        Ok(list) -> List.join(
+          List.map(
+            list,
+            function(e) { "#{e.name} #{Option.map(e.seen_at, Time.to_iso)} filled=#{Time.millis(e.created_at) > 0}" },
+          ),
+          ", ",
+        ),
+        Err(e) -> e.message,
+      },
+    )
+
+    each(List.reverse(Schema.migrations), Migration.down_sql)
+    row(5, "down_all", tables())
+    each(Schema.migrations, Migration.up_sql)
+    row(6, "up_again", tables())
+  }
+
+exports
+  main

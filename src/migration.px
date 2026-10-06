@@ -1,0 +1,109 @@
+module Migration
+
+uses
+  Std.List
+  Std.Option
+  Ticket.Db
+
+types
+  ColumnKind = IntColumn | FloatColumn | TextColumn | BoolColumn | TimeColumn | NowColumn
+
+  Column = {
+    name: String,
+    kind: ColumnKind,
+    nullable: Bool,
+    default: Option<SqlValue>,
+    references: Option<String>,
+    on_delete: Option<String>,
+  }
+
+  Index = { name: String, table: String, columns: List<String>, unique: Bool }
+
+  Change =
+    | CreateTable(String, List<Column>)
+    | DropTable(String)
+    | AddColumn(String, Column)
+    | RemoveColumn(String, String)
+    | RenameColumn(String, String, String)
+    | AddIndex(Index)
+    | RemoveIndex(Index)
+
+  Migration = { version: String, name: String, up: List<Change>, down: List<Change> }
+
+functions
+  up_sql(migration: Migration) -> List<String> {
+    List.map(migration.up, sql)
+  }
+
+  down_sql(migration: Migration) -> List<String> {
+    List.map(migration.down, sql)
+  }
+
+  sql(change: Change) -> String {
+    match change {
+      CreateTable(table, columns) -> {
+        let defined = List.join(["\"id\" INTEGER PRIMARY KEY", ..List.map(columns, column_sql)], ", ")
+
+        "CREATE TABLE #{quote(table)} (#{defined})"
+      }
+      DropTable(table) -> "DROP TABLE #{quote(table)}",
+      AddColumn(table, column) -> "ALTER TABLE #{quote(table)} ADD COLUMN #{column_sql(column)}",
+      RemoveColumn(table, name) -> "ALTER TABLE #{quote(table)} DROP COLUMN #{quote(name)}",
+      RenameColumn(table, from, to) -> "ALTER TABLE #{quote(table)} RENAME COLUMN #{quote(from)} TO #{quote(to)}",
+      AddIndex(index) -> {
+        let unique = if index.unique { "UNIQUE " } else { "" }
+        let columns = List.join(List.map(index.columns, quote), ", ")
+
+        "CREATE #{unique}INDEX #{quote(index.name)} ON #{quote(index.table)} (#{columns})"
+      }
+      RemoveIndex(index) -> "DROP INDEX #{quote(index.name)}",
+    }
+  }
+
+  column_sql(column: Column) -> String {
+    let kind = match column.kind {
+      IntColumn -> "INTEGER",
+      FloatColumn -> "REAL",
+      TextColumn -> "TEXT",
+      BoolColumn -> "BOOLEAN",
+      TimeColumn -> "TEXT",
+      NowColumn -> "TEXT",
+    }
+    let null = if column.nullable { "" } else { " NOT NULL" }
+    let default = match column.kind {
+      NowColumn -> " DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+      _ -> Option.with_default(
+        Option.map(column.default, function(value) { " DEFAULT #{literal(value)}" }),
+        "",
+      ),
+    }
+    let references = Option.with_default(
+      Option.map(column.references, function(table) { " REFERENCES #{quote(table)} (\"id\")" }),
+      "",
+    )
+    let on_delete = Option.with_default(
+      Option.map(column.on_delete, function(action) { " ON DELETE #{action}" }),
+      "",
+    )
+
+    "#{quote(column.name)} #{kind}#{null}#{default}#{references}#{on_delete}"
+  }
+
+  literal(value: SqlValue) -> String {
+    match value {
+      SqlNull -> "NULL",
+      SqlInt(n) -> "#{n}",
+      SqlFloat(x) -> "#{x}",
+      SqlText(text) -> "'#{String.replace(text, "'", "''")}'",
+      SqlBool(b) -> if b { "1" } else { "0" },
+    }
+  }
+
+  quote(name: String) -> String {
+    "\"#{name}\""
+  }
+
+exports
+  up_sql
+  down_sql
+  sql

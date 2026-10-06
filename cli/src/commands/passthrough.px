@@ -1,0 +1,16 @@
+module Passthrough
+
+uses
+  Std.List
+  Std.Process
+
+hosts
+  Node
+
+functions
+  run(root: String, command: String, args: List<String>) -> Int / {Process} {
+    Process.run("polar", [command, ..args], Process.in_dir(Process.inherit(), root))
+  }
+
+exports
+  run

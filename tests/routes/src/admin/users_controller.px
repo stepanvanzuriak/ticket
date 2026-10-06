@@ -1,0 +1,39 @@
+module UsersController
+
+uses
+  Std.Http
+  Ticket.Conn
+  Stub
+
+functions
+  index(conn: Conn) -> Response {
+    Stub.reply(conn, "UsersController#index")
+  }
+
+  new(conn: Conn) -> Response {
+    Stub.reply(conn, "UsersController#new")
+  }
+
+  create(conn: Conn) -> Response {
+    Stub.reply(conn, "UsersController#create")
+  }
+
+  show(conn: Conn) -> Response {
+    Stub.reply(conn, "UsersController#show")
+  }
+
+  edit(conn: Conn) -> Response {
+    Stub.reply(conn, "UsersController#edit")
+  }
+
+  update(conn: Conn) -> Response {
+    Stub.reply(conn, "UsersController#update")
+  }
+
+exports
+  create
+  edit
+  index
+  new
+  show
+  update

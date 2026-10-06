@@ -1,0 +1,19 @@
+module {{Model}}
+
+uses
+  Std.Result
+  Ticket.Errors
+  Schema
+
+functions
+  validate(row: New{{Model}}) -> Result<Errors, New{{Model}}> {
+    Ok(row)
+  }
+
+  validate_update(row: {{Model}}) -> Result<Errors, {{Model}}> {
+    Ok(row)
+  }
+
+exports
+  validate
+  validate_update

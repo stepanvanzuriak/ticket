@@ -1,0 +1,10 @@
+module NeedsImports
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  PagesController
+
+routes
+  get  /about  -> PagesController.about

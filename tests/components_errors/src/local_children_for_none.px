@@ -1,0 +1,15 @@
+module NoKids
+
+uses
+  Ticket.Html
+  UI
+
+view_component
+  Chip(text: String)
+    <b>{text}</b>
+
+  Row()
+    <Chip text="x">y</Chip>
+
+exports
+  row

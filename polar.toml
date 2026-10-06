@@ -1,0 +1,9 @@
+[package]
+name = "ticket"
+module = "Ticket"
+
+[plugin]
+zones = ["migrations", "routes", "validations", "view_component", "views"]
+
+[launcher]
+script = "launcher/serve.mjs"

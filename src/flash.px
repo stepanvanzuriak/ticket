@@ -1,0 +1,19 @@
+module Flash
+
+uses
+  Std.Map
+  Std.Option
+  Ticket.Conn
+
+functions
+  put(conn: Conn, key: String, text: String) -> Conn {
+    { ..conn, flash_next: Map.insert(conn.flash_next, key, text) }
+  }
+
+  get(conn: Conn, key: String) -> Option<String> {
+    Map.get(conn.flash, key)
+  }
+
+exports
+  get
+  put

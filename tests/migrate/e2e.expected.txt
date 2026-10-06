@@ -1,0 +1,15 @@
+14 migrate: exit=0 == 20261001_120000 create_table users: migrating | == 20261001_120000 create_table users: migrated (Nms) | == 20261001_130000 create_table posts: migrating | == 20261001_130000 create_table posts: migrated (Nms) | == 20261002_090000 add_column posts: migrating | == 20261002_090000 add_column posts: migrated (Nms) versions=20261001_120000,20261001_130000,20261002_090000
+15 migrate_nothing_pending: exit=0 out=
+16 rollback_one: exit=0 == 20261002_090000 add_column posts: reverting | == 20261002_090000 add_column posts: reverted (Nms) versions=20261001_120000,20261001_130000
+17 rollback_step: exit=0 reverted=2 versions=
+18 migrate_version: exit=0 versions=20261001_120000
+19 status: exit=0 Status   Migration ID     Migration Name | -------------------------------------------------- |    up     20261001_120000  create_table users |   down    20261001_130000  create_table posts |   down    20261002_090000  add_column posts
+20 seed: exit=0 seeded users=1
+21 reset: exit=0 migrated=3 seeded=true versions=20261001_120000,20261001_130000,20261002_090000 users=1
+22 unknown_version: exit=1 error: no migration has version `1`
+23 bad_step: exit=2 error: `--step` must be a positive integer, not `0`
+24 bad_flag: exit=2 error: unknown flag `bogus` |  | Usage: 
+25 no_migrate_export: exit=1 `main.js` doesn't export `migrate`: add `migrate(comman
+26 needs_app: exit=1
+27 auto_migrate: versions=20261001_120000,20261001_130000,20261002_090000 listening=true
+28 bad_migrate_setting: exit=1 error: ticket.toml:2: `migrate` must be "auto" or "manual"

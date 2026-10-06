@@ -1,0 +1,15 @@
+module Pages
+
+uses
+  Ticket.Html
+
+views
+  home()
+    <h1>Welcome to Ticket</h1>
+
+  about()
+    <p>Pages, articles and an admin area, served by Ticket.</p>
+
+exports
+  about
+  home

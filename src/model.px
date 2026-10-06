@@ -1,0 +1,99 @@
+module Model
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Query
+  Ticket.Sql
+
+hosts
+  Node
+
+types
+  Total = { n: Int } derive(Json)
+
+functions
+  find(table: String, id: Id<r>) -> Option<a> / {Db, Throws<DbFailure>} where Json<a> {
+    rows(Sql.find(table, Id.value(id)))
+    |> List.head
+  }
+
+  all(table: String) -> List<a> / {Db, Throws<DbFailure>} where Json<a> {
+    rows(Sql.select(table, [], []))
+  }
+
+  filter(
+    table: String,
+    filters: List<Filter<r>>,
+    clauses: List<Clause<r>>,
+  ) -> List<a> / {Db, Throws<DbFailure>} where Json<a> {
+    rows(Sql.select(table, filters, clauses))
+  }
+
+  count(table: String, filters: List<Filter<r>>) -> Int / {Db, Throws<DbFailure>} {
+    let totals: List<Total> = rows(Sql.count(table, filters))
+
+    match List.head(totals) {
+      Some(total) -> total.n,
+      None -> 0,
+    }
+  }
+
+  insert(table: String, columns: List<String>, params: List<SqlValue>) -> a / {Db, Throws<DbFailure>} where Json<a> {
+    returned(Sql.insert(table, columns, params))
+  }
+
+  update(
+    table: String,
+    columns: List<String>,
+    params: List<SqlValue>,
+    id: Id<r>,
+    touch: Bool,
+  ) -> a / {Db, Throws<DbFailure>} where Json<a> {
+    returned(Sql.update(table, columns, params, Id.value(id), touch))
+  }
+
+  delete(table: String, id: Id<r>) -> Bool / {Db, Throws<DbFailure>} {
+    let statement = Sql.delete(table, Id.value(id))
+
+    match Db.exec(statement.sql, statement.params) {
+      Ok(changes) -> changes.changes > 0,
+      Err(error) -> throw DbFailure(error),
+    }
+  }
+
+  rows(statement: Statement) -> List<a> / {Db, Throws<DbFailure>} where Json<a> {
+    let found: Result<DbError, List<a>> = Db.all(statement.sql, statement.params)
+
+    match found {
+      Ok(list) -> list,
+      Err(error) -> throw DbFailure(error),
+    }
+  }
+
+  returned(statement: Statement) -> a / {Db, Throws<DbFailure>} where Json<a> {
+    let list: List<a> = rows(statement)
+
+    match List.head(list) {
+      Some(row) -> row,
+      None -> throw DbFailure({
+        kind: "not_found",
+        code: "",
+        message: "no row matched",
+        sql: statement.sql,
+      }),
+    }
+  }
+
+exports
+  find
+  all
+  filter
+  count
+  insert
+  update
+  delete

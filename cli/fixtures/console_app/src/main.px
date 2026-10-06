@@ -1,0 +1,26 @@
+module Main
+
+uses
+  Std.Time
+  Std.Process
+  Ticket.Console
+  Ticket.Db
+  Ticket.Migrate
+  Schema
+
+hosts
+  Node
+
+functions
+  migrate(command: String, step: Int, version: String) -> Int / {Db, Clock} {
+    Migrate.run(Schema.migrations, command, step, version)
+  }
+
+  boot() -> {} / {Db, Process} {
+    Console.boot(Schema.migrations)
+  }
+
+exports
+  Node
+  boot
+  migrate

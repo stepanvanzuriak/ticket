@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Views and Components – Ticket</title>
+<meta name="description" content="The views and view_component zones: JSX-style markup that compiles to functions returning Html.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="views">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Views and Components</h1>
+      <p class="lead">Markup goes in a views zone. Each view is a header and a block of markup, and it compiles to a function that returns Html.</p>
+      <h2 id="views">Views</h2>
+      <p>The module has to use <code>Ticket.Html</code>. The header is the function's signature, and the markup below it is its body.</p>
+      <pre class="code" data-lang="polar"><code>module Articles
+
+uses
+  Std.List
+  Models.Article
+  Paths
+  Ticket.Html
+
+views
+  index(articles: List&lt;Article&gt;)
+    &lt;section&gt;
+      &lt;h1&gt;Articles&lt;/h1&gt;
+      &lt;ul&gt;{List.map(articles, item)}&lt;/ul&gt;
+      &lt;a href={Paths.new_article_path()}&gt;New article&lt;/a&gt;
+    &lt;/section&gt;
+
+  item(article: Article)
+    &lt;li&gt;&lt;a href={Paths.article_path(article.id)}&gt;{article.title}&lt;/a&gt;&lt;/li&gt;
+
+exports
+  index</code></pre>
+      <h2 id="holes">Holes</h2>
+      <p><code>{expr}</code> renders any value with a <code>Render</code> impl, and escapes text. Strings, numbers, <code>Bool</code>, <code>Float</code>, <code>Html</code> and lists of them all work.</p>
+      <h2 id="attributes">Attributes</h2>
+      <p>A literal attribute like <code>class="post"</code> is written as is. An attribute with a hole, <code>name={expr}</code>, goes through the <code>Attr</code> trait:</p>
+      <div class="table-wrap"><table><thead><tr><th>Value</th><th>Renders</th></tr></thead><tbody><tr><td><code>String</code>, <code>Int</code>, <code>Id</code></td><td><code>name="escaped value"</code></td></tr><tr><td><code>true</code></td><td><code>name</code> on its own</td></tr><tr><td><code>false</code></td><td>nothing</td></tr><tr><td><code>None</code></td><td>nothing</td></tr><tr><td><code>Some(x)</code></td><td>whatever <code>x</code> renders</td></tr></tbody></table></div>
+      <pre class="code" data-lang="polar"><code>views
+  toggle(on: Bool)
+    &lt;input type="checkbox" checked={on} /&gt;</code></pre>
+      <h2 id="children">Children and local components</h2>
+      <p>Inside one module, <code>&lt;Card post={p} /&gt;</code> calls the view <code>card</code>, passing arguments by name. A parameter called <code>children: Html</code> receives the nested markup.</p>
+      <pre class="code" data-lang="polar"><code>views
+  card(post: Post, children: Html)
+    &lt;article class="post" data-id={post.id}&gt;
+      &lt;h2&gt;{post.title}&lt;/h2&gt;
+      {children}
+    &lt;/article&gt;</code></pre>
+      <h2 id="components">Components across modules</h2>
+      <p>Components shared between modules go in a <code>view_component</code> zone. A PascalCase header <code>Button(name: String)</code> becomes <code>button(props: { name: String })</code>, which you export as <code>button</code>.</p>
+      <pre class="code" data-lang="polar"><code>module UI
+
+uses
+  Ticket.Html
+
+view_component
+  Button(name: String)
+    &lt;button&gt;{name}&lt;/button&gt;
+
+  Card(title: String, children: Html)
+    &lt;section class="card"&gt;
+      &lt;h2&gt;{title}&lt;/h2&gt;
+      {children}
+    &lt;/section&gt;
+
+exports
+  button
+  card</code></pre>
+      <p>Use them as <code>&lt;UI.Button name="x" /&gt;</code> from any module that uses <code>UI</code>, or under an alias:</p>
+      <pre class="code" data-lang="polar"><code>uses
+  Ticket.Html
+  UI as Kit
+
+views
+  wrapped()
+    &lt;Kit.Card title="T"&gt;
+      &lt;p&gt;body&lt;/p&gt;
+    &lt;/Kit.Card&gt;</code></pre>
+      <h2 id="layouts">Layouts</h2>
+      <p>A layout is a plain view that takes the page's <code>Html</code>. The controller wraps the page itself: <code>Response.render(Layout.app("Title", Pages.home()))</code>.</p>
+      <pre class="code" data-lang="polar"><code>module Layout
+
+uses
+  Paths
+  Ticket.Html
+
+views
+  app(title: String, body: Html)
+    &lt;html&gt;
+      &lt;head&gt;
+        &lt;title&gt;{title}&lt;/title&gt;
+      &lt;/head&gt;
+      &lt;body&gt;
+        &lt;nav&gt;
+          &lt;a href={Paths.root_path()}&gt;Home&lt;/a&gt;
+          &lt;a href={Paths.articles_path()}&gt;Articles&lt;/a&gt;
+        &lt;/nav&gt;
+        &lt;main&gt;{body}&lt;/main&gt;
+      &lt;/body&gt;
+    &lt;/html&gt;
+
+exports
+  app</code></pre>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

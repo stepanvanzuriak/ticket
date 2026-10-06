@@ -1,0 +1,23 @@
+module RemoveReferencesColumn
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+migrations
+  20261001_000000 create_table users
+    name  String
+
+  20261002_000000 create_table posts
+    author_id  Option<Id<User>>  references users
+
+  20261003_000000 remove_column posts
+    author_id

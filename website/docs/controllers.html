@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controllers – Ticket</title>
+<meta name="description" content="Controllers are modules of actions. Each action takes a Conn and returns a Response.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="controllers">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Controllers</h1>
+      <p class="lead">A controller is a module of actions. Each action takes a Conn and returns a Response, names its own view, and lists its effects in its signature.</p>
+      <h2 id="actions">Actions</h2>
+      <p>Every action has the same shape: <code>action(conn: Conn) -> Response / {…}</code>. The router calls it, and the type checker makes sure it fits.</p>
+      <pre class="code" data-lang="polar"><code>module ArticlesController
+
+uses
+  Std.Http
+  Std.Map
+  Std.Option
+  Layout
+  Models.Article
+  Paths
+  Ticket.Conn
+  Ticket.Error
+  Ticket.Params
+  Ticket.Response
+  Views.Articles
+
+functions
+  index(conn: Conn) -&gt; Response / {Mut} {
+    Response.render(Layout.app("Articles", Articles.index(Article.all())))
+  }
+
+  show(conn: Conn) -&gt; Response / {Mut, Throws&lt;Halt&gt;} {
+    let article = find_or_halt(conn)
+
+    Response.render(Layout.app(article.title, Articles.show(article)))
+  }
+
+  new(conn: Conn) -&gt; Response {
+    Response.render(Layout.app("New article", Articles.form("")))
+  }
+
+  create(conn: Conn) -&gt; Response / {Mut} {
+    let title = Option.with_default(Map.get(Params.nested(conn, "article"), "title"), "")
+
+    if title == "" {
+      Response.render_status(
+        422,
+        Layout.app("New article", Articles.form("Title can't be blank")),
+      )
+    } else {
+      let article = Article.create(title)
+
+      Response.redirect_to(conn, Paths.article_path(article.id))
+    }
+  }
+
+exports
+  create
+  index
+  new
+  show</code></pre>
+      <p>There's no implicit template lookup. The action calls its view and layout like any other function.</p>
+      <h2 id="responses">Building responses</h2>
+      <p><code>Ticket.Response</code> builds <code>Std.Http.Response</code> values. Actions return them, so they stay plain values you can test.</p>
+      <div class="table-wrap"><table><thead><tr><th>Function</th><th>What it does</th></tr></thead><tbody><tr><td><code>render(page)</code></td><td>200 with a full HTML document</td></tr><tr><td><code>render_status(status, page)</code></td><td>The same with another status, like 422</td></tr><tr><td><code>redirect_to(conn, path)</code></td><td>302 after <code>GET</code> or <code>HEAD</code>, 303 after anything else, so a browser follows a form post with a <code>GET</code></td></tr><tr><td><code>head(status)</code></td><td>A status with no body</td></tr><tr><td><code>text(status, body)</code>, <code>html(status, body)</code></td><td>Plain text or an HTML string</td></tr><tr><td><code>view(status, page)</code></td><td>An <code>Html</code> value as is, without the document wrapper</td></tr><tr><td><code>json(status, value)</code></td><td>Any value with a <code>Json</code> impl</td></tr><tr><td><code>not_found()</code></td><td>A plain-text 404</td></tr><tr><td><code>with_header(r, name, value)</code></td><td>Replaces a header, ignoring case, or adds it</td></tr><tr><td><code>content_type(r, kind)</code></td><td>Sets the <code>content-type</code> header</td></tr></tbody></table></div>
+      <h2 id="paths">Linking with Paths</h2>
+      <p>Use the generated <code>Paths</code> module for URLs, in controllers and views alike. It has every helper the <a href="routing.html#helpers">routes zone</a> generates.</p>
+      <h2 id="errors">When an action fails</h2>
+      <p><code>throw Halt(response)</code> from anywhere under an action answers with that response. See <a href="filters-and-halting.html">Filters and Halting</a>. Any other error that escapes is logged and answered with a 500. The body is <code>internal server error</code>, followed by the stack when <code>options.env = "development"</code>.</p>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

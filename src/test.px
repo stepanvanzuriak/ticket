@@ -1,0 +1,385 @@
+module Test
+
+uses
+  Std.Assert
+  Std.Http
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Process
+  Std.Result
+  Std.Time
+  Std.Url
+  Ticket.Db
+  Ticket.Migration
+  Ticket.Session
+  Ticket.Signed
+
+hosts
+  Node
+
+types
+  Client = { cookies: Map<String, String>, protect: Bool }
+
+  Reply = { client: Client, response: Response }
+
+constants
+  token: String = "00000000000000000000000000000000"
+
+effects
+  Fixture {
+    freeze(ms: Int) -> {}
+    sequence() -> {}
+    reset() -> {}
+    restore() -> {}
+  }
+
+binds
+  Fixture in Node = "./bindings/test.js"
+
+functions
+
+  client() -> Client / {Process, Clock} {
+    let config = Session.config()
+    let now = Time.millis(Clock.now())
+    let payload = {
+      session: [{ key: "_csrf", value: token }],
+      flash: [],
+      expires: now + config.max_age * 1000,
+    }
+
+    {
+      cookies: Map.insert(
+        Map.empty(),
+        Signed.name(),
+        Signed.seal(config.secret, payload),
+      ),
+      protect: true,
+    }
+  }
+
+  client_unprotected() -> Client {
+    { cookies: Map.empty(), protect: false }
+  }
+
+  csrf_token(client: Client) -> String {
+    let payload = Option.and_then(Map.get(client.cookies, Signed.name()), Signed.peek)
+
+    match payload {
+      Some(p) -> match List.find(p.session, function(e) { e.key == "_csrf" }) {
+        Some(e) -> e.value,
+        None -> "",
+      },
+      None -> "",
+    }
+  }
+
+  get(
+    router: function(Request) -> Option<Response> / {| e},
+    client: Client,
+    path: String,
+  ) -> Reply / {| e} {
+    send(router, client, "GET", path, "")
+  }
+
+  delete(
+    router: function(Request) -> Option<Response> / {| e},
+    client: Client,
+    path: String,
+  ) -> Reply / {| e} {
+    post(router, client, path, [{ name: "_method", value: "delete" }])
+  }
+
+  post(
+    router: function(Request) -> Option<Response> / {| e},
+    client: Client,
+    path: String,
+    form: List<Header>,
+  ) -> Reply / {| e} {
+    let withToken = if client.protect {
+      List.append(form, [{ name: "authenticity_token", value: csrf_token(client) }])
+    } else {
+      form
+    }
+
+    post_without_token(router, client, path, withToken)
+  }
+
+  patch(
+    router: function(Request) -> Option<Response> / {| e},
+    client: Client,
+    path: String,
+    form: List<Header>,
+  ) -> Reply / {| e} {
+    post(router, client, path, [{ name: "_method", value: "patch" }, ..form])
+  }
+
+  post_without_token(
+    router: function(Request) -> Option<Response> / {| e},
+    client: Client,
+    path: String,
+    form: List<Header>,
+  ) -> Reply / {| e} {
+    send(
+      router,
+      client,
+      "POST",
+      path,
+      Url.build_query(List.map(form, function(h) { { name: h.name, value: h.value } })),
+    )
+  }
+
+  follow(router: function(Request) -> Option<Response> / {| e}, reply: Reply) -> Reply / {
+    | e
+  } {
+    match location(reply) {
+      Some(path) -> if reply.response.status >= 300 && reply.response.status < 400 {
+        get(router, reply.client, path)
+      } else {
+        reply
+      },
+      None -> reply,
+    }
+  }
+
+  send(
+    router: function(Request) -> Option<Response> / {| e},
+    client: Client,
+    method: String,
+    path: String,
+    body: String,
+  ) -> Reply / {| e} {
+    let parts = String.split(path, "?")
+    let headers = List.append(
+      if method == "POST" {
+        [{ name: "content-type", value: "application/x-www-form-urlencoded" }]
+      } else {
+        []
+      },
+      cookie_header(client),
+    )
+    let request = {
+      method: method,
+      path: match parts {
+        [only, .._] -> only,
+        [] -> path,
+      },
+      query: match parts {
+        [_, ..rest] -> List.join(rest, "?"),
+        [] -> "",
+      },
+      headers: headers,
+      body: body,
+    }
+    let response = match router(request) {
+      Some(found) -> found,
+      None -> { status: 404, headers: [], body: "not found" },
+    }
+
+    {
+      client: { ..client, cookies: remember(client.cookies, response) },
+      response: response,
+    }
+  }
+
+  cookie_header(client: Client) -> List<Header> {
+    if Map.is_empty(client.cookies) {
+      []
+    } else {
+      [
+        {
+          name: "cookie",
+          value: List.join(
+            List.map(Map.to_list(client.cookies), function(c) { "#{c.key}=#{c.value}" }),
+            "; ",
+          ),
+        },
+      ]
+    }
+  }
+
+  remember(jar: Map<String, String>, response: Response) -> Map<String, String> {
+    List.fold(
+      List.filter(
+        response.headers,
+        function(h) { String.lowercase(h.name) == "set-cookie" },
+      ),
+      jar,
+      function(cookies, h) {
+        match String.split(h.value, ";") {
+          [pair, ..attributes] -> match String.split(pair, "=") {
+            [name, ..value] -> {
+              let text = List.join(value, "=")
+              let expired = List.any(
+                attributes,
+                function(a) { String.lowercase(String.trim(a)) == "max-age=0" },
+              )
+
+              if text == "" || expired {
+                Map.remove(cookies, name)
+              } else {
+                Map.insert(cookies, name, text)
+              }
+            }
+            [] -> cookies,
+          },
+          [] -> cookies,
+        }
+      },
+    )
+  }
+
+  status(reply: Reply) -> Int {
+    reply.response.status
+  }
+
+  body(reply: Reply) -> String {
+    reply.response.body
+  }
+
+  header(reply: Reply, name: String) -> Option<String> {
+    Option.map(
+      List.find(
+        reply.response.headers,
+        function(h) { String.lowercase(h.name) == String.lowercase(name) },
+      ),
+      function(h) { h.value },
+    )
+  }
+
+  location(reply: Reply) -> Option<String> {
+    header(reply, "location")
+  }
+
+  flash(reply: Reply, key: String) -> Option<String> {
+    let payload = Option.and_then(
+      Map.get(reply.client.cookies, Signed.name()),
+      Signed.peek,
+    )
+
+    match payload {
+      Some(p) -> Option.map(
+        List.find(p.flash, function(e) { e.key == key }),
+        function(e) { e.value },
+      ),
+      None -> None,
+    }
+  }
+
+  describe(reply: Reply) -> String {
+    let text = body(reply)
+    let shown = if String.length(text) > 200 {
+      "#{String.slice(text, 0, 200)}…"
+    } else {
+      text
+    }
+
+    "status #{Int.to_string(status(reply))}, body #{shown}"
+  }
+
+  assert_status(reply: Reply, expected: Int) -> {} / {Throws<Failed>} {
+    if status(reply) == expected {
+      {}
+    } else {
+      Assert.fail("expected status #{Int.to_string(expected)}: #{describe(reply)}")
+    }
+  }
+
+  assert_redirect(reply: Reply, path: String) -> {} / {Throws<Failed>} {
+    if status(reply) >= 300 && status(reply) < 400 && location(reply) == Some(path) {
+      {}
+    } else {
+      Assert.fail(
+        "expected a redirect to #{path}: #{describe(reply)}, location #{Option.with_default(location(reply), "none")}",
+      )
+    }
+  }
+
+  assert_body_contains(reply: Reply, text: String) -> {} / {Throws<Failed>} {
+    if contains(body(reply), text) {
+      {}
+    } else {
+      Assert.fail("expected the body to contain #{text}: #{describe(reply)}")
+    }
+  }
+
+  assert_body_not_contains(reply: Reply, text: String) -> {} / {Throws<Failed>} {
+    if contains(body(reply), text) {
+      Assert.fail("expected the body not to contain #{text}: #{describe(reply)}")
+    } else {
+      {}
+    }
+  }
+
+  assert_header(reply: Reply, name: String, value: String) -> {} / {Throws<Failed>} {
+    if header(reply, name) == Some(value) {
+      {}
+    } else {
+      Assert.fail(
+        "expected header #{name}: #{value}, got #{Option.with_default(header(reply, name), "none")}: #{describe(reply)}",
+      )
+    }
+  }
+
+  contains(body: String, text: String) -> Bool {
+    String.contains(body, text)
+  }
+
+  with_db(
+    migrations: List<Migration>,
+    body: function() -> a / {Db, Fixture, Throws<Failed> | e},
+  ) -> a / {Db, Fixture, Throws<Failed> | e} {
+    Fixture.reset()
+    ready(Db.connect({ adapter: "sqlite", database: ":memory:" }))
+
+    List.fold(
+      migrations,
+      {},
+      function(_, m) {
+        List.fold(Migration.up_sql(m), {}, function(_, sql) { ready(Db.script(sql)) })
+      },
+    )
+
+    body()
+  }
+
+  ready(result: Result<DbError, {}>) -> {} / {Throws<Failed>} {
+    match result {
+      Ok(_) -> {},
+      Err(error) -> Assert.fail("the test database failed: #{error.message}"),
+    }
+  }
+
+  freeze(time: Time) -> {} / {Fixture} {
+    Fixture.freeze(Time.millis(time))
+  }
+
+  restore() -> {} / {Fixture} {
+    Fixture.restore()
+  }
+
+exports
+  Fixture
+  assert_body_contains
+  assert_body_not_contains
+  assert_header
+  assert_redirect
+  assert_status
+  body
+  client
+  client_unprotected
+  contains
+  csrf_token
+  delete
+  flash
+  follow
+  freeze
+  get
+  header
+  location
+  patch
+  post
+  post_without_token
+  restore
+  status
+  with_db

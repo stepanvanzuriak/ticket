@@ -1,0 +1,22 @@
+module Messy
+
+uses
+  Std.Id
+  Std.Json
+  Std.Option
+  Ticket.Db
+  Ticket.Migration
+
+migrations
+  20261001_120000 create_table users
+    name   String
+    email  String  unique // logins
+
+  20261001_130000 create_table posts
+    // the post's text
+    title      String
+    author_id  Option<Id<User>>  references users
+    published  Bool              default false
+
+  20261002_090000 rename_column posts
+    title -> heading

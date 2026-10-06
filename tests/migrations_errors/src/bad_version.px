@@ -1,0 +1,17 @@
+module BadVersion
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+migrations
+  2026_1 create_table users
+    name  String

@@ -1,0 +1,63 @@
+1 scaffold_output: exit=0 create  src/schema.px  V create_table posts |         wire  src/main.px  migrate |       create  src/models/post.px |       create  src/controllers/posts_controller.px |       create  src/views/post_views.px |       create  src/controllers/posts_controller_test.px |       append  src/routes.px  resources posts -> PostsController
+1 scaffold_files: src/controllers/posts_controller.px,src/controllers/posts_controller_test.px,src/models/post.px,src/views/post_views.px
+2 scaffold_checks: exit=0 diagnostics=none
+8 model_validations:   title  presence
+17 ticket_test: exit=0 pass=9 fail=0
+17 ticket_test_filter: exit=0 pass=1 fail=0
+17 ticket_test_fails: exit=1 pass=9 fail=1
+17 ticket_test_filter_skips_broken: exit=0 pass=1 fail=0
+17 ticket_test_usage: exit=2 error: `ticket test` takes at most one filter
+3 new_form: 200 fields=name="post[title]",name="post[body]",name="post[published]"
+3 create: 303 /posts/1
+3 show_after_create: 200 notice=Post was created. title=true
+3 notice_once: notice=-
+3 index: 200 rows=1
+4 edit: 200 title=true checked=true method=true
+4 update: 303 /posts/1
+4 after_update: notice=Post was updated. title=true published=true
+6 create_invalid: 422 message=true typed=true class=true
+6 update_invalid: 422 message=true
+6 nothing_created: rows=1
+6 csrf_rejected: 403
+7 missing: GET /posts/99 -> 404
+7 missing: GET /posts/99/edit -> 404
+7 missing: POST /posts/99 _method=patch -> 404
+7 missing: POST /posts/99 _method=delete -> 404
+5 delete: 303 /posts
+5 after_delete: notice=Post was destroyed. rows=0
+5 gone: 404
+9 unique_validation:   email  presence  uniqueness |   name  presence
+10 field_helpers: title=TextField body=TextArea count=NumberField price=NumberField done=Checkbox due=TextField owner_id=NumberField
+10 field_types_check: exit=0 
+10 two_resources_tests: exit=0 pass=16 fail=0
+11 controller_output: exit=0 create  src/controllers/reports_controller.px |       create  src/views/report_views.px |       append  src/routes.px  a route per action to ReportsController
+11 controller_files: src/controllers/reports_controller.px,src/views/report_views.px
+11 controller_routes: Controllers.ReportsController | get /reports/index -> ReportsController.index as reports_index | get /reports/show -> ReportsController.show as reports_show
+11 controller_checks: exit=0 
+11 controller_routes_table: reports_index_path GET /reports/index ReportsController.index | reports_show_path GET /reports/show ReportsController.show
+12 lowercase_name: exit=2 unchanged=true error: `post` isn't a valid name: use PascalCase, like `Post`
+12 bad_field: exit=2 unchanged=true error: `title` isn't a field: write `name:Type`, `name:Type?`, `name:Type:unique`, `name:T
+12 no_fields: exit=2 unchanged=true error: `create_table` needs at least one field, like `title:String`
+12 no_name: exit=2 unchanged=true error: `ticket g` takes `scaffold <Name> [field:Type…]` or `controller <Name> [action…]`
+12 controller_no_action: exit=2 unchanged=true error: `g controller Reports` needs at least one action, like `index`
+12 controller_singular_only: exit=2 unchanged=true error: `Staff` can't be made singular: name the controller after a plural, like `Posts`
+12 controller_bad_action: exit=2 unchanged=true error: an action is a snake_case name, like `index` or `show_all`
+14 rerun_identical: exit=0 identical  src/schema.px  create_table posts |    identical  src/models/post.px |    identical  src/controllers/posts_controller.px |    identical  src/views/post_views.px |    identical  src/controllers/posts_controller_test.px |    identical  src/routes.px  resources posts -> PostsController
+14 refuses_overwrite: exit=1 error: these files already exist and differ: src/models/post.px, src/views/post_views.px |        nothing was written. Use `--force` to overwrite them, or `--skip` to keep them and write the rest.
+14 refused_wrote_nothing: edits_kept=true
+15 skip: exit=0 identical  src/schema.px  create_table posts |         skip  src/models/post.px |    identical  src/controllers/posts_controller.px |         skip  src/views/post_views.px |    identical  src/controllers/posts_controller_test.px |    identical  src/routes.px  resources posts -> PostsController kept=true
+16 pretend: exit=0 pretend    identical  src/schema.px  create_table posts | pretend        force  src/models/post.px | pretend    identical  src/controllers/posts_controller.px | pretend        force  src/views/post_views.px | pretend    identical  src/controllers/posts_controller_test.px | pretend    identical  src/routes.px  resources posts -> PostsController kept=true
+15 force: exit=0 identical  src/schema.px  create_table posts |        force  src/models/post.px |    identical  src/controllers/posts_controller.px |        force  src/views/post_views.px |    identical  src/controllers/posts_controller_test.px |    identical  src/routes.px  resources posts -> PostsController replaced=true
+16 pretend_fresh: exit=0 pretend       create  src/schema.px  V create_table posts | pretend       create  src/models/post.px | pretend       create  src/controllers/posts_controller.px | pretend       create  src/views/post_views.px | pretend       create  src/controllers/posts_controller_test.px | pretend       append  src/routes.px  resources posts -> PostsController written=nothing
+17 route_exists: exit=0 create  src/schema.px  V create_table posts |         wire  src/main.px  migrate |       create  src/models/post.px |       create  src/controllers/posts_controller.px |       create  src/views/post_views.px |       create  src/controllers/posts_controller_test.px |    identical  src/routes.px  resources posts -> PostsController resources=1
+17 no_routes_zone: exit=0 create  src/schema.px  V create_table posts |         wire  src/main.px  migrate |       create  src/models/post.px |       create  src/controllers/posts_controller.px |       create  src/views/post_views.px |       create  src/controllers/posts_controller_test.px |         skip  src/routes.px  has no `routes` zone: add `resources posts -> PostsController` yourself
+19 destroy_edited: exit=1 error: these files differ from what the generator writes: src/views/post_views.px |        nothing was removed. Use `--force` to remove them anyway. files=src/controllers/posts_controller.px,src/controllers/posts_controller_test.px,src/models/post.px,src/views/post_views.px
+19 destroy_pretend: exit=0 pretend       remove  src/models/post.px | pretend       remove  src/controllers/posts_controller.px | pretend       remove  src/views/post_views.px | pretend       remove  src/controllers/posts_controller_test.px | pretend       remove  src/routes.px  the PostsController lines |         note  the `create_table posts` migration in src/schema.px was kept: add a `drop_table posts` migration to remove the table files=4
+19 destroy_force: exit=0 remove  src/models/post.px |       remove  src/controllers/posts_controller.px |       remove  src/views/post_views.px |       remove  src/controllers/posts_controller_test.px |       remove  src/routes.px  the PostsController lines |         note  the `create_table posts` migration in src/schema.px was kept: add a `drop_table posts` migration to remove the table
+18 destroy_left: files=none migration=true routes=true
+19 destroy_missing: exit=0 skip  src/models/post.px |         skip  src/controllers/posts_controller.px |         skip  src/views/post_views.px |         skip  src/controllers/posts_controller_test.px |         skip  src/routes.px  no lines for PostsController |         note  the `create_table posts` migration in src/schema.px was kept: add a `drop_table posts` migration to remove the table
+18 destroy: exit=0 remove  src/models/post.px |       remove  src/controllers/posts_controller.px |       remove  src/views/post_views.px |       remove  src/controllers/posts_controller_test.px |       remove  src/routes.px  the PostsController lines |         note  the `create_table posts` migration in src/schema.px was kept: add a `drop_table posts` migration to remove the table
+18 destroyed_app_checks: exit=0
+18 destroy_controller: exit=0 remove  src/controllers/reports_controller.px |       remove  src/views/report_views.px |       remove  src/routes.px  the ReportsController lines routes=true
+18 model_validations_flag:   name  presence
+18 destroy_model: exit=0 remove  src/models/tag.px |         note  the `create_table tags` migration in src/schema.px was kept: add a `drop_table tags` migration to remove the table exists=false

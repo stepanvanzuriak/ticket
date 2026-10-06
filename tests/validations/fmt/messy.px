@@ -1,0 +1,13 @@
+module Messy
+
+uses
+  Std.Result
+  Ticket.Errors
+  Ticket.Validations
+  Schema
+
+validations
+  title   presence      length   3..120   // required
+  status inclusion   "draft"   "live"
+  slug    presence
+  views   inclusion 0 1 2

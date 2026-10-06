@@ -1,0 +1,27 @@
+module Cookies
+
+uses
+  Std.List
+  Std.Map
+  Std.Url
+
+functions
+  parse(header: String) -> Map<String, String> {
+    List.fold(
+      String.split(header, ";"),
+      Map.empty(),
+      function(map, piece) {
+        match String.split(String.trim(piece), "=") {
+          [name, ..rest] -> if rest == [] || name == "" {
+            map
+          } else {
+            Map.insert(map, name, Url.decode(List.join(rest, "=")))
+          },
+          _ -> map,
+        }
+      },
+    )
+  }
+
+exports
+  parse

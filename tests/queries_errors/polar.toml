@@ -1,0 +1,6 @@
+[project]
+name = "queries_errors_tests"
+hosts = ["Node"]
+
+[dependencies]
+ticket = { path = "../.." }

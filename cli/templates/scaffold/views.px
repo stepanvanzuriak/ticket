@@ -1,0 +1,87 @@
+module {{Model}}Views
+
+uses
+  Std.Id
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Time
+  Paths
+  Schema
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Forms
+  Ticket.Html
+  Ticket.Links
+
+view_component
+  {{Model}}Fields(conn: Conn, action: String, method: String, fields: Map<String, String>, errors: Errors, submit: String)
+    <Forms.MethodForm conn={conn} action={action} method={method}>
+      <Forms.ErrorSummary errors={errors} noun="{{words}}" />
+{{form_fields}}
+      <Forms.Submit text={submit} />
+    </Forms.MethodForm>
+
+views
+  index(conn: Conn, {{models}}: List<{{Model}}>)
+    <section>
+      <h1>{{Models}}</h1>
+      <table>
+        <thead>
+          <tr>
+{{head_cells}}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>{List.map({{models}}, function({{model}}) { row(conn, {{model}}) })}</tbody>
+      </table>
+      <Links.LinkTo text="New {{words}}" path={Paths.new_{{model}}_path()} />
+    </section>
+
+  row(conn: Conn, {{model}}: {{Model}})
+    <tr>
+{{row_cells}}
+      <td>
+        <Links.LinkTo text="Show" path={Paths.{{model}}_path({{model}}.id)} />
+        <Links.LinkTo text="Edit" path={Paths.edit_{{model}}_path({{model}}.id)} />
+        <Links.ButtonTo conn={conn} text="Delete" path={Paths.{{model}}_path({{model}}.id)} method="delete" />
+      </td>
+    </tr>
+
+  show(conn: Conn, {{model}}: {{Model}})
+    <section>
+      <h1>{{Words}}</h1>
+{{show_lines}}
+      <Links.LinkTo text="Edit" path={Paths.edit_{{model}}_path({{model}}.id)} />
+      <Links.LinkTo text="Back" path={Paths.{{models}}_path()} />
+    </section>
+
+  new(conn: Conn, fields: Map<String, String>, errors: Errors)
+    <section>
+      <h1>New {{words}}</h1>
+      <{{Model}}Fields conn={conn} action={Paths.{{models}}_path()} method="post" fields={fields} errors={errors} submit="Create {{words}}" />
+      <Links.LinkTo text="Back" path={Paths.{{models}}_path()} />
+    </section>
+
+  edit(conn: Conn, {{model}}: {{Model}}, fields: Map<String, String>, errors: Errors)
+    <section>
+      <h1>Edit {{words}}</h1>
+      <{{Model}}Fields conn={conn} action={Paths.{{model}}_path({{model}}.id)} method="patch" fields={fields} errors={errors} submit="Update {{words}}" />
+      <Links.LinkTo text="Show" path={Paths.{{model}}_path({{model}}.id)} />
+      <Links.LinkTo text="Back" path={Paths.{{models}}_path()} />
+    </section>
+
+functions
+  values({{model}}: {{Model}}) -> Map<String, String> {
+    let fields = Map.empty()
+{{values}}
+
+    fields
+  }
+
+exports
+  edit
+  index
+  new
+  show
+  values

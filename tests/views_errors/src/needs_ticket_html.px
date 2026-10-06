@@ -1,0 +1,11 @@
+module NoHtml
+
+uses
+  Std.List
+
+views
+  card(name: String)
+    <p>{name}</p>
+
+exports
+  card

@@ -1,0 +1,17 @@
+1 connect_memory: Err(kind=connection code= message=unknown database adapter `mysql`; the adapters are: sqlite sql=) Ok({})
+2 script_creates: Ok({})
+3 exec_insert: Ok(changes=1 last_id=1)
+4 exec_values: Ok(changes=1 last_id=2)
+5 sql_value_types: Ok(integer) Ok(real) Ok(text) Ok(null) Ok(integer)
+6 all_decodes: Ok([1 first 1.5 false None; 2 second 2.5 true Some(hi)])
+7 one_first_or_none: Ok(2 second 2.5 true Some(hi)) Ok(None)
+8 decode_error: Err(kind=decode code= message=a row doesn't decode: [0].n: expected Int, found a string sql=select title as n from posts)
+9 sql_error: Err(kind=syntax code=1 message=near "selec": syntax error sql=selec 1)
+10 unique_violation: Err(kind=unique code=2067 message=UNIQUE constraint failed: posts.title sql=insert into posts (title, score, draft) values (?, ?, ?))
+11 foreign_keys_on: Err(kind=foreign_key code=787 message=FOREIGN KEY constraint failed sql=insert into comments (post_id) values (?))
+12 tx_commit: Ok posts=3
+13 tx_rollback: Err posts=3
+14 tx_nested: Ok posts=4
+15 tx_throw: caught after 5 posts, posts=4
+16 tx_inner_error: Err posts=4
+17 float_whole: Ok([1 first 2 false None])

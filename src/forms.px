@@ -1,0 +1,170 @@
+module Forms
+
+uses
+  Std.List
+  Std.Map
+  Std.Option
+  Ticket.Conn
+  Ticket.Csrf
+  Ticket.Errors
+  Ticket.Html
+
+types
+  Choice = { value: String, label: String }
+
+view_component
+  Form(conn: Conn, action: String, children: Html)
+    <MethodForm conn={conn} action={action} method="post">{children}</MethodForm>
+
+  MethodForm(conn: Conn, action: String, method: String, children: Html)
+    <form method={verb(method)} action={action}>
+      {override_field(method)}
+      {csrf_field(conn, method)}
+      {children}
+    </form>
+
+  Label(prefix: String, field: String)
+    <label for={dom_id(prefix, field)}>{Errors.label(field)}</label>
+
+  TextField(prefix: String, field: String, value: String, errors: Errors)
+    <InputTag prefix={prefix} field={field} kind="text" value={Some(value)} errors={errors} />
+
+  EmailField(prefix: String, field: String, value: String, errors: Errors)
+    <InputTag prefix={prefix} field={field} kind="email" value={Some(value)} errors={errors} />
+
+  NumberField(prefix: String, field: String, value: String, errors: Errors)
+    <InputTag prefix={prefix} field={field} kind="number" value={Some(value)} errors={errors} />
+
+  PasswordField(prefix: String, field: String, value: String, errors: Errors)
+    <InputTag prefix={prefix} field={field} kind="password" value={None} errors={errors} />
+
+  HiddenField(prefix: String, field: String, value: String)
+    <input type="hidden" id={dom_id(prefix, field)} name={name_of(prefix, field)} value={value} />
+
+  TextArea(prefix: String, field: String, value: String, errors: Errors)
+    <FieldWrap prefix={prefix} field={field} errors={errors}>
+      <textarea id={dom_id(prefix, field)} name={name_of(prefix, field)}>{value}</textarea>
+    </FieldWrap>
+
+  Checkbox(prefix: String, field: String, checked: Bool, errors: Errors)
+    <FieldWrap prefix={prefix} field={field} errors={errors}>
+      <input type="checkbox" id={dom_id(prefix, field)} name={name_of(prefix, field)} value="on" checked={checked} />
+    </FieldWrap>
+
+  Select(prefix: String, field: String, selected: String, options: List<Choice>, errors: Errors)
+    <FieldWrap prefix={prefix} field={field} errors={errors}>
+      <select id={dom_id(prefix, field)} name={name_of(prefix, field)}>
+        {option_tags(selected, options)}
+      </select>
+    </FieldWrap>
+
+  Submit(text: String)
+    <input type="submit" name="commit" value={text} />
+
+  ErrorSummary(errors: Errors, noun: String)
+    {summary(errors, noun)}
+
+  FieldWrap(prefix: String, field: String, errors: Errors, children: Html)
+    <div class={field_class(errors, field)}>
+      <Label prefix={prefix} field={field} />
+      {children}
+      {List.map(Errors.on(errors, field), message)}
+    </div>
+
+  InputTag(prefix: String, field: String, kind: String, value: Option<String>, errors: Errors)
+    <FieldWrap prefix={prefix} field={field} errors={errors}>
+      <input type={kind} id={dom_id(prefix, field)} name={name_of(prefix, field)} value={value} />
+    </FieldWrap>
+
+functions
+  name_of(prefix: String, field: String) -> String {
+    "#{prefix}[#{field}]"
+  }
+
+  dom_id(prefix: String, field: String) -> String {
+    "#{prefix}_#{field}"
+  }
+
+  value(fields: Map<String, String>, field: String) -> String {
+    Option.with_default(Map.get(fields, field), "")
+  }
+
+  checked(fields: Map<String, String>, field: String) -> Bool {
+    let text = String.lowercase(value(fields, field))
+
+    text == "on" || text == "true" || text == "1"
+  }
+
+  field_class(errors: Errors, field: String) -> String {
+    if Errors.has(errors, field) { "field field_with_errors" } else { "field" }
+  }
+
+  message(text: String) -> Html {
+    Html.raw("<span class=\"error\">#{Html.escape(text)}</span>")
+  }
+
+  verb(method: String) -> String {
+    if String.lowercase(method) == "get" { "get" } else { "post" }
+  }
+
+  override_field(method: String) -> Html {
+    let wanted = String.lowercase(method)
+
+    if wanted == "patch" || wanted == "put" || wanted == "delete" {
+      Html.raw("<input type=\"hidden\" name=\"_method\" value=\"#{wanted}\">")
+    } else {
+      Html.raw("")
+    }
+  }
+
+  csrf_field(conn: Conn, method: String) -> Html {
+    if verb(method) == "get" { Html.raw("") } else { Csrf.field(conn) }
+  }
+
+  option_tags(selected: String, options: List<Choice>) -> Html {
+    Html.concat(
+      List.map(
+        options,
+        function(choice) {
+          let mark = if choice.value == selected { " selected" } else { "" }
+
+          "<option value=\"#{Html.escape(choice.value)}\"#{mark}>#{Html.escape(choice.label)}</option>"
+        },
+      ),
+    )
+  }
+
+  summary(errors: Errors, noun: String) -> Html {
+    let count = Errors.count(errors)
+
+    if count == 0 {
+      Html.raw("")
+    } else {
+      let counted = if count == 1 { "1 error" } else { "#{Int.to_string(count)} errors" }
+      let items = List.map(
+        Errors.full_messages(errors),
+        function(text) { "<li>#{Html.escape(text)}</li>" },
+      )
+
+      Html.raw(
+        "<div class=\"errors\"><h2>#{counted} prohibited this #{Html.escape(noun)} from being saved</h2><ul>#{List.join(items, "")}</ul></div>",
+      )
+    }
+  }
+
+exports
+  checked
+  checkbox
+  email_field
+  error_summary
+  form
+  hidden_field
+  label
+  method_form
+  number_field
+  password_field
+  select
+  submit
+  text_area
+  text_field
+  value

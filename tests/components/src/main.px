@@ -1,0 +1,23 @@
+
+module Main
+
+uses
+  Pages
+  Ticket.Html
+
+functions
+  row(name: String, html: Html) -> {} {
+    Log.info("#{name}: #{Html.to_string(html)}")
+  }
+
+  main() {
+    row("cross_module", Pages.home())
+    row("children", Pages.wrapped())
+    row("empty_children", Pages.empty_card())
+    row("bool_and_no_props", Pages.bare())
+    row("component_in_component", Pages.nested())
+    row("local_component_in_view", Pages.local())
+  }
+
+exports
+  main

@@ -1,0 +1,16 @@
+module PagesController
+
+uses
+  Std.Http
+  Ticket.Conn
+  Ticket.Response
+  Views.Layout
+  Views.Pages
+
+functions
+  home(conn: Conn) -> Response {
+    Response.render(Layout.app(conn, "{{App}}", Pages.home()))
+  }
+
+exports
+  home

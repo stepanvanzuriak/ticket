@@ -1,0 +1,12 @@
+module Lower
+
+uses
+  Ticket.Html
+  UI
+
+view_component
+  chip(text: String)
+    <b>{text}</b>
+
+exports
+  chip

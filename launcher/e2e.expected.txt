@@ -1,0 +1,50 @@
+1 serves: 200 text/css; charset=utf-8 "body { color: red }\n"
+2 head: 200 20 ""
+3 missing: 404 {"error":"not found"}
+3 router_still_works: 200 text/html; charset=utf-8
+3 only_get_and_head: 404
+4 traversal: 404 {"error":"not found"}
+4 traversal_encoded: 404 {"error":"not found"}
+4 traversal_double: 404 {"error":"not found"}
+4 dotfile: 404 {"error":"not found"}
+4 directory: 404 {"error":"not found"}
+4 directory_slash: 404 {"error":"not found"}
+4 locate "/../secret.txt": false
+4 locate "/%2e%2e/secret.txt": false
+4 locate "/a/%2e%2e/%2e%2e/secret.txt": false
+4 locate "/a\\..\\secret.txt": false
+4 locate "//etc/passwd": false
+4 locate "/x%00.css": false
+4 locate "/.env": false
+4 locate "/assets/.hidden": false
+4 locate "/assets": false
+4 locate "/": false
+4 locate "/%E0%A4%A": false
+4 symlink_out: false
+7 cache_production: public, max-age=3600 etag=true
+7 not_modified: 304 ""
+7 stale_etag: 200
+8 cache_development: no-cache etag=false
+9 hashed: public, max-age=31536000, immutable
+9 hashed_development: no-cache
+10 log_line: Started GET "/about" 200 (Nms)
+11 log_404: Started GET "/nope" 404 (Nms)
+10 log_static: Started GET "/app.css" 200 (Nms)
+12 log_params: Started POST "/articles" 403 (Nms)  params={"article":{"title":"Hi"},"password":"[FILTERED]","ssn":"[FILTERED]","authenticity_token":"[FILTERED]"}
+13 log_filtered_nested: Started POST "/articles" 403 (Nms)  params={"user":{"token":"[FILTERED]","name":"ann"},"tags":["a","b"]}
+12 log_json: Started POST "/articles" 403 (Nms)  params={"title":"J","nested":{"Secret":"[FILTERED]"}}
+12 log_other_body: Started POST "/articles" 403 (Nms)
+13 log_query_filtered: Started GET "/admin/stats?token=[FILTERED]&page=2" 200 (Nms)
+14 log_off: 0 lines
+12 filter_params: {"a":{"X-Token":"[FILTERED]","b":[{"password_confirmation":"[FILTERED]","ok":3}]},"cookie":"[FILTERED]"}
+15 dev_500_html: 500 text/html; charset=utf-8 message=true stack=true request=true
+15 dev_500_filtered_and_escaped: 500 token=false filtered=true escaped=true raw_lt=false
+16 dev_500_text: 500 text/plain; charset=utf-8 internal server error +message=true
+15 error_page_escapes: script=false escaped=true password=true
+17 prod_500_page: 500 <h1>We're sorry</h1> error=false
+17 prod_500_not_html: 500 internal server error
+17 prod_500_plain: 500 internal server error
+18 prod_404_page: 404 <h1>Gone</h1>
+18 prod_404_json: 404 {"error":"not found"}
+18 prod_404_plain: 404 {"error":"not found"}
+18 action_404_stays: 404 not found

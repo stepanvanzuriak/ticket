@@ -1,0 +1,34 @@
+module Testing
+
+uses
+  Std.List
+  Std.Process
+  Args
+
+hosts
+  Node
+
+functions
+  run(root: String, parsed: Parsed) -> Int / {Process} {
+    let options = Process.with_env(
+      Process.with_env(Process.in_dir(Process.inherit(), root), "TICKET_ENV", "test"),
+      "TICKET_DATABASE",
+      ":memory:",
+    )
+
+    match parsed.positional {
+      [] -> Process.run("polar", ["test"], options),
+      [filter] -> Process.run(
+        "polar",
+        ["test", "--", "--test-name-pattern=#{filter}"],
+        options,
+      ),
+      _ -> {
+        Log.error("error: `ticket test` takes at most one filter")
+        2
+      }
+    }
+  }
+
+exports
+  run

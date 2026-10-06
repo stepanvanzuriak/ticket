@@ -1,0 +1,26 @@
+module Action
+
+uses
+  Ticket.Conn
+  Std.Http
+  Std.List
+  Std.Result
+
+types
+  Filter = function(Conn) -> Result<Response, Conn>
+
+functions
+  before(
+    filters: List<function(Conn) -> Result<Response, Conn> / {| e}>,
+    action: function(Conn) -> Response / {| e},
+  ) -> function(Conn) -> Response / {| e} {
+    function(conn) {
+      match List.fold(filters, Ok(conn), Result.and_then) {
+        Ok(passed) -> action(passed),
+        Err(response) -> response,
+      }
+    }
+  }
+
+exports
+  before

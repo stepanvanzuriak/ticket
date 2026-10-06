@@ -1,0 +1,83 @@
+module Db
+
+uses
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+
+hosts
+  Node
+
+types
+  SqlValue = SqlNull | SqlInt(Int) | SqlFloat(Float) | SqlText(String) | SqlBool(Bool)
+
+  DbConfig = { adapter: String, database: String }
+
+  DbError = { kind: String, code: String, message: String, sql: String } derive(Show)
+
+  DbFailure = DbFailure(DbError)
+
+  Changes = { changes: Int, last_id: Int } derive(Show)
+
+effects
+  Db {
+    connect(config: DbConfig) -> Result<DbError, {}>
+    query(sql: String, params: List<SqlValue>) -> Result<DbError, String>
+    exec(sql: String, params: List<SqlValue>) -> Result<DbError, Changes>
+    script(sql: String) -> Result<DbError, {}>
+    within_transaction(
+      body: function() -> a / {Db | e},
+      commit: function(a) -> Bool,
+    ) -> a / {| e}
+  }
+
+binds
+  Db in Node = "./bindings/db.js"
+
+functions
+  all(sql: String, params: List<SqlValue>) -> Result<DbError, List<a>> / {Db}
+    where Json<a> {
+    Db.query(sql, params) |> Result.and_then(function(text) { decode_rows(sql, text) })
+  }
+
+  one(sql: String, params: List<SqlValue>) -> Result<DbError, Option<a>> / {Db}
+    where Json<a> {
+    let rows: Result<DbError, List<a>> = all(sql, params)
+
+    rows |> Result.map(List.head)
+  }
+
+  transaction(body: function() -> Result<e, a> / {Db | r}) -> Result<e, a> / {Db | r} {
+    Db.within_transaction(body, is_ok)
+  }
+
+  is_ok(result: Result<e, a>) -> Bool {
+    match result {
+      Ok(_) -> true,
+      Err(_) -> false,
+    }
+  }
+
+  decode_rows(sql: String, text: String) -> Result<DbError, List<a>> where Json<a> {
+    let decoded: Result<JsonError, List<a>> = Json.decode(text)
+
+    decoded
+      |> Result.map_err(
+        function(error) {
+          {
+            kind: "decode",
+            code: "",
+            message: "a row doesn't decode: #{Json.message(error)}",
+            sql: sql,
+          }
+        },
+      )
+  }
+
+exports
+  Node
+  Db
+  all
+  one
+  transaction

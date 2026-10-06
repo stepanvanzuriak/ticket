@@ -1,0 +1,59 @@
+module Schema
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+migrations
+  20261001_120000 create_table users
+    name   String
+    email  String  unique
+
+  20261001_130000 create_table posts
+    title      String
+    body       String
+    published  Bool              default false
+    score      Float             default 0
+    author_id  Option<Id<User>>  references users
+
+  20261002_090000 add_column posts
+    summary  Option<String>
+    status   String          default "it's a draft"
+    hits     Int             default -1
+
+  20261003_090000 rename_column posts
+    body -> content
+
+  20261004_090000 add_index posts
+    author_id published
+    title unique
+
+  20261005_090000 remove_column posts
+    summary
+    title
+
+  20261006_090000 remove_index posts
+    author_id published
+
+  20261007_090000 create_table people as Person
+    nickname  Option<String>
+    parent_id Option<Id<Person>> references people
+
+  20261008_090000 drop_table people
+
+  20261009_090000 create_table events
+    name     String
+    seen_at  Option<Time>
+    timestamps
+
+  20261010_090000 remove_column events
+    updated_at

@@ -1,0 +1,6 @@
+[project]
+name = "cli_tests"
+hosts = ["Node"]
+
+[dependencies]
+ticket = { path = "../.." }

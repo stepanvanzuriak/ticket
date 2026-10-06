@@ -1,0 +1,21 @@
+module Messy
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  Controllers.PagesController
+  Controllers.PostsController
+
+routes
+  root -> PagesController.home
+  get /about   ->   PagesController.about as about
+  delete /sessions/:id -> PagesController.logout   as logout
+  // posts and their actions
+  resources posts -> PostsController   except destroy
+    member
+        post publish -> PostsController.publish  // a member route
+        delete unpublish -> PostsController.unpublish
+    collection
+        get drafts->PostsController.drafts

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launcher and Tasks – Ticket</title>
+<meta name="description" content="How the Ticket launcher serves your app, its options, and the routes task.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="launcher">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Launcher and Tasks</h1>
+      <p class="lead">Ticket ships a launcher: the Node program that serves your app when you run polar run or polar start. It also runs tasks.</p>
+      <h2 id="serving">Serving</h2>
+      <p>Set <code>launcher = "ticket"</code> under <code>[run]</code>. The launcher loads your built app, calls its exported <code>router</code> for each request, and answers 404 when it returns <code>None</code>.</p>
+      <pre class="code"><code>[run]
+launcher = "ticket"
+options = { port = 3000, env = "development" }</code></pre>
+      <div class="table-wrap"><table><thead><tr><th>Option</th><th>Default</th><th>What</th></tr></thead><tbody><tr><td><code>port</code></td><td><code>3000</code></td><td>Port to listen on</td></tr><tr><td><code>hostname</code></td><td><code>"127.0.0.1"</code></td><td>Address to bind</td></tr><tr><td><code>env</code></td><td></td><td><code>"development"</code> puts the error's stack in the body of a 500</td></tr><tr><td><code>server</code></td><td><code>"Node"</code></td><td>Host the router runs on</td></tr><tr><td><code>client</code></td><td><code>"Browser"</code></td><td>Host whose bundle is served to the browser, if the app has one</td></tr></tbody></table></div>
+      <h2 id="tasks">Tasks</h2>
+      <p><code>polar start -- &lt;task&gt;</code> runs a task against the built app instead of serving it.</p>
+      <div class="table-wrap"><table><thead><tr><th>Task</th><th>What</th></tr></thead><tbody><tr><td><code>routes</code></td><td>Prints the route table: helper, method, path and action. Exits 0.</td></tr><tr><td><code>db:migrate</code>, <code>db:rollback</code>, <code>db:status</code>, <code>db:reset</code>, <code>db:seed</code></td><td>Run the app's <code>migrate</code> and <code>seed</code>. See <a href="database.html#cli">Database</a>.</td></tr></tbody></table></div>
+      <pre class="code"><code><span class="pr">$</span> polar build
+<span class="pr">$</span> polar start -- routes</code></pre>
+      <pre class="code out"><code>  root_path         GET   /              PagesController.home
+  about_path        GET   /about         PagesController.about
+                    GET   /boom          PagesController.boom
+  articles_path     GET   /articles      ArticlesController.index
+  new_article_path  GET   /articles/new  ArticlesController.new
+                    POST  /articles      ArticlesController.create
+  article_path      GET   /articles/:id  ArticlesController.show
+  admin_stats_path  GET   /admin/stats   StatsController.show</code></pre>
+      <p>An unknown task exits 2 and lists the known ones. F2 adds <code>db:migrate</code>, <code>db:rollback</code> and friends here.</p>
+      <div class="callout wip"><p><span class="label">Coming soon:</span> the <code>ticket</code> CLI wraps all of this. <code>ticket server -p 3000</code> runs the app and <code>ticket routes</code> builds and prints the table.</p></div>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

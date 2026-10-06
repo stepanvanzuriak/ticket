@@ -1,0 +1,272 @@
+
+module Main
+
+uses
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+
+types
+  Post = {
+    id: Int,
+    title: String,
+    score: Float,
+    draft: Bool,
+    note: Option<String>,
+  } derive(Json)
+
+  Kind = { kind: String } derive(Json)
+
+  Count = { n: Int } derive(Json)
+
+  Boom = Boom(String)
+
+functions
+  row(n: Int, name: String, result: String) -> {} {
+    Log.info("#{n} #{name}: #{result}")
+  }
+
+  shown(result: Result<DbError, a>, show: function(a) -> String) -> String {
+    match result {
+      Ok(value) -> "Ok(#{show(value)})",
+      Err(
+        error,
+      ) -> "Err(kind=#{error.kind} code=#{error.code} message=#{error.message} sql=#{error.sql})",
+    }
+  }
+
+  unit(_: {}) -> String {
+    "{}"
+  }
+
+  changes(c: Changes) -> String {
+    "changes=#{c.changes} last_id=#{c.last_id}"
+  }
+
+  post(p: Post) -> String {
+    let note = match p.note {
+      Some(text) -> "Some(#{text})",
+      None -> "None",
+    }
+
+    "#{p.id} #{p.title} #{p.score} #{p.draft} #{note}"
+  }
+
+  posts(ps: List<Post>) -> String {
+    "[#{List.join(List.map(ps, post), "; ")}]"
+  }
+
+  kind_of(value: SqlValue) -> String / {Db} {
+    let kinds: Result<DbError, List<Kind>> = Db.all("select typeof(?) as kind", [value])
+
+    shown(kinds, function(ks) { List.join(List.map(ks, function(k) { k.kind }), ",") })
+  }
+
+  count(table: String) -> Int / {Db} {
+    let counted: Result<DbError, Option<Count>> = Db.one(
+      "select count(*) as n from #{table}",
+      [],
+    )
+
+    match counted {
+      Ok(Some(c)) -> c.n,
+      _ -> -1,
+    }
+  }
+
+  insert(title: String) -> Result<DbError, Changes> / {Db} {
+    Db.exec(
+      "insert into posts (title, score, draft) values (?, ?, ?)",
+      [SqlText(title), SqlFloat(1.5), SqlBool(false)],
+    )
+  }
+
+  setup() -> {} / {Db} {
+    row(
+      1,
+      "connect_memory",
+      "#{shown(Db.connect({ adapter: "mysql", database: "x" }), unit)} #{shown(Db.connect({ adapter: "sqlite", database: ":memory:" }), unit)}",
+    )
+    row(
+      2,
+      "script_creates",
+      shown(
+        Db.script(
+          "create table posts (id integer primary key, title text not null unique, score real not null, draft boolean not null, note text); create table comments (id integer primary key, post_id integer not null references posts(id))",
+        ),
+        unit,
+      ),
+    )
+  }
+
+  main() -> {} / {Db} {
+    setup()
+    row(3, "exec_insert", shown(insert("first"), changes))
+    row(
+      4,
+      "exec_values",
+      shown(
+        Db.exec(
+          "insert into posts (title, score, draft, note) values (?, ?, ?, ?)",
+          [SqlText("second"), SqlFloat(2.5), SqlBool(true), SqlText("hi")],
+        ),
+        changes,
+      ),
+    )
+    row(
+      5,
+      "sql_value_types",
+      List.join(
+        List.map(
+          [SqlInt(2), SqlFloat(2.5), SqlText("2"), SqlNull, SqlBool(true)],
+          kind_of,
+        ),
+        " ",
+      ),
+    )
+
+    let all: Result<DbError, List<Post>> = Db.all("select * from posts order by id", [])
+
+    row(6, "all_decodes", shown(all, posts))
+
+    let found: Result<DbError, Option<Post>> = Db.one(
+      "select * from posts where title = ?",
+      [SqlText("second")],
+    )
+    let missing: Result<DbError, Option<Post>> = Db.one(
+      "select * from posts where title = ?",
+      [SqlText("none")],
+    )
+
+    row(
+      7,
+      "one_first_or_none",
+      "#{shown(found, function(p) { Option.with_default(Option.map(p, post), "None") })} #{shown(missing, function(p) { Option.with_default(Option.map(p, post), "None") })}",
+    )
+
+    let wrong: Result<DbError, List<Count>> = Db.all("select title as n from posts", [])
+
+    row(8, "decode_error", shown(wrong, function(_) { "?" }))
+    row(9, "sql_error", shown(Db.exec("selec 1", []), changes))
+    row(10, "unique_violation", shown(insert("first"), changes))
+    row(
+      11,
+      "foreign_keys_on",
+      shown(Db.exec("insert into comments (post_id) values (?)", [SqlInt(99)]), changes),
+    )
+
+    row(12, "tx_commit", tx(function() { Ok(insert("third")) }))
+    row(
+      13,
+      "tx_rollback",
+      tx(
+        function() {
+          insert("fourth") |> Result.and_then(function(_) { Err(count_text()) })
+        },
+      ),
+    )
+    row(
+      14,
+      "tx_nested",
+      tx(
+        function() {
+          let inner: Result<String, Int> = Db.transaction(
+            function() {
+              let _ = insert("inner")
+
+              Err("inner #{count("posts")}")
+            },
+          )
+          let _ = insert("outer")
+
+          Ok(inner)
+        },
+      ),
+    )
+    row(15, "tx_throw", thrown())
+    row(16, "tx_inner_error", tx(function() { insert("first") }))
+
+    let whole: Result<DbError, List<Post>> = Db.all(
+      "select id, title, 2.0 as score, draft, note from posts where id = 1",
+      [],
+    )
+
+    row(17, "float_whole", shown(whole, posts))
+  }
+
+  count_text() -> DbError / {Db} {
+    { kind: "other", code: "", message: "rolled back with #{count("posts")}", sql: "" }
+  }
+
+  tx(body: function() -> Result<e, a> / {Db}) -> String / {Db} {
+    let result = Db.transaction(body)
+    let shown = match result {
+      Ok(_) -> "Ok",
+      Err(_) -> "Err",
+    }
+
+    "#{shown} posts=#{count("posts")}"
+  }
+
+  thrown() -> String / {Db} {
+    try {
+      let _: Result<String, Int> = Db.transaction(
+        function() {
+          let _ = insert("thrown")
+
+          throw Boom("after #{count("posts")} posts")
+        },
+      )
+
+      "no throw"
+    } catch {
+      Boom(message) -> "caught #{message}, posts=#{count("posts")}",
+    }
+  }
+
+  counter_setup() -> String / {Db} {
+    shown(
+      Db.script(
+        "create table counter (n integer not null); insert into counter values (0)",
+      ),
+      unit,
+    )
+  }
+
+  bump() -> String / {Db} {
+    let bumped: Result<DbError, Changes> = Db.transaction(
+      function() {
+        let n = count_value()
+
+        Db.exec("update counter set n = ?", [SqlInt(n + 1)])
+      },
+    )
+
+    shown(bumped, changes)
+  }
+
+  counter() -> String / {Db} {
+    let read: Result<DbError, Option<Count>> = Db.one("select n from counter", [])
+
+    shown(
+      read,
+      function(c) { "#{Option.with_default(Option.map(c, function(r) { r.n }), -1)}" },
+    )
+  }
+
+  count_value() -> Int / {Db} {
+    let read: Result<DbError, Option<Count>> = Db.one("select n from counter", [])
+
+    match read {
+      Ok(Some(c)) -> c.n,
+      _ -> -1,
+    }
+  }
+
+exports
+  main
+  counter_setup
+  bump
+  counter

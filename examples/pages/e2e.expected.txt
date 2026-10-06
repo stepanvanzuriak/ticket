@@ -1,0 +1,28 @@
+1 home_renders: GET / -> 200 [content-type: text/html; charset=utf-8] title="Home" main="<h1>Welcome to Ticket</h1>"
+2 create_redirects_303: POST /articles -> 303 [location: /articles/1] [content-type: text/plain;charset=UTF-8] ""
+3 follow_redirect: GET /articles/1 -> 200 [content-type: text/html; charset=utf-8] title="Hi" notice="Article was created." main="<article><h1>Hi</h1></article>"
+4 missing_article: GET /articles/99 -> 404 [content-type: text/plain; charset=utf-8] "not found"
+5 bad_id: GET /articles/abc -> 404 [content-type: text/plain; charset=utf-8] "not found"
+6 admin_needs_token: GET /admin/stats -> 401 [content-type: text/plain; charset=utf-8] "unauthorized"
+7 admin_with_token: GET /admin/stats?token=secret -> 200 [content-type: text/html; charset=utf-8] title="Stats" main="<dl><dt>Articles</dt><dd>1</dd></dl>"
+8 crash_dev: GET /boom -> 500 [content-type: text/plain; charset=utf-8] "internal server error" +error message
+9 crash_prod: GET /boom -> 500 [content-type: text/plain; charset=utf-8] "internal server error"
+10 not_found: GET /nope -> 404 [content-type: application/json] "{\"error\":\"not found\"}"
+11 method_not_allowed: DELETE / -> 405 [allow: GET] [content-type: text/plain; charset=utf-8] "method not allowed"
++ create_blank_422: POST /articles -> 422 [content-type: text/html; charset=utf-8] title="New article" main="<form method=\"post\" action=\"/articles\"><input type=\"hidden\" name=\"authenticity_token\" value=\"TOKEN\"><div class=\"errors\"><h2>1 error prohibited this article from being saved</h2><ul><li>Title can&#39;t be blank</li></ul></div><div class=\"field field_with_errors\"><label for=\"article_title\">Title</label><input type=\"text\" id=\"article_title\" name=\"article[title]\" value=\"\"><span class=\"error\">can&#39;t be blank</span></div><input type=\"submit\" name=\"commit\" value=\"Create\"></form>"
+17 create_blank_keeps_input: POST /articles -> 422 [content-type: text/html; charset=utf-8] title="New article" main="<form method=\"post\" action=\"/articles\"><input type=\"hidden\" name=\"authenticity_token\" value=\"TOKEN\"><div class=\"errors\"><h2>1 error prohibited this article from being saved</h2><ul><li>Title can&#39;t be blank</li></ul></div><div class=\"field field_with_errors\"><label for=\"article_title\">Title</label><input type=\"text\" id=\"article_title\" name=\"article[title]\" value=\" \"><span class=\"error\">can&#39;t be blank</span></div><input type=\"submit\" name=\"commit\" value=\"Create\"></form>"
+23 csrf_rejected: POST /articles -> 403 [content-type: text/plain; charset=utf-8] "Invalid authenticity token"
+23 flash_once: GET /articles/1 -> 200 [content-type: text/html; charset=utf-8] title="Hi" main="<article><h1>Hi</h1></article>"
++ index_lists: GET /articles -> 200 [content-type: text/html; charset=utf-8] title="Articles" main="<section><h1>Articles</h1><ul><li><a href=\"/articles/1\">Hi</a></li></ul><a href=\"/articles/new\">New article</a></section>"
++ new_form: GET /articles/new -> 200 [content-type: text/html; charset=utf-8] title="New article" main="<form method=\"post\" action=\"/articles\"><input type=\"hidden\" name=\"authenticity_token\" value=\"TOKEN\"><div class=\"field\"><label for=\"article_title\">Title</label><input type=\"text\" id=\"article_title\" name=\"article[title]\" value=\"\"></div><input type=\"submit\" name=\"commit\" value=\"Create\"></form>"
+12 routes_task: exit 0
+  root_path         GET   /              PagesController.home
+  about_path        GET   /about         PagesController.about
+                    GET   /boom          PagesController.boom
+  articles_path     GET   /articles      ArticlesController.index
+  new_article_path  GET   /articles/new  ArticlesController.new
+                    POST  /articles      ArticlesController.create
+  article_path      GET   /articles/:id  ArticlesController.show
+  admin_stats_path  GET   /admin/stats   StatsController.show
+13 unknown_task: exit 2
+  unknown task `nope`; the tasks are: routes, db:migrate, db:rollback, db:status, db:reset, db:seed

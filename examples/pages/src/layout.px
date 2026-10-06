@@ -1,0 +1,38 @@
+module Layout
+
+uses
+  Std.Option
+  Paths
+  Ticket.Conn
+  Ticket.Csrf
+  Ticket.Flash
+  Ticket.Html
+
+views
+  app(conn: Conn, title: String, body: Html)
+    <html>
+      <head>
+        <title>{title}</title>
+        {Csrf.meta(conn)}
+      </head>
+      <body>
+        <nav>
+          <a href={Paths.root_path()}>Home</a>
+          <a href={Paths.articles_path()}>Articles</a>
+          <a href={Paths.about_path()}>About</a>
+        </nav>
+        {notice(conn)}
+        <main>{body}</main>
+      </body>
+    </html>
+
+functions
+  notice(conn: Conn) -> Html {
+    match Flash.get(conn, "notice") {
+      Some(text) -> Html.raw("<p class=\"notice\">#{Html.escape(text)}</p>"),
+      None -> Html.raw(""),
+    }
+  }
+
+exports
+  app

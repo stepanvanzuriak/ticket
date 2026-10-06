@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forms and Sessions – Ticket</title>
+<meta name="description" content="Form components, signed-cookie sessions, flash, CSRF, static files and the request log.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="forms-and-sessions">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Forms and Sessions</h1>
+      <p class="lead">Forms are JSX components. Sessions are one signed cookie that holds the session, the flash and the CSRF token.</p>
+      <h2 id="forms">Forms</h2>
+      <p><code>Ticket.Forms</code> and <code>Ticket.Links</code> are <code>view_component</code> zones. A form's fields are its children, and each field renders a label, an input and its messages in a <code>div.field</code>, with <code>field_with_errors</code> when it has any.</p>
+      <pre class="code" data-lang="polar"><code>views
+  form(conn: Conn, fields: Map&lt;String, String&gt;, errors: Errors)
+    &lt;Forms.Form conn={conn} action={Paths.posts_path()}&gt;
+      &lt;Forms.ErrorSummary errors={errors} noun="post" /&gt;
+      &lt;Forms.TextField prefix="post" field="title" value={Forms.value(fields, "title")} errors={errors} /&gt;
+      &lt;Forms.TextArea prefix="post" field="body" value={Forms.value(fields, "body")} errors={errors} /&gt;
+      &lt;Forms.Checkbox prefix="post" field="published" checked={Forms.checked(fields, "published")} errors={errors} /&gt;
+      &lt;Forms.Submit text="Create post" /&gt;
+    &lt;/Forms.Form&gt;</code></pre>
+      <p>The components are <code>Form</code>, <code>MethodForm</code> (<code>patch</code>, <code>put</code>, <code>delete</code> add a hidden <code>_method</code>), <code>TextField</code>, <code>TextArea</code>, <code>EmailField</code>, <code>NumberField</code>, <code>PasswordField</code> (never renders its value), <code>HiddenField</code>, <code>Checkbox</code>, <code>Select</code>, <code>Label</code>, <code>Submit</code> and <code>ErrorSummary</code>, plus <code>Links.LinkTo</code> and <code>Links.ButtonTo</code> (a one-button form, how a delete works without JavaScript). All text is escaped.</p>
+      <p>A failed <code>Params.record</code> keeps nothing, so a re-render passes <code>Params.nested(conn, "post")</code> as <code>fields</code> to show what was typed.</p>
+      <h2 id="sessions">Sessions and flash</h2>
+      <p>A controller action calls <code>Session.handle(conn, action)</code>. It loads the cookie (a bad signature or an expired one is an empty session), refuses an unsafe request without a CSRF token, and writes the cookie back when the session is new or a flash was shown.</p>
+      <pre class="code" data-lang="polar"><code>create(conn: Conn) -&gt; Response / {Posts, Throws&lt;DbFailure&gt;, Process, Random, Clock} {
+  Session.handle(conn, save)
+}
+
+save(conn: Conn) -&gt; Response / {Posts, Throws&lt;DbFailure&gt;} {
+  Response.redirect_to(
+    Flash.put(conn, "notice", "Post was created."),
+    Paths.post_path(Posts.insert(row).id),
+  )
+}</code></pre>
+      <p><code>Flash.put</code> shows on the next page once; <code>Flash.get(conn, "notice")</code> reads it. <code>Session.put</code> and <code>Session.get</code> work on the same cookie, which is signed, not encrypted: don't store secrets in it. <code>Csrf.meta(conn)</code> goes in the layout's <code>&lt;head&gt;</code>, and forms carry the token field themselves.</p>
+      <div class="table-wrap"><table><thead><tr><th>Setting</th><th>Where</th></tr></thead><tbody><tr><td>Secret</td><td><code>[session] secret</code> in <code>ticket.toml</code>, or <code>TICKET_SECRET</code>. Production refuses to start without one when <code>[session]</code> exists.</td></tr><tr><td>Lifetime</td><td><code>[session] max_age</code> (seconds, 14 days by default)</td></tr></tbody></table></div>
+      <h2 id="static">Static files, log and error pages</h2>
+      <p>Files under <code>public/</code> are served at the root before the router (<code>GET</code> and <code>HEAD</code>, never outside the folder, never dotfiles). Production caches for an hour with an <code>ETag</code>; development sends <code>no-cache</code>. Every request logs one line, with form and JSON params and secret-looking keys shown as <code>[FILTERED]</code>:</p>
+      <pre class="code" data-lang="polar"><code>Started POST "/articles" 422 (9ms)  params={"article":{"title":""}}</code></pre>
+      <p>A failure in development shows a page with the message, stack and params. In production <code>public/500.html</code> and <code>public/404.html</code> are served to browsers. <code>[server]</code> in <code>ticket.toml</code> sets <code>public</code>, <code>log</code> (<code>"request"</code> or <code>"off"</code>) and <code>filter_params</code>.</p>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

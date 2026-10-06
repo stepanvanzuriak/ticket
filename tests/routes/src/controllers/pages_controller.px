@@ -1,0 +1,24 @@
+module PagesController
+
+uses
+  Std.Http
+  Ticket.Conn
+  Stub
+
+functions
+  home(conn: Conn) -> Response {
+    Stub.reply(conn, "PagesController#home")
+  }
+
+  about(conn: Conn) -> Response {
+    Stub.reply(conn, "PagesController#about")
+  }
+
+  webhook(conn: Conn) -> Response {
+    Stub.reply(conn, "PagesController#webhook")
+  }
+
+exports
+  about
+  home
+  webhook

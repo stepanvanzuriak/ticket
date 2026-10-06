@@ -1,0 +1,78 @@
+module Params
+
+uses
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Form
+  Std.Id
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Result
+
+functions
+  string(conn: Conn, key: String) -> Option<String> {
+    match Map.get(conn.path_params, key) {
+      Some(value) -> Some(value),
+      None -> match Map.get(conn.form, key) {
+        Some(value) -> Some(value),
+        None -> Map.get(conn.query, key),
+      },
+    }
+  }
+
+  int(conn: Conn, key: String) -> Option<Int> {
+    Option.and_then(string(conn, key), Int.parse)
+  }
+
+  id(conn: Conn, key: String) -> Option<Id<a>> {
+    Option.map(int(conn, key), Id)
+  }
+
+  nested(conn: Conn, prefix: String) -> Map<String, String> {
+    List.fold(
+      List.reverse(Map.to_list(nested_in(conn.form, prefix))),
+      nested_in(conn.query, prefix),
+      function(map, entry) { Map.insert(map, entry.key, entry.value) },
+    )
+  }
+
+  nested_in(params: Map<String, String>, prefix: String) -> Map<String, String> {
+    List.fold(
+      List.reverse(Map.to_list(params)),
+      Map.empty(),
+      function(map, entry) {
+        match inner_key(entry.key, prefix) {
+          Some(key) -> Map.insert(map, key, entry.value),
+          None -> map,
+        }
+      },
+    )
+  }
+
+  record(conn: Conn, prefix: String) -> Result<Errors, a> where Form<a> {
+    Form.from_form(nested(conn, prefix))
+  }
+
+  inner_key(key: String, prefix: String) -> Option<String> {
+    let open = "#{prefix}["
+
+    if String.starts_with(key, open) && String.ends_with(key, "]") {
+      let inner = String.slice(key, String.length(open), String.length(key) - 1)
+
+      if inner == "" || String.contains(inner, "[") || String.contains(inner, "]") {
+        None
+      } else {
+        Some(inner)
+      }
+    } else {
+      None
+    }
+  }
+
+exports
+  id
+  int
+  nested
+  record
+  string

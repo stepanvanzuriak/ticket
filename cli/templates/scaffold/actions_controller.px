@@ -1,0 +1,14 @@
+module {{Models}}Controller
+
+uses
+  Std.Http
+  Ticket.Conn
+  Ticket.Response
+  Views.Layout
+  Views.{{Model}}Views
+
+functions
+{{actions}}
+
+exports
+{{exports}}

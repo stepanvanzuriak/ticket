@@ -1,0 +1,13 @@
+
+module UiCustom
+
+uses
+  Ticket.Html
+  UI
+
+view_component
+  ButtonCool(name: String)
+    <UI.Button name={"#{name} Cool"} />
+
+exports
+  button_cool

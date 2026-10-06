@@ -1,0 +1,200 @@
+
+module Main
+
+uses
+  Std.Fs
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Result
+  Std.Time
+  Args
+  App
+  Commands.Database
+  Commands.Generate
+  Commands.New
+  Commands.Passthrough
+  Commands.Repl
+  Commands.Routes
+  Commands.Scaffold
+  Commands.Server
+  Commands.Testing
+
+hosts
+  Node
+
+constants
+  version: String = "0.1.0"
+
+functions
+  main() -> {} / {Process, Fs, Clock} {
+    Process.set_exit_code(dispatch(Process.args()))
+  }
+
+  dispatch(args: List<String>) -> Int / {Process, Fs, Clock} {
+    match args {
+      ["build", ..rest] -> passthrough("build", rest),
+      ["check", ..rest] -> passthrough("check", rest),
+      ["fmt", ..rest] -> passthrough("fmt", rest),
+      _ -> match Args.parse(args) {
+        Ok(parsed) -> command(parsed),
+        Err(UnknownFlag(name)) -> usage("unknown flag `#{name}`"),
+        Err(MissingValue(name)) -> usage("`--#{name}` needs a value"),
+      },
+    }
+  }
+
+  command(parsed: Parsed) -> Int / {Process, Fs, Clock} {
+    if Args.has(parsed, "help") {
+      help()
+    } else {
+      match parsed.command {
+        "" -> help(),
+        "help" -> help(),
+        "version" -> {
+          Log.info("ticket #{version}")
+          0
+        }
+        "new" -> match Process.env("TICKET_HOME") {
+          Some(home) -> New.run(parsed, home),
+          None -> {
+            Log.error("error: TICKET_HOME isn't set: run `ticket` through `bin/ticket`")
+            1
+          }
+        },
+        "server" -> match app() {
+          Some(root) -> Server.run(root, parsed),
+          None -> not_in_app(),
+        },
+        "routes" -> match app() {
+          Some(root) -> Routes.run(root),
+          None -> not_in_app(),
+        },
+        "db:migrate" -> database(parsed),
+        "db:rollback" -> database(parsed),
+        "db:status" -> database(parsed),
+        "db:reset" -> database(parsed),
+        "db:seed" -> database(parsed),
+        "generate" -> match app() {
+          Some(root) -> generate(root, parsed),
+          None -> not_in_app(),
+        },
+        "destroy" -> match app() {
+          Some(root) -> match Process.env("TICKET_HOME") {
+            Some(home) -> Scaffold.destroy(root, home, parsed),
+            None -> no_home(),
+          },
+          None -> not_in_app(),
+        },
+        "test" -> match app() {
+          Some(root) -> Testing.run(root, parsed),
+          None -> not_in_app(),
+        },
+        "console" -> match app() {
+          Some(root) -> match Process.env("TICKET_HOME") {
+            Some(home) -> Repl.run(root, home, parsed),
+            None -> no_home(),
+          },
+          None -> not_in_app(),
+        },
+        other -> {
+          Log.error("unknown command `#{other}`\n")
+          Log.error(help_text())
+          2
+        }
+      }
+    }
+  }
+
+  generate(root: String, parsed: Parsed) -> Int / {Process, Fs, Clock} {
+    match parsed.positional {
+      ["scaffold", .._] -> scaffolded(root, parsed),
+      ["controller", .._] -> scaffolded(root, parsed),
+      ["model", .._] -> if Args.has(parsed, "validations") {
+        scaffolded(root, parsed)
+      } else {
+        Generate.run(root, parsed)
+      },
+      _ -> Generate.run(root, parsed),
+    }
+  }
+
+  scaffolded(root: String, parsed: Parsed) -> Int / {Process, Fs, Clock} {
+    match Process.env("TICKET_HOME") {
+      Some(home) -> Scaffold.run(root, home, parsed),
+      None -> no_home(),
+    }
+  }
+
+  no_home() -> Int {
+    Log.error("error: TICKET_HOME isn't set: run `ticket` through `bin/ticket`")
+    1
+  }
+
+  database(parsed: Parsed) -> Int / {Process, Fs} {
+    match app() {
+      Some(root) -> Database.run(root, parsed.command, parsed),
+      None -> not_in_app(),
+    }
+  }
+
+  passthrough(command: String, args: List<String>) -> Int / {Process, Fs} {
+    match app() {
+      Some(root) -> Passthrough.run(root, command, args),
+      None -> not_in_app(),
+    }
+  }
+
+  app() -> Option<String> / {Process, Fs} {
+    App.root(Process.cwd())
+  }
+
+  not_in_app() -> Int {
+    Log.error("error: not inside a Ticket app (no polar.toml depending on ticket found)")
+    1
+  }
+
+  usage(message: String) -> Int {
+    Log.error("error: #{message}\n")
+    Log.error(help_text())
+    2
+  }
+
+  help() -> Int {
+    Log.info(help_text())
+    0
+  }
+
+  help_text() -> String {
+    List.join(
+      [
+        "Usage: ticket <command> [args] [flags]",
+        "",
+        "Commands:",
+        "  new <name> [--skip-build]  create a Ticket app in ./<name>, then build it",
+        "  server, s [-p PORT]        build and serve the app (port 3000 by default)",
+        "  routes                     print the app's routes",
+        "  db:migrate [--version V]   apply the pending migrations",
+        "  db:rollback [--step N]     undo the last migration (or N)",
+        "  db:status                  list the migrations and whether they ran",
+        "  db:reset                   roll everything back, migrate, then seed",
+        "  db:seed                    run the app's `seed`",
+        "  g migration <Name> [f:T…]  append a migration to src/schema.px (Create…, Add…To…, Remove…From…)",
+        "  g model <Name> [f:T…]      a create_table migration and src/models/<name>.px (--validations: with a validations zone)",
+        "  g scaffold <Name> [f:T…]   a model, a controller with the seven actions, views and a resources route",
+        "  g controller <Names> <a…>  a controller with those actions, their views and a route each",
+        "  destroy controller|model|scaffold <Name>  remove what a generator wrote (the migration stays)",
+        "  (g flags)                  --force overwrites, --skip keeps existing files, --pretend writes nothing",
+        "  console, c [-e EXPR] [--sandbox]  a REPL with the app loaded (--sandbox: a throwaway :memory: database)",
+        "  test [filter]              run the app's tests (polar test, in the test environment)",
+        "  build, check, fmt [args]   run `polar build|check|fmt` in the app",
+        "  version                    print Ticket's version",
+        "  help                       print this help",
+      ],
+      "\n",
+    )
+  }
+
+exports
+  Node
+  main

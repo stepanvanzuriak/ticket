@@ -1,0 +1,16 @@
+module UnknownProp
+
+uses
+  Ticket.Html
+  UI
+
+view_component
+  Chip(text: String)
+    <b>{text}</b>
+
+views
+  page()
+    <Chip text="x" size={1} />
+
+exports
+  page

@@ -1,0 +1,18 @@
+module SingularWithAs
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  PagesController
+  PostsController
+
+routes
+  resources people  -> PostsController  only show  as person
+    resources posts  -> PostsController  only index
+
+functions
+  check() -> String {
+    "#{person_path(Id(1))} #{person_posts_path(Id(1))}"
+  }

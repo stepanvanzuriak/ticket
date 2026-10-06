@@ -1,0 +1,127 @@
+module Response
+
+uses
+  Ticket.Conn
+  Ticket.Html
+  Ticket.Signed
+  Std.Http
+  Std.Json
+  Std.List
+  Std.Option
+
+functions
+  with_type(status: Int, kind: String, body: String) -> Response {
+    { status: status, headers: [{ name: "content-type", value: kind }], body: body }
+  }
+
+  text(status: Int, body: String) -> Response {
+    with_type(status, "text/plain; charset=utf-8", body)
+  }
+
+  html(status: Int, body: String) -> Response {
+    with_type(status, "text/html; charset=utf-8", body)
+  }
+
+  view(status: Int, page: Html) -> Response {
+    html(status, Html.document(page))
+  }
+
+  json(status: Int, value: a) -> Response where Json<a> {
+    with_type(status, "application/json", Json.encode(value))
+  }
+
+  empty(status: Int) -> Response {
+    { status: status, headers: [], body: "" }
+  }
+
+  redirect(location: String) -> Response {
+    { status: 302, headers: [{ name: "location", value: location }], body: "" }
+  }
+
+  not_found() -> Response {
+    text(404, "not found")
+  }
+
+  render(page: Html) -> Response {
+    view(200, page)
+  }
+
+  render_status(status: Int, page: Html) -> Response {
+    view(status, page)
+  }
+
+  redirect_to(conn: Conn, path: String) -> Response {
+    let status = if conn.method == "GET" || conn.method == "HEAD" { 302 } else { 303 }
+
+    commit(conn, { status: status, headers: [{ name: "location", value: path }], body: "" })
+  }
+
+  add_header(response: Response, name: String, value: String) -> Response {
+    { ..response, headers: List.append(response.headers, [{ name: name, value: value }]) }
+  }
+
+  commit(conn: Conn, response: Response) -> Response {
+    match Signed.cookie(conn) {
+      None -> response,
+      Some(value) -> {
+        let size = String.length(value)
+
+        if size > 4000 {
+          text(500, "the session cookie is #{Int.to_string(size)} bytes, over the 4000 byte limit")
+        } else {
+          add_header(response, "set-cookie", value)
+        }
+      },
+    }
+  }
+
+  head(status: Int) -> Response {
+    empty(status)
+  }
+
+  with_header(response: Response, name: String, value: String) -> Response {
+    let wanted = String.lowercase(name)
+    let same = function(header: Header) { String.lowercase(header.name) == wanted }
+    let header = { name: name, value: value }
+    let replaced = List.fold(
+      response.headers,
+      { found: false, headers: [] },
+      function(acc, h) {
+        if !same(h) {
+          { ..acc, headers: List.append(acc.headers, [h]) }
+        } else if acc.found {
+          acc
+        } else {
+          { found: true, headers: List.append(acc.headers, [header]) }
+        }
+      },
+    )
+    let headers = if replaced.found {
+      replaced.headers
+    } else {
+      List.append(response.headers, [header])
+    }
+
+    { ..response, headers: headers }
+  }
+
+  content_type(response: Response, kind: String) -> Response {
+    with_header(response, "content-type", kind)
+  }
+
+exports
+  add_header
+  commit
+  content_type
+  empty
+  head
+  html
+  json
+  not_found
+  redirect
+  redirect_to
+  render
+  render_status
+  text
+  view
+  with_header

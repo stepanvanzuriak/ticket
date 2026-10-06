@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your First App – Ticket</title>
+<meta name="description" content="Build the smallest Ticket app: a polar.toml, a layout, a view and a router.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="first-app">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Your First App</h1>
+      <p class="lead">The smallest Ticket app is one route, one view and a layout. It's the same app as Ticket's examples/hello.</p>
+      <h2 id="project">The project file</h2>
+      <p>Make a folder next to your Ticket checkout with a <code>polar.toml</code>. The dependency makes <code>Ticket.*</code> modules available, and the launcher line makes <code>polar run</code> serve your app over HTTP.</p>
+      <pre class="code"><code>[project]
+name = "hello"
+hosts = ["Node"]
+
+[dependencies]
+ticket = { path = "../ticket" }
+
+[run]
+launcher = "ticket"
+options = { port = 3000 }</code></pre>
+      <h2 id="layout">A layout</h2>
+      <p>A layout is a plain view that takes the page's <code>Html</code>. Views live in a <code>views</code> zone, and the module has to use <code>Ticket.Html</code>.</p>
+      <pre class="code" data-lang="polar"><code>module Layout
+
+uses
+  Ticket.Html
+
+views
+  app(title: String, body: Html)
+    &lt;html&gt;
+      &lt;head&gt;
+        &lt;title&gt;{title}&lt;/title&gt;
+      &lt;/head&gt;
+      &lt;body&gt;{body}&lt;/body&gt;
+    &lt;/html&gt;
+
+exports
+  app</code></pre>
+      <h2 id="view">A view</h2>
+      <pre class="code" data-lang="polar"><code>module Pages
+
+uses
+  Ticket.Html
+
+views
+  home(name: String)
+    &lt;h1&gt;Hello from {name}&lt;/h1&gt;
+
+exports
+  home</code></pre>
+      <h2 id="router">The router</h2>
+      <p>The app's main module exports <code>router(request: Request) -> Option&lt;Response&gt;</code>. Returning <code>None</code> means no route matched, and the launcher answers 404. Here it's written by hand. Real apps let a <a href="routing.html"><code>routes</code> zone</a> generate it.</p>
+      <pre class="code" data-lang="polar"><code>module Main
+
+uses
+  Std.Http
+  Std.Option
+  Layout
+  Pages
+  Ticket.Html
+  Ticket.Response
+
+hosts
+  Node
+
+functions
+  router(request: Request) -&gt; Option&lt;Response&gt; {
+    if request.path == "/" {
+      Some(Response.html(200, Html.document(Layout.app("Hello", Pages.home("Ticket")))))
+    } else {
+      None
+    }
+  }
+
+exports
+  router</code></pre>
+      <h2 id="run">Run it</h2>
+      <pre class="code"><code><span class="pr">$</span> polar run
+hello is listening on http://127.0.0.1:3000</code></pre>
+      <pre class="code out"><code>GET /      -&gt; 200 &lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;title&gt;Hello&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Hello from Ticket&lt;/h1&gt;&lt;/body&gt;&lt;/html&gt;
+GET /nope  -&gt; 404 {"error":"not found"}</code></pre>
+      <div class="callout tip"><p><span class="label">Tip:</span> <code>polar build && polar start</code> does the same in two steps, and leaves a <code>dist/</code> folder you can run on its own.</p></div>
+      <div class="callout wip"><p><span class="label">Coming soon:</span> <code>ticket new hello</code> will write this skeleton for you, and <code>ticket server</code> will run it. Both are being built now.</p></div>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

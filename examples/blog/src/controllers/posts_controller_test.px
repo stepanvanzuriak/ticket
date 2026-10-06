@@ -1,0 +1,164 @@
+module PostsControllerTest
+
+uses
+  Std.Assert
+  Std.Crypto
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Time
+  Routes
+  Schema
+  Ticket.Db
+  Ticket.Test
+
+hosts
+  Node
+
+functions
+  seed() {
+    let ann = Users.insert({ name: "Ann", email: "ann@example.com" })
+    let _ = Posts.insert(
+      {
+        title: "Hello, Ticket",
+        body: "The first post.",
+        published: true,
+        author_id: ann.id,
+      },
+    )
+
+    {}
+  }
+
+  test_index_lists_posts_with_authors() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.get(Routes.router, Test.client(), "/posts")
+
+        Test.assert_status(reply, 200)
+        Test.assert_body_contains(reply, "Hello, Ticket")
+        Test.assert_body_contains(reply, "by Ann")
+      },
+    )
+  }
+
+  test_create_sets_a_notice_and_redirects() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.post(
+          Routes.router,
+          Test.client(),
+          "/posts",
+          [
+            { name: "post[title]", value: "A new post" },
+            { name: "post[body]", value: "Text" },
+          ],
+        )
+
+        Test.assert_redirect(reply, "/posts/2")
+        Assert.equal(Test.flash(reply, "notice"), Some("Post was created."))
+      },
+    )
+  }
+
+  test_short_title_is_rejected() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.post(
+          Routes.router,
+          Test.client(),
+          "/posts",
+          [{ name: "post[title]", value: "Hi" }, { name: "post[body]", value: "Text" }],
+        )
+
+        Test.assert_status(reply, 422)
+        Test.assert_body_contains(reply, "is too short")
+        Test.assert_body_contains(reply, "value=\"Hi\"")
+      },
+    )
+  }
+
+  test_duplicate_title_is_rejected() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.post(
+          Routes.router,
+          Test.client(),
+          "/posts",
+          [
+            { name: "post[title]", value: "Hello, Ticket" },
+            { name: "post[body]", value: "Again" },
+          ],
+        )
+
+        Test.assert_status(reply, 422)
+        Test.assert_body_contains(reply, "has already been taken")
+      },
+    )
+  }
+
+  test_delete_removes_the_post() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.delete(Routes.router, Test.client(), "/posts/1")
+
+        Test.assert_redirect(reply, "/posts")
+        Test.assert_status(Test.get(Routes.router, reply.client, "/posts/1"), 404)
+      },
+    )
+  }
+
+  test_missing_post_is_404() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        Test.assert_status(Test.get(Routes.router, Test.client(), "/posts/99"), 404)
+      },
+    )
+  }
+
+  test_a_post_needs_a_token() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        Test.assert_status(
+          Test.post_without_token(
+            Routes.router,
+            Test.client(),
+            "/posts",
+            [
+              { name: "post[title]", value: "No token here" },
+              { name: "post[body]", value: "x" },
+            ],
+          ),
+          403,
+        )
+      },
+    )
+  }
+
+exports
+  test_a_post_needs_a_token
+  test_create_sets_a_notice_and_redirects
+  test_delete_removes_the_post
+  test_duplicate_title_is_rejected
+  test_index_lists_posts_with_authors
+  test_missing_post_is_404
+  test_short_title_is_rejected

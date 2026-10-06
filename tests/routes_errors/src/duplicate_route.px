@@ -1,0 +1,13 @@
+module DuplicateRoute
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  PagesController
+  PostsController
+
+routes
+  get  /about  -> PagesController.about
+  get  /about  -> PagesController.home

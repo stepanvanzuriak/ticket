@@ -1,0 +1,135 @@
+module Query
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Time
+  Ticket.Db
+
+traits
+  ToSql<a> {
+    to_sql(value: a) -> SqlValue
+  }
+
+types
+  Column<r, a> = Column(String, String)
+
+  Filter<r> = Filter(String, List<SqlValue>)
+
+  Clause<r> = OrderBy(String, Bool) | Limit(Int) | Offset(Int)
+
+functions
+  column(table: String, name: String) -> Column<r, a> {
+    Column(table, name)
+  }
+
+  eq(column: Column<r, a>, value: a) -> Filter<r> where ToSql<a> {
+    compare(column, "=", value)
+  }
+
+  not_eq(column: Column<r, a>, value: a) -> Filter<r> where ToSql<a> {
+    compare(column, "<>", value)
+  }
+
+  lt(column: Column<r, a>, value: a) -> Filter<r> where ToSql<a> {
+    compare(column, "<", value)
+  }
+
+  gt(column: Column<r, a>, value: a) -> Filter<r> where ToSql<a> {
+    compare(column, ">", value)
+  }
+
+  like(column: Column<r, String>, pattern: String) -> Filter<r> {
+    compare(column, "LIKE", pattern)
+  }
+
+  is_null(column: Column<r, Option<a>>) -> Filter<r> {
+    Filter("#{quoted(column)} IS NULL", [])
+  }
+
+  order_asc(column: Column<r, a>) -> Clause<r> {
+    OrderBy(quoted(column), false)
+  }
+
+  order_desc(column: Column<r, a>) -> Clause<r> {
+    OrderBy(quoted(column), true)
+  }
+
+  limit(count: Int) -> Clause<r> {
+    Limit(count)
+  }
+
+  offset(count: Int) -> Clause<r> {
+    Offset(count)
+  }
+
+  compare(column: Column<r, a>, operator: String, value: a) -> Filter<r> where ToSql<a> {
+    Filter("#{quoted(column)} #{operator} ?", [to_sql(value)])
+  }
+
+  quoted(column: Column<r, a>) -> String {
+    match column {
+      Column(table, name) -> "\"#{table}\".\"#{name}\"",
+    }
+  }
+
+impls
+  ToSql for Int {
+    to_sql(value) {
+      SqlInt(value)
+    }
+  }
+
+  ToSql for Float {
+    to_sql(value) {
+      SqlFloat(value)
+    }
+  }
+
+  ToSql for String {
+    to_sql(value) {
+      SqlText(value)
+    }
+  }
+
+  ToSql for Bool {
+    to_sql(value) {
+      SqlBool(value)
+    }
+  }
+
+  ToSql for Time {
+    to_sql(value) {
+      SqlText(Time.to_iso(value))
+    }
+  }
+
+  ToSql for Id<r> {
+    to_sql(value) {
+      SqlInt(Id.value(value))
+    }
+  }
+
+  ToSql for Option<a> where ToSql<a> {
+    to_sql(value) {
+      match value {
+        None -> SqlNull,
+        Some(x) -> to_sql(x),
+      }
+    }
+  }
+
+exports
+  ToSql { to_sql }
+  column
+  eq
+  not_eq
+  lt
+  gt
+  like
+  is_null
+  order_asc
+  order_desc
+  limit
+  offset

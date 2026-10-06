@@ -1,0 +1,17 @@
+
+module Aliased
+
+uses
+  Ticket.Html as H
+
+types
+  Post = { id: Int, title: String }
+
+views
+  card(post: Post)
+    <article class="post" data-id={post.id}>
+      <h2>{post.title}</h2>
+    </article>
+
+exports
+  card

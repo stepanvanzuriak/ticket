@@ -1,0 +1,96 @@
+error[POLAR0501]: mismatched types
+  --> src/action_type_error_maps.px:11:3
+   |
+11 |   resources posts  -> PostsController  only index
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Int`, found `Conn`
+
+error[POLAR0901]: a path doesn't end in `/`
+  --> src/bad_path.px:12:14
+   |
+12 |   get  /posts/  -> PagesController.about
+   |              ^
+   |
+   = help: a path is `/` or segments like `/posts/:id`, with no spaces
+
+error[POLAR0901]: a path has no spaces in it
+  --> src/bad_path.px:13:11
+   |
+13 |   get  /a b    -> PagesController.home
+   |           ^
+   |
+   = help: a path is `/` or segments like `/posts/:id`, with no spaces
+
+error[POLAR0901]: can't tell the singular of `people`
+  --> src/cannot_singularise.px:12:13
+   |
+12 |   resources people  -> PostsController
+   |             ^^^^^^
+   |
+   = help: name it with `as`, like `resources people -> PostsController as person`
+
+error[POLAR0901]: `about_path` is already generated
+  --> src/duplicate_helper.px:13:3
+   |
+12 |   get  /about  -> PagesController.about  as about
+   |   ----------------------------------------------- by this route
+13 |   get  /info   -> PagesController.home   as about
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: name one of them with `as`
+
+error[POLAR0901]: another `GET` route already matches `/about`
+  --> src/duplicate_route.px:13:3
+   |
+12 |   get  /about  -> PagesController.about
+   |   ------------------------------------- the first route
+13 |   get  /about  -> PagesController.home
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[POLAR0901]: `member` belongs inside a `resources` block
+  --> src/member_outside.px:12:3
+   |
+12 |   member
+   |   ^^^^^^
+   |
+   = help: indent it under a `resources` line
+
+error[POLAR0901]: the `routes` zone needs `Ticket.Conn`
+ --> src/needs_imports.px:9:1
+  |
+9 | routes
+  | ^^^^^^
+  |
+  = help: add `Ticket.Conn` to the `uses` zone
+
+error[POLAR0901]: use `only` or `except`, not both
+  --> src/only_and_except.px:12:52
+   |
+12 |   resources posts  -> PostsController  only index  except show
+   |                                                    ^^^^^^
+   |                                        ---- already filtered here
+
+error[POLAR0901]: `shw` is not a resource action
+  --> src/only_unknown_action.px:12:51
+   |
+12 |   resources posts  -> PostsController  only index shw
+   |                                                   ^^^
+   |
+   = help: the actions are index, new, create, show, edit, update and destroy
+
+error[POLAR0901]: no module `PostController` in `uses`
+  --> src/unknown_controller.px:12:23
+   |
+12 |   resources posts  -> PostController
+   |                       ^^^^^^^^^^^^^^
+   |
+   = help: a controller is a module in `uses`, named by its last segment or its `as` alias
+
+error[POLAR0901]: `fetch` is not a route
+  --> src/unknown_verb.px:12:3
+   |
+12 |   fetch  /about  -> PagesController.about
+   |   ^^^^^
+   |
+   = help: a route starts with `root`, `get`, `post`, `put`, `patch`, `delete`, `resources` or `namespace`
+
+error: aborting due to 12 errors

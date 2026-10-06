@@ -1,0 +1,16 @@
+
+module Items
+
+uses
+  Std.List
+  Ticket.Html
+
+views
+  list(xs: List<String>)
+    <ul>{List.map(xs, item)}</ul>
+
+  item(x: String)
+    <li>{x}</li>
+
+exports
+  list

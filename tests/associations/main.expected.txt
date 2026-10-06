@@ -1,0 +1,13 @@
+1 belongs_to: Ada
+2 belongs_to_option: Bob none
+3 has_many: [First, Second] [Third]
+4 two_references: [Third] [First]
+5 has_many_filter: [Second]
+6 has_many_order: [Second, First]
+7 conventional_name: 1 0 Ada
+8 has_many_by_post: [c1, c2]
+9 self_reference: [c2] First
+10 root_has_no_parent: none c1
+11 restrict_default: Err(kind=foreign_key)
+12 cascade: true 1 2
+13 set_null: true 2 none

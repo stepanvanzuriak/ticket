@@ -1,0 +1,14 @@
+module MisspelledColumn
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Ticket.Db
+  Ticket.Query
+  Schema
+
+functions
+  by_title() -> Filter<Post> {
+    Query.eq(Schema.post_titel, "x")
+  }

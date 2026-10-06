@@ -1,0 +1,10 @@
+[project]
+name = "console_app"
+hosts = ["Node"]
+
+[dependencies]
+ticket = { path = "{{ticket_path}}" }
+
+[run]
+launcher = "ticket"
+options = { port = 3000, env = "development" }

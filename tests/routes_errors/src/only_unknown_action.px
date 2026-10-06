@@ -1,0 +1,12 @@
+module OnlyUnknownAction
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  PagesController
+  PostsController
+
+routes
+  resources posts  -> PostsController  only index shw

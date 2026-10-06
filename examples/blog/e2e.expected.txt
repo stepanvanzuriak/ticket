@@ -1,0 +1,38 @@
+1 index: 200 A draft (Ann) | Forms and flash (Bob) | Hello, Ticket (Ann)
+1 root_is_index: 200 A draft (Ann)
+2 show: 200 Hello, Ticket by Ann The first post. Edit Delete | comments: Nice start., Looking forward to more.
+3 create: 303 /posts/4
+4 create_short: 422 Title is too short (minimum is 3 characters) typed=true posts=0
+5 create_blank: 422 Title can&#39;t be blank | Title is too short (minimum is 3 characters) | Body can&#39;t be blank posts=0
+6 create_duplicate: 422 Title has already been taken typed=true posts=0
+7 update: 303 /posts/4
+7 updated: A better title / Edited
+7 update_invalid: 422 Title is too short (minimum is 3 characters)
+8 delete: 303 /posts
+9 delete_cascade: post gone=404 comments 3 -> 1
+10 comment_create: 303 /posts/2
+10 comments_in_order: Thanks for the helpers. | Third comment
+11 comment_invalid: 422 Body can&#39;t be blank post_shown=true
+11 comment_delete: 303 /posts/2
+11 comment_deleted: Thanks for the helpers.
+11 comment_of_another_post: 404
+12 not_found: GET /posts/99 -> 404
+12 not_found: POST /posts/99 _method=patch -> 404
+12 not_found: POST /posts/99 _method=delete -> 404
+12 not_found: GET /posts/99/edit -> 404
+13 flash_created: notice=Post was created.
+14 flash_once: notice=-
+14 flash_deleted: notice=Post was destroyed.
+15 csrf_rejected: 403 Invalid authenticity token posts_changed=false
+16 csrf_ok: 303 posts_changed=true
+17 static_file: 200 text/css; charset=utf-8 true
+17 request_log: Started GET "/app.css" 200 (Nms) | Started GET "/nope" 404 (Nms) | Started POST "/posts" 303 (Nms)  params={"post":{"title":"Logged post","body":"x"},"password":"[FILTERED]","authenticity_token":"[FILTERED]"}
+19 ticket_test: exit=0 pass=11
+19 ticket_test_broken: exit=1
+18 scaffold_generated: exit=0
+18 scaffold_create: 303 /notes/1
+18 scaffold_show: 200 notice=Note was created.
+18 scaffold_update: 303 /notes/1
+18 scaffold_invalid: 422 Title can&#39;t be blank
+18 scaffold_delete: 303 /notes
+18 scaffold_gone: 404

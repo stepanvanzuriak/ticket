@@ -1,0 +1,47 @@
+
+module Pages
+
+uses
+  Ticket.Html
+  UI as Kit
+  UiCustom
+
+view_component
+  Badge(text: String)
+    <span class="badge">{text}</span>
+
+views
+  home()
+    <div>
+      <Kit.Button name="test" />
+      <UiCustom.ButtonCool name="test" />
+    </div>
+
+  wrapped()
+    <Kit.Card title="T">
+      <p>body</p>
+    </Kit.Card>
+
+  empty_card()
+    <Kit.Card title="E"></Kit.Card>
+
+  bare()
+    <p>
+      <Kit.Toggle on />
+      <Kit.Toggle on={false} />
+      <Kit.Divider />
+    </p>
+
+  nested()
+    <Kit.Labelled label="L" />
+
+  local()
+    <Badge text="new" />
+
+exports
+  bare
+  empty_card
+  home
+  local
+  nested
+  wrapped

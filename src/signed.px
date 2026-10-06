@@ -1,0 +1,89 @@
+module Signed
+
+uses
+  Std.Crypto
+  Std.Json
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Result
+  Ticket.Conn
+
+types
+  Entry = { key: String, value: String } derive(Json)
+
+  Payload = { session: List<Entry>, flash: List<Entry>, expires: Int } derive(Json)
+
+functions
+  name() -> String {
+    "_ticket_session"
+  }
+
+  seal(secret: String, payload: Payload) -> String {
+    let body = Crypto.base64url(Json.encode(payload))
+
+    "#{body}.#{Crypto.hmac_sha256(secret, body)}"
+  }
+
+  open(secret: String, value: String) -> Option<Payload> {
+    match String.split(value, ".") {
+      [body, signature] -> if Crypto.equal(Crypto.hmac_sha256(secret, body), signature) {
+        Option.and_then(Crypto.from_base64url(body), decode)
+      } else {
+        None
+      },
+      _ -> None,
+    }
+  }
+
+  peek(value: String) -> Option<Payload> {
+    match String.split(value, ".") {
+      [body, _] -> Option.and_then(Crypto.from_base64url(body), decode),
+      _ -> None,
+    }
+  }
+
+  decode(text: String) -> Option<Payload> {
+    let decoded: Result<JsonError, Payload> = Json.decode(text)
+
+    match decoded {
+      Ok(payload) -> Some(payload),
+      Err(_) -> None,
+    }
+  }
+
+  entries(map: Map<String, String>) -> List<Entry> {
+    Map.to_list(map)
+  }
+
+  to_map(list: List<Entry>) -> Map<String, String> {
+    List.fold(list, Map.empty(), function(map, e) { Map.insert(map, e.key, e.value) })
+  }
+
+  cookie(conn: Conn) -> Option<String> {
+    let s = conn.signing
+
+    if s.secret == "" {
+      None
+    } else {
+      let payload = {
+        session: entries(conn.session),
+        flash: entries(conn.flash_next),
+        expires: s.expires,
+      }
+      let secure = if s.secure { "; Secure" } else { "" }
+
+      Some(
+        "#{name()}=#{seal(s.secret, payload)}; Path=/; Max-Age=#{Int.to_string(s.max_age)}; HttpOnly; SameSite=Lax#{secure}",
+      )
+    }
+  }
+
+exports
+  cookie
+  entries
+  name
+  open
+  peek
+  seal
+  to_map

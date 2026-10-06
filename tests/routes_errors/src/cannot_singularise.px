@@ -1,0 +1,13 @@
+module CannotSingularise
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  PagesController
+  PostsController
+
+routes
+  resources people  -> PostsController
+    resources posts  -> PostsController

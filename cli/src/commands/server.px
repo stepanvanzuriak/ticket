@@ -1,0 +1,39 @@
+module Server
+
+uses
+  Std.List
+  Std.Option
+  Std.Process
+  Args
+
+hosts
+  Node
+
+functions
+  run(root: String, parsed: Parsed) -> Int / {Process} {
+    let options = Process.in_dir(Process.inherit(), root)
+
+    match Args.flag(parsed, "port") {
+      None -> Process.run("polar", ["run"], options),
+      Some(port) -> match Int.parse(port) {
+        Some(n) -> if n >= 0 && n < 65536 {
+          Process.run(
+            "polar",
+            ["run"],
+            Process.with_env(options, "PORT", Int.to_string(n)),
+          )
+        } else {
+          bad_port(port)
+        },
+        None -> bad_port(port),
+      },
+    }
+  }
+
+  bad_port(port: String) -> Int {
+    Log.error("error: `#{port}` isn't a port number")
+    2
+  }
+
+exports
+  run

@@ -1,0 +1,14 @@
+module InsertMissingField
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Ticket.Db
+  Ticket.Query
+  Schema
+
+functions
+  create() -> Post / {Posts, Throws<DbFailure>} {
+    Posts.insert({ title: "x" })
+  }

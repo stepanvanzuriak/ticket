@@ -1,0 +1,13 @@
+module Fmt
+
+uses
+  Ticket.Html
+
+views
+  card(name: String)
+      <div>
+         <p>{name}</p>
+      </div>
+
+exports
+  card

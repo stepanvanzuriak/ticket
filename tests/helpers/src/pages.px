@@ -1,0 +1,67 @@
+
+module Pages
+
+uses
+  Std.List
+  Std.Map
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Forms
+  Ticket.Html
+  Ticket.Links
+
+views
+  title(value: String, errors: Errors)
+    <Forms.TextField prefix="post" field="title" value={value} errors={errors} />
+
+  post_form(conn: Conn, fields: Map<String, String>, errors: Errors)
+    <Forms.Form conn={conn} action="/posts">
+      <Forms.ErrorSummary errors={errors} noun="post" />
+      <Forms.TextField prefix="post" field="title" value={Forms.value(fields, "title")} errors={errors} />
+      <Forms.TextArea prefix="post" field="body" value={Forms.value(fields, "body")} errors={errors} />
+      <Forms.Checkbox prefix="post" field="published" checked={Forms.value(fields, "published") == "on"} errors={errors} />
+      <Forms.Submit text="Create post" />
+    </Forms.Form>
+
+  method_form(conn: Conn, method: String)
+    <Forms.MethodForm conn={conn} action="/posts/1" method={method}>
+      <Forms.Submit text="Go" />
+    </Forms.MethodForm>
+
+  checkbox(checked: Bool)
+    <Forms.Checkbox prefix="post" field="published" checked={checked} errors={Errors.empty()} />
+
+  select(selected: String)
+    <Forms.Select prefix="post" field="kind" selected={selected} options={choices()} errors={Errors.empty()} />
+
+  password(value: String)
+    <Forms.PasswordField prefix="user" field="password" value={value} errors={Errors.empty()} />
+
+  fields()
+    <p>
+      <Forms.EmailField prefix="user" field="email" value="a@b.c" errors={Errors.empty()} />
+      <Forms.NumberField prefix="user" field="age" value="3" errors={Errors.empty()} />
+      <Forms.HiddenField prefix="user" field="token" value="t" />
+    </p>
+
+  delete_button(conn: Conn)
+    <Links.ButtonTo conn={conn} text="Delete" path="/posts/1" method="delete" />
+
+  link()
+    <Links.LinkTo text="Posts" path="/posts" />
+
+functions
+  choices() -> List<Choice> {
+    [{ value: "a", label: "Alpha" }, { value: "<b>", label: "Beta & co" }]
+  }
+
+exports
+  checkbox
+  delete_button
+  fields
+  link
+  method_form
+  password
+  post_form
+  select
+  title

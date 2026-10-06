@@ -1,0 +1,10 @@
+
+  test_create_invalid_is_422() {
+    Test.with_db(Schema.migrations, function() {
+      let reply = Test.post(Routes.router, Test.client(), "/{{models}}", {{invalid_form}})
+
+      Test.assert_status(reply, 422)
+      Test.assert_body_contains(reply, "can&#39;t be blank")
+    })
+  }
+

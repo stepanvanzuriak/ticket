@@ -1,0 +1,8 @@
+module NoHtml
+
+view_component
+  Chip(text: String)
+    <b>{text}</b>
+
+exports
+  chip

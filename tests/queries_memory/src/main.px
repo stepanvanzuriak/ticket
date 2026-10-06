@@ -1,0 +1,67 @@
+
+module Main
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Table
+  Ticket.Db
+  Ticket.Query
+  Schema
+
+hosts
+  Node
+
+constants
+  store: Table<Post> = Table.new()
+
+binds
+  Posts in Node {
+    find(id) {
+      Table.find(store, Id.value(id))
+    }
+
+    all() {
+      Table.all(store)
+    }
+
+    filter(_, _) {
+      Table.all(store)
+    }
+
+    count(_) {
+      List.length(Table.all(store))
+    }
+
+    insert(row) {
+      Table.insert(store, function(n) { { id: Id(n), title: row.title, published: row.published } })
+    }
+
+    update(row) {
+      let _ = Table.update(store, Id.value(row.id), row)
+
+      row
+    }
+
+    delete(id) {
+      Table.delete(store, Id.value(id))
+    }
+  }
+
+functions
+  titles(posts: List<Post>) -> String {
+    List.join(List.map(posts, function(p) { p.title }), ", ")
+  }
+
+  main() -> {} / {Posts, Mut, Throws<DbFailure>} {
+    let a = Posts.insert({ title: "a", published: true })
+    let _ = Posts.insert({ title: "b", published: false })
+
+    Log.info("1 insert_find: #{a.id} #{Option.map(Posts.find(a.id), function(p) { p.title })}")
+    Log.info("2 all_count: #{titles(Posts.all())} #{Posts.count([])}")
+    Log.info("3 update_delete: #{Posts.update({ ..a, title: "A" }).title} #{Posts.delete(a.id)} #{Posts.count([Query.eq(Schema.post_published, true)])}")
+  }
+
+exports
+  main

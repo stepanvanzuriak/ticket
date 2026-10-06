@@ -1,0 +1,99 @@
+
+module Main
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Migration
+  Ticket.Query
+  Ticket.Sql
+  Schema
+
+hosts
+  Node
+
+functions
+  row(n: Int, name: String, result: String) -> {} {
+    Log.info("#{n} #{name}: #{result}")
+  }
+
+  titles(posts: List<Post>) -> String {
+    "[#{List.join(List.map(posts, function(p) { p.title }), ", ")}]"
+  }
+
+  new_post(title: String, published: Bool, score: Float, author: Option<Id<User>>) -> NewPost {
+    { title: title, published: published, score: score, author_id: author }
+  }
+
+  caught(body: function() -> String / {Posts, Users, Db, Throws<DbFailure>}) -> String / {Posts, Users, Db} {
+    try {
+      body()
+    } catch {
+      DbFailure(error) -> "Err(kind=#{error.kind} message=#{error.message})",
+    }
+  }
+
+  statement(s: Statement) -> String {
+    "#{s.sql} #{List.length(s.params)}"
+  }
+
+  setup() -> {} / {Db} {
+    let _ = Db.connect({ adapter: "sqlite", database: ":memory:" })
+
+    List.fold(
+      Schema.migrations,
+      {},
+      function(_, m) { List.fold(Migration.up_sql(m), {}, function(_, s) {
+          let _ = Db.script(s)
+
+          {}
+        }) },
+    )
+  }
+
+  main() -> {} / {Posts, Users, Events, Db, Throws<DbFailure>} {
+    setup()
+
+    let ada = Users.insert({ name: "Ada", email: "ada@example.com" })
+    let bob = Users.insert({ name: "Bob", email: "bob@example.com" })
+    let first = Posts.insert(new_post("First", true, 1.5, Some(ada.id)))
+    let second = Posts.insert(new_post("Second", false, 3.0, None))
+    let third = Posts.insert(new_post("Third", true, 2.0, Some(bob.id)))
+    let fourth = Posts.insert(new_post("Fourth", true, 0.5, Some(ada.id)))
+
+    row(1, "insert_returns", "#{first.id} #{first.title} #{first.published} #{first.score} #{second.author_id}")
+    row(2, "timestamps_filled", "#{Time.millis(first.created_at) > 0} #{first.created_at == first.updated_at}")
+    row(3, "find", "#{Option.map(Posts.find(first.id), function(p) { p.title })} #{Option.map(Posts.find(Id(99)), function(p) { p.title })}")
+    row(4, "all", titles(Posts.all()))
+    row(5, "filter_eq_order", titles(Posts.filter([Query.eq(Schema.post_published, true)], [Query.order_desc(Schema.post_id)])))
+    row(6, "filter_comparisons", "#{titles(Posts.filter([Query.gt(Schema.post_score, 1.0)], [Query.order_asc(Schema.post_title)]))} #{titles(Posts.filter([Query.lt(Schema.post_score, 1.0)], []))} #{titles(Posts.filter([Query.not_eq(Schema.post_title, "First")], [Query.limit(1)]))}")
+    row(7, "filter_like", titles(Posts.filter([Query.like(Schema.post_title, "%ir%")], [Query.order_asc(Schema.post_id)])))
+    row(8, "filter_nullable", "#{titles(Posts.filter([Query.is_null(Schema.post_author_id)], []))} #{titles(Posts.filter([Query.eq(Schema.post_author_id, Some(ada.id))], [Query.order_asc(Schema.post_id)]))}")
+    row(9, "filters_and", titles(Posts.filter([Query.eq(Schema.post_published, true), Query.gt(Schema.post_score, 1.0)], [Query.order_asc(Schema.post_id)])))
+    row(10, "paging", "#{titles(Posts.filter([], [Query.order_asc(Schema.post_id), Query.limit(2), Query.offset(1)]))} #{titles(Posts.filter([], [Query.order_asc(Schema.post_id), Query.offset(3)]))}")
+    row(11, "count", "#{Posts.count([])} #{Posts.count([Query.eq(Schema.post_published, true)])} #{Users.count([])}")
+    row(12, "ordering_by_several", titles(Posts.filter([], [Query.order_desc(Schema.post_published), Query.order_asc(Schema.post_score)])))
+
+    let renamed = Posts.update({ ..first, title: "Renamed", published: false })
+
+    row(13, "update_returns", "#{renamed.title} #{renamed.published} #{Option.map(Posts.find(first.id), function(p) { p.title })}")
+    row(14, "update_touches", "#{renamed.created_at == first.created_at} #{Time.millis(renamed.updated_at) >= Time.millis(first.updated_at)}")
+    row(15, "update_missing", caught(function() { Posts.update({ ..first, id: Id(99) }) |> function(p) { p.title } }))
+    row(16, "delete", "#{Posts.delete(third.id)} #{Posts.delete(third.id)} #{Posts.count([])}")
+    row(17, "unique_violation", caught(function() { Users.insert({ name: "Ada 2", email: "ada@example.com" }) |> function(u) { u.name } }))
+    row(18, "foreign_key", caught(function() { Posts.insert(new_post("Orphan", true, 1.0, Some(Id(77)))) |> function(p) { p.title } }))
+    let boot = Events.insert({ name: "boot", seen_at: Some(Time.from_millis(1000)) })
+    let idle = Events.insert({ name: "idle", seen_at: None })
+
+    row(19, "time_column", "#{Option.map(boot.seen_at, Time.to_iso)} #{Option.map(idle.seen_at, Time.to_iso)}")
+    row(20, "sql_select", statement(Sql.select("posts", [Query.eq(Schema.post_title, "x"), Query.is_null(Schema.post_author_id)], [Query.order_desc(Schema.post_id), Query.limit(5)])))
+    row(21, "sql_count_find", "#{statement(Sql.count("posts", []))} | #{statement(Sql.find("posts", 3))}")
+    row(22, "sql_insert_update_delete", "#{statement(Sql.insert("posts", ["title"], [SqlText("a")]))} | #{statement(Sql.insert("posts", [], []))} | #{statement(Sql.update("posts", ["title"], [SqlText("a")], 3, true))} | #{statement(Sql.delete("posts", 3))}")
+  }
+
+exports
+  main

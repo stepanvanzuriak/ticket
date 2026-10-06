@@ -1,0 +1,29 @@
+1 query_empty: {} {}
+2 query_basic: {a: "1", b: "two"}
+3 query_first_equals: {q: "a=b"}
+4 query_bare_key: {flag: ""}
+5 query_decodes: {name: "Ada L ove"}
+6 query_skips_empty: {a: "1", b: "2"}
+7 query_last_wins: {a: "2"}
+8 cookies_basic: {sid: "abc", theme: "dark"}
+9 cookies_malformed: {ok: "1"}
+10 conn_method_upper: POST
+11 conn_path_strips_query: /posts
+12 conn_segments: posts, 3
+13 conn_form_only_urlencoded: {}
+14 conn_form_parsed: {post[title]: "Hi"}
+15 params_precedence: Some("1")
+16 params_int_bad: None
+17 params_nested: {title: "Hi", body: "B"}
+18 query_malformed_escape: {q: "%E0%A4%A"}
+19 conn_empty_path: /
+20 conn_segments_decoded: posts, a b
+21 conn_query: {page: "2"}
+22 conn_cookies: {sid: "a b"}
+23 conn_header_any_case: application/x-www-form-urlencoded; charset=utf-8
+24 params_int_ok: -42
+25 params_id: Id(7)
+26 params_missing: None
+27 params_nested_form_over_query: {b: "q", a: "f"}
+28 params_nested_ignores_deep: {ok: "4"}
+29 params_form_over_query: Some("2")

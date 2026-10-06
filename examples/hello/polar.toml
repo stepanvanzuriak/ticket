@@ -1,0 +1,10 @@
+[project]
+name = "hello"
+hosts = ["Node"]
+
+[dependencies]
+ticket = { path = "../.." }
+
+[run]
+launcher = "ticket"
+options = { port = 3000 }

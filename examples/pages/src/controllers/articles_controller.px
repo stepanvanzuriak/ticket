@@ -1,0 +1,92 @@
+module ArticlesController
+
+uses
+  Std.Http
+  Std.Map
+  Std.Option
+  Std.Process
+  Std.Crypto
+  Std.Time
+  Layout
+  Models.Article
+  Paths
+  Ticket.Conn
+  Ticket.Error
+  Ticket.Errors
+  Ticket.Flash
+  Ticket.Params
+  Ticket.Response
+  Ticket.Session
+  Views.Articles
+
+functions
+  index(conn: Conn) -> Response / {Mut, Process, Random, Clock} {
+    Session.handle(conn, list)
+  }
+
+  show(conn: Conn) -> Response / {Mut, Process, Random, Clock, Throws<Halt>} {
+    Session.handle(conn, details)
+  }
+
+  new(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, blank)
+  }
+
+  create(conn: Conn) -> Response / {Mut, Process, Random, Clock} {
+    Session.handle(conn, save)
+  }
+
+  list(conn: Conn) -> Response / {Mut} {
+    Response.render(Layout.app(conn, "Articles", Articles.index(Article.all())))
+  }
+
+  details(conn: Conn) -> Response / {Mut, Throws<Halt>} {
+    let article = find_or_halt(conn)
+
+    Response.render(Layout.app(conn, article.title, Articles.show(article)))
+  }
+
+  blank(conn: Conn) -> Response {
+    Response.render(
+      Layout.app(conn, "New article", Articles.form(conn, "", Errors.empty())),
+    )
+  }
+
+  save(conn: Conn) -> Response / {Mut} {
+    let title = Option.with_default(Map.get(Params.nested(conn, "article"), "title"), "")
+
+    if String.trim(title) == "" {
+      Response.render_status(
+        422,
+        Layout.app(
+          conn,
+          "New article",
+          Articles.form(
+            conn,
+            title,
+            Errors.add(Errors.empty(), "title", "can't be blank"),
+          ),
+        ),
+      )
+    } else {
+      let article = Article.create(title)
+
+      Response.redirect_to(
+        Flash.put(conn, "notice", "Article was created."),
+        Paths.article_path(article.id),
+      )
+    }
+  }
+
+  find_or_halt(conn: Conn) -> Article / {Mut, Throws<Halt>} {
+    match Option.and_then(Params.id(conn, "id"), Article.find) {
+      Some(article) -> article,
+      None -> throw Halt(Response.not_found()),
+    }
+  }
+
+exports
+  create
+  index
+  new
+  show

@@ -1,0 +1,97 @@
+error[POLAR0901]: `<Frame>` has children, but `frame` takes none
+  --> src/children_for_none.px:15:5
+   |
+15 |     <Frame title="x">
+   |     ^^^^^^
+   |
+   = help: give `frame` a `children: Html` parameter, or write `<Frame />`
+
+error[POLAR0901]: `{}` has no expression in it
+  --> src/empty_hole.px:12:8
+   |
+12 |     <p>{}</p>
+   |        ^^
+   |
+   = help: write an expression, like `{post.title}`
+
+error[POLAR0708]: cannot tell which type this is
+  --> src/hole_type_error.px:11:3
+   |
+11 |   card(post: Post)
+   |   ^^^^ the type of this is unknown, and it must have `Render`
+   |
+   = help: add a type annotation, like `let x: Post = …`
+
+error[POLAR0502]: missing field `missing`
+  --> src/hole_type_error.px:12:10
+   |
+12 |     <h2>{post.missing}</h2>
+   |          ^^^^^^^^^^^^ the type `{ id: Int, title: String }` has no field `missing`
+
+error[POLAR0901]: `</p>` closes `<div>`
+  --> src/mismatched_close.px:14:5
+   |
+12 |     <div>
+   |     ---- opened here
+13 |       x
+14 |     </p>
+   |     ^^^^
+   |
+   = help: close it with `</div>`
+
+error[POLAR0901]: `<Frame>` needs `title`
+  --> src/missing_argument.px:15:5
+   |
+15 |     <Frame />
+   |     ^^^^^^
+   |
+   = help: pass it like `title={…}`
+
+error[POLAR0901]: there is already a function `card` in this module
+  --> src/named_like_function.px:11:3
+   |
+11 |   card(post: Post)
+   |   ^^^^
+...
+15 |   card() {
+   |   ---- the function
+
+error[POLAR0901]: the `views` zone needs `Ticket.Html`
+ --> src/needs_ticket_html.px:6:1
+  |
+6 | views
+  | ^^^^^
+  |
+  = help: add `Ticket.Html` to the `uses` zone
+
+error[POLAR0901]: `<div>` is never closed
+  --> src/never_closed.px:12:5
+   |
+12 |     <div>
+   |     ^^^^
+   |
+   = help: close it with `</div>`
+
+error[POLAR0901]: `frame` has no parameter `size`
+  --> src/unknown_argument.px:15:22
+   |
+15 |     <Frame title="x" size={1} />
+   |                      ^^^^
+   |
+   = help: its parameters are title
+
+error[POLAR0301]: cannot find `missing` in this scope
+  --> src/unknown_component.px:12:5
+   |
+12 |     <Missing />
+   |     ^^^^^^^^
+
+error[POLAR0901]: `<br>` can't have children
+  --> src/void_children.px:12:5
+   |
+12 |     <br>x</br>
+   |     ^^^
+   |
+   = help: write it as `<br />`
+
+error: aborting due to 12 errors

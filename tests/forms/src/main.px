@@ -1,0 +1,82 @@
+
+module Main
+
+uses
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Params
+  Schema
+
+functions
+  row(n: Int, name: String, result: String) -> {} {
+    Log.info("#{n} #{name}: #{result}")
+  }
+
+  form(body: String) -> Conn {
+    let headers = [
+      { name: "Content-Type", value: "application/x-www-form-urlencoded" },
+    ]
+
+    Conn.from_request({ method: "POST", path: "/", query: "", headers: headers, body: body })
+  }
+
+  item(conn: Conn) -> String {
+    match Params.record(conn, "item") {
+      Ok(row) -> shown(row),
+      Err(errors) -> "Err(#{List.join(Errors.full_messages(errors), "; ")})",
+    }
+  }
+
+  shown(row: NewItem) -> String {
+    "Ok(#{row.name} #{row.count} #{row.price} #{row.active} #{row.note} #{row.owner_id} #{Option.map(row.due, Time.to_iso)})"
+  }
+
+  active(value: String) -> String {
+    let shown = item(form("item[name]=a&item[count]=1&item[price]=1&item[active]=#{value}"))
+
+    if String.contains(shown, " true ") { "T" } else { "F" }
+  }
+
+  price(value: String) -> String {
+    let parsed: Result<Errors, NewItem> = Params.record(form("item[name]=a&item[count]=1&item[price]=#{value}&item[active]=1"), "item")
+
+    match parsed {
+      Ok(r) -> "#{r.price}",
+      Err(_) -> "bad",
+    }
+  }
+
+  messages(errors: Errors) -> String {
+    "#{List.join(Errors.on(errors, "count"), ",")} | #{List.join(Errors.on(errors, "price"), ",")} | #{List.join(Errors.on(errors, "name"), ",")} | #{Errors.has(errors, "price")} #{Errors.has(errors, "name")}"
+  }
+
+  fields(conn: Conn) -> String {
+    let parsed: Result<Errors, NewItem> = Params.record(conn, "item")
+
+    match parsed {
+      Ok(_) -> "ok",
+      Err(errors) -> messages(errors),
+    }
+  }
+
+  main() {
+    let full = "item[name]=Lamp&item[count]=3&item[price]=9.5&item[active]=on&item[note]=warm&item[owner_id]=7&item[due]=2026-10-06T10:00:00Z"
+
+    row(1, "decodes", item(form(full)))
+    row(2, "unknown_keys_dropped", item(form("#{full}&item[id]=99&item[admin]=true&other=1")))
+    row(3, "optional_blank", item(form("item[name]=Lamp&item[count]=3&item[price]=1&item[note]=&item[owner_id]=+&item[due]=")))
+    row(4, "bool_spellings", List.join(List.map(["true", "on", "1", "false", "off", "0", ""], active), ""))
+    row(5, "missing_fields", item(form("item[name]=Lamp")))
+    row(6, "ill_typed", item(form("item[name]=Lamp&item[count]=abc&item[price]=x&item[active]=maybe&item[owner_id]=q&item[due]=soon")))
+    row(7, "message_per_field", fields(form("item[count]=abc&item[price]=x")))
+    row(8, "float_forms", List.join(List.map(["3", "-2.5", "1e2", "0.5", ".5"], price), " "))
+  }
+
+exports
+  main

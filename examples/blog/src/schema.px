@@ -1,0 +1,30 @@
+module Schema
+
+uses
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Form
+  Ticket.Migration
+  Ticket.Model
+  Ticket.Query
+
+migrations
+  20261001_100000 create_table users
+    name   String
+    email  String  unique
+
+  20261001_100100 create_table posts
+    title      String
+    body       String
+    published  Bool      default false
+    author_id  Id<User>  references users on_delete cascade
+    timestamps
+
+  20261001_100200 create_table comments
+    body     String
+    post_id  Id<Post>  references posts on_delete cascade

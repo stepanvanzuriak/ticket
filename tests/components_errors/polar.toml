@@ -1,0 +1,5 @@
+[project]
+name = "components_errors"
+
+[dependencies]
+ticket = { path = "../.." }

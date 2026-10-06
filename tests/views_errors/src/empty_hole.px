@@ -1,0 +1,15 @@
+module EmptyHole
+
+uses
+  Std.List
+  Ticket.Html
+
+types
+  Post = { id: Int, title: String }
+
+views
+  card(post: Post)
+    <p>{}</p>
+
+exports
+  card

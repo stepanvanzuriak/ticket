@@ -1,0 +1,54 @@
+module Console
+
+uses
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Result
+  Ticket.Db
+  Ticket.Migration
+
+hosts
+  Node
+
+functions
+  boot(migrations: List<Migration>) -> {} / {Db, Process} {
+    let adapter = Option.with_default(Process.env("TICKET_DATABASE_ADAPTER"), "sqlite")
+    let sandbox = Option.with_default(Process.env("TICKET_CONSOLE_SANDBOX"), "") == "1"
+
+    if sandbox {
+      connect(adapter, ":memory:")
+      List.fold(
+        migrations,
+        {},
+        function(_, m) {
+          List.fold(Migration.up_sql(m), {}, function(_, sql) { run(Db.script(sql)) })
+        },
+      )
+      Log.info(
+        "console: #{adapter} :memory: (sandbox: migrations applied, nothing persists)",
+      )
+    } else {
+      let database = Option.with_default(Process.env("TICKET_DATABASE"), "")
+
+      connect(adapter, database)
+      Log.info("console: #{adapter} #{database}")
+    }
+  }
+
+  connect(adapter: String, database: String) -> {} / {Db, Process} {
+    run(Db.connect({ adapter: adapter, database: database }))
+  }
+
+  run(result: Result<DbError, {}>) -> {} / {Process} {
+    match result {
+      Ok(_) -> {},
+      Err(error) -> {
+        Log.error("console: #{error.message}")
+        Process.set_exit_code(1)
+      }
+    }
+  }
+
+exports
+  boot

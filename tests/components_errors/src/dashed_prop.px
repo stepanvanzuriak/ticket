@@ -1,0 +1,12 @@
+module Dashed
+
+uses
+  Ticket.Html
+  UI
+
+views
+  page()
+    <UI.Button data-x="1" name="x" />
+
+exports
+  page

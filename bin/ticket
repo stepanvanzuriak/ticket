@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -e
+
+self=$0
+
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+
+TICKET_HOME=$(cd "$(dirname "$self")/.." && pwd -P)
+export TICKET_HOME
+
+start=$TICKET_HOME/cli/dist/start.mjs
+
+if [ ! -f "$start" ] || [ -n "$(find "$TICKET_HOME/cli/src" "$TICKET_HOME/cli/templates" \
+  "$TICKET_HOME/cli/polar.toml" "$TICKET_HOME/src" -newer "$start" -print 2>/dev/null | head -n 1)" ]; then
+  polar build "$TICKET_HOME/cli" >&2
+fi
+
+exec node "$start" -- "$@"

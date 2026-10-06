@@ -1,0 +1,7 @@
+module NeedsImports
+
+uses
+  Std.List
+
+validations
+  title  presence  uniqueness

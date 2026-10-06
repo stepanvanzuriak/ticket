@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting Started – Ticket</title>
+<meta name="description" content="What Ticket is, what works today, and what you need to try it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="getting-started">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Getting Started</h1>
+      <p class="lead">Ticket is a Rails-shaped web framework written in Polar, for Polar projects. This page covers what it is, how far along it is, and what you need to try it.</p>
+      <h2 id="what-is-ticket">What is Ticket?</h2>
+      <p>If you've used Rails, most of Ticket will look familiar: resource routes, controllers with actions, views with layouts, and before-filters. What's different is that it's all Polar, so the type checker sees everything:</p>
+      <ul><li><strong>Routes are a zone.</strong> A <code>routes</code> block generates the router and a typed path helper for every named route. A typo in a controller name is a compile error on the route line.</li><li><strong>Controllers are modules of functions.</strong> Each action takes a <code>Conn</code> and returns a <code>Response</code>. Its effects are in its signature.</li><li><strong>Views are markup that type-checks.</strong> A <code>views</code> block turns JSX-style markup into functions returning <code>Html</code>, with escaping built in.</li><li><strong>No hidden state.</strong> A <code>Conn</code> is a value. Filters return a new one or a response, and nothing is mutated behind your back.</li></ul>
+      <h2 id="status">How far along is it?</h2>
+      <p>Ticket is built in milestones. <strong>F1, request to response</strong>, is in progress: params, views, components, routing, controllers, filters and the <code>routes</code> task all work, and the <code>ticket</code> CLI is next. There is no database yet. That's F2.</p>
+      <div class="callout wip"><p><span class="label">Under construction:</span> Ticket isn't published and its APIs will change between milestones. The <a href="roadmap.html">roadmap</a> lists what's done and what's next.</p></div>
+      <h2 id="requirements">What you need</h2>
+      <ul><li>The <code>polar</code> toolchain on your <code>PATH</code>. See <a href="https://github.com/stepanvanzuriak/polar">Polar's getting started guide</a> to build it from source.</li><li>Node.js 22.5 or newer.</li><li>A checkout of Ticket next to your app, since apps depend on it by path for now.</li></ul>
+      <pre class="code"><code><span class="pr">$</span> git clone https://github.com/stepanvanzuriak/ticket
+<span class="pr">$</span> cd ticket
+<span class="pr">$</span> node scripts/test.mjs</code></pre>
+      <p>The last command builds and runs every test project and example app, which is a quick way to check that your <code>polar</code> and Node versions work with Ticket.</p>
+      <h2 id="next">Where next</h2>
+      <p>Build a one-page app in <a href="first-app.html">Your First App</a>, or jump straight to <a href="routing.html">Routing</a> if you know Rails already.</p>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

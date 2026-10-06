@@ -1,0 +1,38 @@
+module Articles
+
+uses
+  Std.List
+  Models.Article
+  Paths
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Forms
+  Ticket.Html
+
+views
+  index(articles: List<Article>)
+    <section>
+      <h1>Articles</h1>
+      <ul>{List.map(articles, item)}</ul>
+      <a href={Paths.new_article_path()}>New article</a>
+    </section>
+
+  item(article: Article)
+    <li><a href={Paths.article_path(article.id)}>{article.title}</a></li>
+
+  show(article: Article)
+    <article>
+      <h1>{article.title}</h1>
+    </article>
+
+  form(conn: Conn, title: String, errors: Errors)
+    <Forms.Form conn={conn} action={Paths.articles_path()}>
+      <Forms.ErrorSummary errors={errors} noun="article" />
+      <Forms.TextField prefix="article" field="title" value={title} errors={errors} />
+      <Forms.Submit text="Create" />
+    </Forms.Form>
+
+exports
+  form
+  index
+  show

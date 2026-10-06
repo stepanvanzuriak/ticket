@@ -1,0 +1,6 @@
+cross_module: <div><button>test</button><button>test Cool</button></div>
+children: <section class="card"><h2>T</h2><p>body</p></section>
+empty_children: <section class="card"><h2>E</h2></section>
+bool_and_no_props: <p><input type="checkbox" checked><input type="checkbox"><hr></p>
+component_in_component: <label><i class="icon" data-name="tag"></i> L</label>
+local_component_in_view: <span class="badge">new</span>

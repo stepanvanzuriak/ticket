@@ -1,0 +1,14 @@
+module OrderByOtherTable
+
+uses
+  Std.Id
+  Std.List
+  Std.Option
+  Ticket.Db
+  Ticket.Query
+  Schema
+
+functions
+  newest() -> List<Post> / {Posts, Throws<DbFailure>} {
+    Posts.filter([], [Query.order_desc(Schema.user_id)])
+  }

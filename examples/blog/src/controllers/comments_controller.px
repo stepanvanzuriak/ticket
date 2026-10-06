@@ -1,0 +1,128 @@
+module CommentsController
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Process
+  Std.Result
+  Std.Time
+  Controllers.PostsController
+  Models.Comment
+  Paths
+  Schema
+  Ticket.Conn
+  Ticket.Db
+  Ticket.Error
+  Ticket.Errors
+  Ticket.Flash
+  Ticket.Params
+  Ticket.Response
+  Ticket.Session
+  Views.Layout
+
+functions
+  create(conn: Conn) -> Response / {
+    Posts,
+    Users,
+    Comments,
+    Throws<DbFailure>,
+    Throws<Halt>,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, add)
+  }
+
+  destroy(conn: Conn) -> Response / {
+    Posts,
+    Comments,
+    Throws<DbFailure>,
+    Throws<Halt>,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, remove)
+  }
+
+  add(conn: Conn) -> Response / {
+    Posts,
+    Users,
+    Comments,
+    Throws<DbFailure>,
+    Throws<Halt>,
+  } {
+    let post = post_or_halt(conn)
+    let decoded: Result<Errors, NewComment> = Params.record(
+      with_post(conn, post),
+      "comment",
+    )
+
+    match Result.and_then(decoded, Comment.validate) {
+      Ok(row) -> {
+        let _ = Comments.insert(row)
+
+        Response.redirect_to(
+          Flash.put(conn, "notice", "Comment was added."),
+          Paths.post_path(post.id),
+        )
+      }
+      Err(errors) -> Response.render_status(
+        422,
+        Layout.app(
+          conn,
+          post.title,
+          PostsController.show_page(conn, post, Params.nested(conn, "comment"), errors),
+        ),
+      ),
+    }
+  }
+
+  remove(conn: Conn) -> Response / {Posts, Comments, Throws<DbFailure>, Throws<Halt>} {
+    let post = post_or_halt(conn)
+    let comment = comment_or_halt(conn, post)
+    let _ = Comments.delete(comment.id)
+
+    Response.redirect_to(
+      Flash.put(conn, "notice", "Comment was removed."),
+      Paths.post_path(post.id),
+    )
+  }
+
+  with_post(conn: Conn, post: Post) -> Conn {
+    {
+      ..conn,
+      form: Map.insert(conn.form, "comment[post_id]", Int.to_string(Id.value(post.id))),
+    }
+  }
+
+  post_or_halt(conn: Conn) -> Post / {Posts, Throws<DbFailure>, Throws<Halt>} {
+    match Option.and_then(Params.id(conn, "post_id"), Posts.find) {
+      Some(post) -> post,
+      None -> throw Halt(Response.not_found()),
+    }
+  }
+
+  comment_or_halt(conn: Conn, post: Post) -> Comment / {
+    Comments,
+    Throws<DbFailure>,
+    Throws<Halt>,
+  } {
+    match Option.and_then(Params.id(conn, "id"), Comments.find) {
+      Some(comment) -> if comment.post_id == post.id {
+        comment
+      } else {
+        throw Halt(Response.not_found())
+      },
+      None -> throw Halt(Response.not_found()),
+    }
+  }
+
+exports
+  create
+  destroy

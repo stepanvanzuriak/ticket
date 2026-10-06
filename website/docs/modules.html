@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules – Ticket</title>
+<meta name="description" content="Every Ticket.* module and the zones Ticket adds to Polar.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="modules">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Modules</h1>
+      <p class="lead">Everything Ticket provides today: the Ticket.* modules and the zones its plugin adds to Polar.</p>
+      <h2 id="modules">Modules</h2>
+      <div class="table-wrap"><table><thead><tr><th>Module</th><th>What</th></tr></thead><tbody><tr><td><code>Ticket.Html</code></td><td><code>Html</code>, the <code>Render</code> and <code>Attr</code> traits, <code>escape</code>, <code>raw</code>, <code>document</code>, <code>scripts</code></td></tr><tr><td><code>Ticket.Response</code></td><td><code>render</code>, <code>render_status</code>, <code>redirect_to</code>, <code>head</code>, <code>with_header</code>, <code>content_type</code>, <code>text</code>, <code>html</code>, <code>view</code>, <code>json</code>, <code>empty</code>, <code>redirect</code>, <code>not_found</code></td></tr><tr><td><code>Ticket.Action</code></td><td><code>Filter</code>, <code>before</code></td></tr><tr><td><code>Ticket.Error</code></td><td><code>Halt</code></td></tr><tr><td><code>Ticket.Conn</code></td><td><code>Conn</code>, <code>from_request</code>, <code>with_path_params</code>, <code>header</code>, <code>rescue_halt</code> (used by the router)</td></tr><tr><td><code>Ticket.Params</code></td><td><code>string</code>, <code>int</code>, <code>id</code>, <code>nested</code></td></tr><tr><td><code>Ticket.QueryString</code></td><td><code>parse</code>: a query string or urlencoded body to a last-wins <code>Map</code></td></tr><tr><td><code>Ticket.Cookies</code></td><td><code>parse</code>: a <code>cookie</code> header to a <code>Map</code></td></tr><tr><td><code>Ticket.Db</code></td><td>The <code>Db</code> effect (<code>connect</code>, <code>query</code>, <code>exec</code>, <code>script</code>), <code>SqlValue</code>, <code>DbConfig</code>, <code>DbError</code>, <code>DbFailure</code>, <code>Changes</code>, <code>all</code>, <code>one</code>, <code>transaction</code></td></tr><tr><td><code>Ticket.Migration</code></td><td><code>Column</code>, <code>Index</code>, <code>Change</code>, <code>Migration</code> (what the <code>migrations</code> zone generates), <code>up_sql</code>, <code>down_sql</code>, <code>sql</code></td></tr><tr><td><code>Ticket.Migrate</code></td><td><code>run</code>: the <code>db:*</code> commands over <code>Schema.migrations</code></td></tr><tr><td><code>Ticket.Query</code></td><td><code>Column</code>, <code>Filter</code>, <code>Clause</code>, the <code>ToSql</code> trait, <code>eq</code>, <code>not_eq</code>, <code>lt</code>, <code>gt</code>, <code>like</code>, <code>is_null</code>, <code>order_asc</code>, <code>order_desc</code>, <code>limit</code>, <code>offset</code></td></tr><tr><td><code>Ticket.Sql</code></td><td><code>Statement</code>, and the SQL for <code>find</code>, <code>select</code>, <code>count</code>, <code>insert</code>, <code>update</code>, <code>delete</code></td></tr><tr><td><code>Ticket.Model</code></td><td>What the generated <code>Posts</code> binds call: <code>find</code>, <code>all</code>, <code>filter</code>, <code>count</code>, <code>insert</code>, <code>update</code>, <code>delete</code></td></tr></tbody></table></div>
+      <h2 id="zones">Zones</h2>
+      <div class="table-wrap"><table><thead><tr><th>Zone</th><th>Generates</th><th>Guide</th></tr></thead><tbody><tr><td><code>routes</code></td><td><code>router</code>, <code>route_table</code>, path helpers, and the sibling module <code>Paths</code></td><td><a href="routing.html">Routing</a></td></tr><tr><td><code>views</code></td><td>One function returning <code>Html</code> per view</td><td><a href="views.html">Views</a></td></tr><tr><td><code>migrations</code></td><td>Records, insert types, column constants, the per-table effect and its binds, and the <code>migrations</code> list</td><td><a href="database.html">Database</a></td></tr><tr><td><code>view_component</code></td><td><code>name(props: {…})</code> functions usable as <code>&lt;Module.Name /&gt;</code></td><td><a href="views.html#components">Components</a></td></tr></tbody></table></div>
+      <p>The zones are Rust plugins that Polar builds the first time you build an app that depends on Ticket. The code they generate is type-checked like your own.</p>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

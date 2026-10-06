@@ -1,0 +1,50 @@
+module Csrf
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.Map
+  Std.Option
+  Std.Result
+  Ticket.Conn
+  Ticket.Html
+  Ticket.Response
+
+functions
+  safe(method: String) -> Bool {
+    method == "GET" || method == "HEAD" || method == "OPTIONS"
+  }
+
+  sent(conn: Conn) -> String {
+    match Map.get(conn.form, "authenticity_token") {
+      Some(token) -> token,
+      None -> Conn.header(conn, "x-csrf-token"),
+    }
+  }
+
+  verify(conn: Conn) -> Result<Response, Conn> {
+    if safe(conn.method) || conn.csrf != "" && Crypto.equal(conn.csrf, sent(conn)) {
+      Ok(conn)
+    } else {
+      Err(Response.text(403, "Invalid authenticity token"))
+    }
+  }
+
+  field(conn: Conn) -> Html {
+    if conn.csrf == "" {
+      Html.raw("")
+    } else {
+      Html.raw(
+        "<input type=\"hidden\" name=\"authenticity_token\" value=\"#{Html.escape(conn.csrf)}\">",
+      )
+    }
+  }
+
+  meta(conn: Conn) -> Html {
+    Html.raw("<meta name=\"csrf-token\" content=\"#{Html.escape(conn.csrf)}\">")
+  }
+
+exports
+  field
+  meta
+  verify

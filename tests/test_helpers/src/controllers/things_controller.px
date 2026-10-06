@@ -1,0 +1,93 @@
+module ThingsController
+
+uses
+  Std.Crypto
+  Std.Id
+  Std.Http
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Result
+  Std.Time
+  Schema
+  Ticket.Conn
+  Ticket.Db
+  Ticket.Flash
+  Ticket.Response
+  Ticket.Session
+
+functions
+  hello(conn: Conn) -> Response {
+    Response.text(200, "hello")
+  }
+
+  login(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, signed_in)
+  }
+
+  whoami(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, who)
+  }
+
+  create(conn: Conn) -> Response / {Things, Throws<DbFailure>, Process, Random, Clock} {
+    Session.handle(conn, add)
+  }
+
+  show(conn: Conn) -> Response / {Things, Throws<DbFailure>, Process, Random, Clock} {
+    Session.handle(conn, count)
+  }
+
+  update(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, patched)
+  }
+
+  destroy(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, deleted)
+  }
+
+  notice(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, shown)
+  }
+
+  signed_in(conn: Conn) -> Response {
+    Response.redirect_to(Session.put(conn, "user", "ann"), "/whoami")
+  }
+
+  who(conn: Conn) -> Response {
+    Response.text(200, Option.with_default(Session.get(conn, "user"), "nobody"))
+  }
+
+  add(conn: Conn) -> Response / {Things, Throws<DbFailure>} {
+    let thing = Things.insert({ title: "a thing" })
+
+    Response.redirect_to(
+      Flash.put(conn, "notice", "Thing was created."),
+      "/things/#{Int.to_string(Id.value(thing.id))}",
+    )
+  }
+
+  count(conn: Conn) -> Response / {Things, Throws<DbFailure>} {
+    Response.text(200, "things=#{Int.to_string(Things.count([]))}")
+  }
+
+  patched(conn: Conn) -> Response {
+    Response.text(200, "#{conn.method} ok")
+  }
+
+  deleted(conn: Conn) -> Response {
+    Response.text(200, "#{conn.method} ok")
+  }
+
+  shown(conn: Conn) -> Response {
+    Response.text(200, Option.with_default(Flash.get(conn, "notice"), "none"))
+  }
+
+exports
+  create
+  destroy
+  hello
+  login
+  notice
+  show
+  update
+  whoami

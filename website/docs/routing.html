@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Routing – Ticket</title>
+<meta name="description" content="The routes zone: root, verb lines, resources, nesting, member, collection, namespace and path helpers.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="routing">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Routing</h1>
+      <p class="lead">A routes zone maps requests to controller actions, Rails style. It generates the router, a route table and a typed helper for every named route.</p>
+      <h2 id="setup">Setting up</h2>
+      <p>Put the zone in the module your <code>polar.toml</code> points <code>main</code> at, usually <code>src/routes.px</code>. It needs <code>Std.Http</code>, <code>Std.Option</code>, <code>Std.Id</code> and <code>Ticket.Conn</code> in <code>uses</code>, plus every controller it names.</p>
+      <pre class="code" data-lang="polar"><code>module Routes
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  Admin.StatsController
+  Controllers.ArticlesController
+  Controllers.PagesController
+
+hosts
+  Node
+
+routes
+  root         -&gt; PagesController.home
+  get  /about  -&gt; PagesController.about  as about
+
+  resources articles  -&gt; ArticlesController  only index show new create
+
+  namespace admin
+    get  /stats  -&gt; StatsController.show  as stats
+
+exports
+  Node</code></pre>
+      <p>A controller is named by its <strong>local name</strong>: the last segment of its module path, or its <code>as</code> alias.</p>
+      <h2 id="verbs">Verb lines</h2>
+      <p>The verbs are <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code> and <code>delete</code>. A <code>:name</code> segment is a path param. Add <code>as name</code> to get a <code>name_path</code> helper. A verb line without <code>as</code> gets no helper.</p>
+      <pre class="code" data-lang="polar"><code>routes
+  root                       -&gt; PagesController.home
+  get   /about               -&gt; PagesController.about    as about
+  post  /webhooks/:source    -&gt; PagesController.webhook  as webhook</code></pre>
+      <h2 id="resources">Resources</h2>
+      <p><code>resources posts -> PostsController</code> expands to the seven Rails actions, in this order:</p>
+      <div class="table-wrap"><table><thead><tr><th>Method</th><th>Path</th><th>Action</th><th>Helper</th></tr></thead><tbody><tr><td>GET</td><td><code>/posts</code></td><td>index</td><td><code>posts_path()</code></td></tr><tr><td>GET</td><td><code>/posts/new</code></td><td>new</td><td><code>new_post_path()</code></td></tr><tr><td>POST</td><td><code>/posts</code></td><td>create</td><td></td></tr><tr><td>GET</td><td><code>/posts/:id</code></td><td>show</td><td><code>post_path(id)</code></td></tr><tr><td>GET</td><td><code>/posts/:id/edit</code></td><td>edit</td><td><code>edit_post_path(id)</code></td></tr><tr><td>PATCH, PUT</td><td><code>/posts/:id</code></td><td>update</td><td></td></tr><tr><td>DELETE</td><td><code>/posts/:id</code></td><td>destroy</td><td></td></tr></tbody></table></div>
+      <p>Use <code>only</code> or <code>except</code> (not both) to pick actions. Matching is first-match in this order, which is why <code>/posts/new</code> isn't taken by <code>/posts/:id</code>.</p>
+      <h3 id="nesting">Nesting, member and collection</h3>
+      <p>Indented lines belong to the entry above. Nested resources go under the singular of the parent, <code>member</code> routes under <code>/posts/:id/…</code>, and <code>collection</code> routes under <code>/posts/…</code>.</p>
+      <pre class="code" data-lang="polar"><code>routes
+  resources posts              -&gt; PostsController
+    resources comments         -&gt; CommentsController  only create destroy
+    member
+      post  publish            -&gt; PostsController.publish
+    collection
+      get   drafts             -&gt; PostsController.drafts
+
+  namespace admin
+    resources users            -&gt; UsersController  except destroy</code></pre>
+      <p>That gives you <code>post_comments_path(post_id)</code>, <code>post_comment_path(post_id, id)</code>, <code>publish_post_path(id)</code>, <code>drafts_posts_path()</code> and <code>admin_users_path()</code>. A namespace prefixes paths with <code>/admin</code> and helper names with <code>admin_</code>.</p>
+      <p>When a table name has no simple singular, name it with <code>as</code>: <code>resources people -> PeopleController as person</code>.</p>
+      <h2 id="helpers">Path helpers</h2>
+      <p>A param named <code>id</code> or ending in <code>_id</code> takes an <code>Id</code>. Any other param takes a <code>String</code>, which is URL-encoded.</p>
+      <pre class="code" data-lang="polar"><code>post_path(Id(3))                    // "/posts/3"
+post_comment_path(Id(2), Id(9))     // "/posts/2/comments/9"
+webhook_path("a b")                 // "/webhooks/a%20b"</code></pre>
+      <p><strong>Controllers and views get helpers from <code>Paths</code>.</strong> The routes module imports every controller, so a controller can't import it back. The zone also generates a sibling module <code>Paths</code> with the same helpers and no controller imports. Write <code>uses Paths</code> and call <code>Paths.article_path(id)</code>.</p>
+      <h2 id="matching">How requests match</h2>
+      <ul><li>Trailing and doubled slashes don't matter: <code>/posts/3/</code> matches <code>/posts/:id</code>.</li><li>A <code>POST</code> with a form field <code>_method</code> of <code>patch</code>, <code>put</code> or <code>delete</code> is routed as that method.</li><li><code>HEAD</code> runs the <code>GET</code> action and sends no body.</li><li>No path matches: the launcher answers 404. A path matches but the method doesn't: 405, with an <code>allow</code> header.</li><li>Path params are strings. <code>/posts/abc</code> still reaches <code>show</code>, and the action decides what to do with it.</li></ul>
+      <h2 id="errors">Mistakes are compile errors</h2>
+      <pre class="code" data-lang="polar"><code>routes
+  resources posts  -&gt; PostController</code></pre>
+      <pre class="code out"><code>error[POLAR0901]: no module `PostController` in `uses`
+  --&gt; src/unknown_controller.px:12:23
+   |
+12 |   resources posts  -&gt; PostController
+   |                       ^^^^^^^^^^^^^^
+   |
+   = help: a controller is a module in `uses`, named by its last segment or its `as` alias</code></pre>
+      <p>Duplicate routes, duplicate helpers, unknown verbs and unknown actions in <code>only</code> are reported the same way. <code>polar fmt</code> lines up the <code>-></code> column in each block.</p>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

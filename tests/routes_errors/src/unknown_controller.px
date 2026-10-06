@@ -1,0 +1,12 @@
+module UnknownController
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  PagesController
+  PostsController
+
+routes
+  resources posts  -> PostController

@@ -1,0 +1,17 @@
+14 before_empty: 200 [content-type: text/plain; charset=utf-8] action saw 
+14 before_order: 200 [content-type: text/plain; charset=utf-8] action saw ab
+14 before_halt: 401 [content-type: text/plain; charset=utf-8] halted (runs: 1)
+14 before_alias: 401 [content-type: text/plain; charset=utf-8] halted
+15 with_header_replace: 200 [Content-Type: text/csv] x
+15 with_header_append: 200 [content-type: text/plain; charset=utf-8, x-a: 1] x
+15 with_header_duplicates: 200 [x-a: 3] x
+15 content_type: 200 [content-type: text/csv] 
++ render: 200 [content-type: text/html; charset=utf-8] <!doctype html><p>hi</p>
++ render_status: 422 [content-type: text/html; charset=utf-8] <!doctype html><p>no</p>
++ redirect_get: 302 [location: /a] 
++ redirect_head: 302 [location: /a] 
++ redirect_post: 303 [location: /a] 
++ redirect_delete: 303 [location: /a] 
++ head: 204 [] 
++ halt_deep: 404 [content-type: text/plain; charset=utf-8] not found
++ halt_none: 200 [content-type: text/plain; charset=utf-8] fine

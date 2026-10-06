@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testing and Console – Ticket</title>
+<meta name="description" content="polar test, Ticket.Test request tests, ticket test and ticket console.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="testing">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Testing and Console</h1>
+      <p class="lead">Request tests call your router and assert on the response, with a fresh in-memory database per test.</p>
+      <h2 id="tests">Request tests</h2>
+      <p>A <code>*_test.px</code> module exports <code>test_*</code> functions, which <code>polar test</code> runs. Leave their signatures off: the router's effects are inferred, so a new resource doesn't break old tests.</p>
+      <pre class="code" data-lang="polar"><code>module PostsControllerTest
+
+uses
+  Std.Assert
+  Std.Option
+  Routes
+  Schema
+  Ticket.Test
+
+hosts
+  Node
+
+functions
+  test_create_redirects_with_a_notice() {
+    Test.with_db(Schema.migrations, function() {
+      let reply = Test.post(Routes.router, Test.client(), "/posts", [{ name: "post[title]", value: "Hello" }])
+
+      Test.assert_redirect(reply, "/posts/1")
+      Assert.equal(Test.flash(reply, "notice"), Some("Post was created."))
+    })
+  }
+
+exports
+  test_create_redirects_with_a_notice</code></pre>
+      <p><code>Test.client()</code> starts with a session, so <code>Test.post</code>, <code>patch</code> and <code>delete</code> carry the CSRF token; <code>post_without_token</code> tests a rejection. Cookies a reply sets travel with <code>reply.client</code>, and <code>Test.follow</code> follows a redirect. Assertions: <code>assert_status</code>, <code>assert_redirect</code>, <code>assert_body_contains</code>, <code>assert_body_not_contains</code>, <code>assert_header</code>. <code>with_db</code> also starts the clock at 2026-01-01 and makes <code>Random</code> count, so cookies and tokens are the same on every run.</p>
+      <h2 id="ticket-test">ticket test</h2>
+      <p><code>ticket test [filter]</code> runs <code>polar test</code> with <code>TICKET_ENV=test</code> and <code>TICKET_DATABASE=:memory:</code>. A filter runs the tests whose name contains it.</p>
+      <h2 id="console">ticket console</h2>
+      <p><code>ticket console [-e EXPR] [--sandbox]</code> opens <code>polar repl</code> with the database connected through <code>Main.boot</code>, and prints which database it is. <code>--sandbox</code> uses a throwaway <code>:memory:</code> database with the migrations applied.</p>
+      <div class="callout wip"><p><span class="label">Note:</span> <code>polar repl</code> can't import modules that live in folders yet (polar-lang P14), so the console doesn't start in an app with <code>src/controllers/</code> until it can.</p></div>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

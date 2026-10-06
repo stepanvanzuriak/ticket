@@ -1,0 +1,17 @@
+module Routes
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  Controllers.PagesController
+
+hosts
+  Node
+
+routes
+  root  -> PagesController.home
+
+exports
+  Node

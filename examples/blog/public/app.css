@@ -1,0 +1,12 @@
+body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 42rem; padding: 0 1rem; line-height: 1.5; }
+nav { display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #ddd; }
+.notice { background: #e8f5e9; padding: .5rem 1rem; }
+.alert { background: #fdecea; padding: .5rem 1rem; }
+.byline { color: #666; }
+.field { margin: .75rem 0; }
+.field label { display: block; font-weight: 600; }
+.field_with_errors input, .field_with_errors textarea { border: 2px solid #c62828; }
+.error { color: #c62828; }
+.errors { background: #fdecea; padding: .5rem 1rem; }
+.posts, .comments { padding-left: 1.25rem; }
+form.button_to, form { display: inline; }

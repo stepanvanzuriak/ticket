@@ -1,0 +1,26 @@
+# Ticket's settings for this app. The environment overrides them:
+# `TICKET_DATABASE_ADAPTER` beats `adapter`, and `TICKET_DATABASE` beats `database`.
+
+[database]
+# The client: `sqlite` (built into Node).
+adapter = "sqlite"
+# For `sqlite`, the file, relative to the app. It's created on first use.
+database = "db/development.sqlite3"
+# `auto` applies the pending migrations whenever the server boots; `manual` (the default)
+# leaves them to `ticket db:migrate`.
+# migrate = "auto"
+
+# Sessions, flash and CSRF (`Session.wrap`) sign their cookie with a secret. `TICKET_SECRET`
+# beats this one, and production refuses to start without one. Development has its own.
+# [session]
+# secret = "change me"
+# max_age = 1209600
+
+[server]
+# Files served at the root, before the router. `public/404.html` and `public/500.html` are
+# the production error pages.
+# public = "public"
+# One line per request in the log (`request`), or none (`off`).
+# log = "request"
+# Names, besides password, token, secret and cookie, whose values are logged as [FILTERED].
+# filter_params = ["ssn"]

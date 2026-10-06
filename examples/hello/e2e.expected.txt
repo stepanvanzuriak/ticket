@@ -1,0 +1,2 @@
+GET / -> 200 <!doctype html><html><head><title>Hello</title></head><body><h1>Hello from Ticket</h1></body></html>
+GET /nope -> 404 {"error":"not found"}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conn and Params – Ticket</title>
+<meta name="description" content="The Conn record, and reading path, form and query params with Ticket.Params.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Martian+Mono:wdth,wght@75..112.5,400..600&family=Unbounded:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body data-page="params">
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="../index.html">ticket</a>
+    <button class="menu" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
+    <nav class="links" aria-label="Main">
+      <a href="../index.html">Home</a>
+      <a href="getting-started.html" aria-current="page">Docs</a>
+      <a href="https://github.com/stepanvanzuriak/ticket">GitHub</a>
+      <a class="polar-badge" href="https://github.com/stepanvanzuriak/polar">Powered by Polar</a>
+    </nav>
+  </div>
+  <p class="construction"><span class="dot" aria-hidden="true"></span>Ticket is under construction. These docs follow the code as it lands, so expect changes. <a href="roadmap.html">See the roadmap</a></p>
+</header>
+
+<div class="layout">
+  <main>
+    <article>
+      <h1>Conn and Params</h1>
+      <p class="lead">Every action gets a Conn: the parsed request. Ticket.Params reads values out of it with Rails' precedence.</p>
+      <h2 id="conn">Conn</h2>
+      <p>A <code>Conn</code> is an immutable record that the router builds once per request. Filters that change it return a new one with <code>{ ..conn, … }</code>.</p>
+      <pre class="code" data-lang="polar"><code>types
+  Conn = {
+    request: Request,
+    method: String,          // upper-cased
+    path: String,            // without the query string, "/" at least
+    segments: List&lt;String&gt;,  // "/posts/3/" is ["posts", "3"]
+    path_params: Map&lt;String, String&gt;,
+    query: Map&lt;String, String&gt;,
+    form: Map&lt;String, String&gt;,
+    cookies: Map&lt;String, String&gt;,
+  }</code></pre>
+      <p><code>Conn.header(conn, name)</code> reads a header, ignoring case, and returns <code>""</code> when it's missing.</p>
+      <h2 id="params">Reading params</h2>
+      <p>Lookups check the path first, then the form body, then the query string, like Rails' merged <code>params</code>.</p>
+      <div class="table-wrap"><table><thead><tr><th>Function</th><th>Returns</th></tr></thead><tbody><tr><td><code>Params.string(conn, key)</code></td><td><code>Option&lt;String&gt;</code></td></tr><tr><td><code>Params.int(conn, key)</code></td><td><code>Option&lt;Int&gt;</code>, <code>None</code> when it's missing or not a number</td></tr><tr><td><code>Params.id(conn, key)</code></td><td><code>Option&lt;Id&lt;a&gt;&gt;</code></td></tr><tr><td><code>Params.nested(conn, prefix)</code></td><td>A <code>Map</code> of the <code>prefix[key]</code> fields</td></tr></tbody></table></div>
+      <pre class="code" data-lang="polar"><code>// POST /articles with body article[title]=Hi
+let title = Option.with_default(Map.get(Params.nested(conn, "article"), "title"), "")</code></pre>
+      <h2 id="parsing">Parsing rules</h2>
+      <ul><li>The form body is parsed only for <code>application/x-www-form-urlencoded</code>. A JSON body stays in <code>conn.request.body</code> for <code>Json.decode</code>.</li><li>Keys and values are percent-decoded, and <code>+</code> becomes a space.</li><li>When a key appears twice, the last one wins.</li><li><code>Params.nested</code> goes one level deep. Lists like <code>tags[]=a</code> aren't supported yet.</li><li>Cookies come from the <code>cookie</code> header, with values percent-decoded.</li></ul>
+      <div class="callout wip"><p><span class="label">Coming in F2:</span> typed strong params. <code>Params.record(conn, "post")</code> will decode the <code>post[…]</code> fields straight into a record, with field errors for missing or ill-typed values.</p></div>
+    </article>
+    <p class="edit" id="edit"></p>
+    <nav class="pager" id="pager" aria-label="Previous and next pages"></nav>
+  </main>
+  <aside class="sidebar" id="sidebar" aria-label="Documentation"></aside>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

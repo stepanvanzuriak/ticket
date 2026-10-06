@@ -1,0 +1,24 @@
+module Main
+
+uses
+  Std.Http
+  Std.Option
+  Layout
+  Pages
+  Ticket.Html
+  Ticket.Response
+
+hosts
+  Node
+
+functions
+  router(request: Request) -> Option<Response> {
+    if request.path == "/" {
+      Some(Response.html(200, Html.document(Layout.app("Hello", Pages.home("Ticket")))))
+    } else {
+      None
+    }
+  }
+
+exports
+  router

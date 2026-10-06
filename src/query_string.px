@@ -1,0 +1,18 @@
+module QueryString
+
+uses
+  Std.List
+  Std.Map
+  Std.Url
+
+functions
+  parse(text: String) -> Map<String, String> {
+    List.fold(
+      Url.parse_query(text),
+      Map.empty(),
+      function(map, pair) { Map.insert(map, pair.name, pair.value) },
+    )
+  }
+
+exports
+  parse

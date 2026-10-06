@@ -1,0 +1,52 @@
+20261001_120000 create_table users
+  up    CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL, "email" TEXT NOT NULL)
+  up    CREATE UNIQUE INDEX "index_users_on_email" ON "users" ("email")
+  down  DROP INDEX "index_users_on_email"
+  down  DROP TABLE "users"
+20261001_130000 create_table posts
+  up    CREATE TABLE "posts" ("id" INTEGER PRIMARY KEY, "title" TEXT NOT NULL, "body" TEXT NOT NULL, "published" BOOLEAN NOT NULL DEFAULT 0, "score" REAL NOT NULL DEFAULT 0, "author_id" INTEGER REFERENCES "users" ("id"))
+  down  DROP TABLE "posts"
+20261002_090000 add_column posts
+  up    ALTER TABLE "posts" ADD COLUMN "summary" TEXT
+  up    ALTER TABLE "posts" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'it''s a draft'
+  up    ALTER TABLE "posts" ADD COLUMN "hits" INTEGER NOT NULL DEFAULT -1
+  down  ALTER TABLE "posts" DROP COLUMN "hits"
+  down  ALTER TABLE "posts" DROP COLUMN "status"
+  down  ALTER TABLE "posts" DROP COLUMN "summary"
+20261003_090000 rename_column posts
+  up    ALTER TABLE "posts" RENAME COLUMN "body" TO "content"
+  down  ALTER TABLE "posts" RENAME COLUMN "content" TO "body"
+20261004_090000 add_index posts
+  up    CREATE INDEX "index_posts_on_author_id_and_published" ON "posts" ("author_id", "published")
+  up    CREATE UNIQUE INDEX "index_posts_on_title" ON "posts" ("title")
+  down  DROP INDEX "index_posts_on_title"
+  down  DROP INDEX "index_posts_on_author_id_and_published"
+20261005_090000 remove_column posts
+  up    ALTER TABLE "posts" DROP COLUMN "summary"
+  up    DROP INDEX "index_posts_on_title"
+  up    ALTER TABLE "posts" DROP COLUMN "title"
+  down  ALTER TABLE "posts" ADD COLUMN "title" TEXT NOT NULL DEFAULT ''
+  down  CREATE UNIQUE INDEX "index_posts_on_title" ON "posts" ("title")
+  down  ALTER TABLE "posts" ADD COLUMN "summary" TEXT
+20261006_090000 remove_index posts
+  up    DROP INDEX "index_posts_on_author_id_and_published"
+  down  CREATE INDEX "index_posts_on_author_id_and_published" ON "posts" ("author_id", "published")
+20261007_090000 create_table people
+  up    CREATE TABLE "people" ("id" INTEGER PRIMARY KEY, "nickname" TEXT, "parent_id" INTEGER REFERENCES "people" ("id"))
+  down  DROP TABLE "people"
+20261008_090000 drop_table people
+  up    DROP TABLE "people"
+  down  CREATE TABLE "people" ("id" INTEGER PRIMARY KEY, "nickname" TEXT, "parent_id" INTEGER REFERENCES "people" ("id"))
+20261009_090000 create_table events
+  up    CREATE TABLE "events" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL, "seen_at" TEXT, "created_at" TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), "updated_at" TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))
+  down  DROP TABLE "events"
+20261010_090000 remove_column events
+  up    ALTER TABLE "events" DROP COLUMN "updated_at"
+  down  ALTER TABLE "events" ADD COLUMN "updated_at" TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'
+1 records: {"id":1,"name":"Ada","email":"ada@example.com"} {"content":"Hello","published":true,"score":1.5,"author_id":1,"status":"live","hits":3}
+2 up_all: [events, index_users_on_email, posts, users]
+3 defaults_and_decode: [{"id":1,"content":"Hi","published":false,"score":0,"author_id":1,"status":"it's a draft","hits":-1}]
+4 unique_index: unique
+7 time_columns: boot Some(2026-10-02T09:30:00.123Z) filled=true
+5 down_all: []
+6 up_again: [events, index_users_on_email, posts, users]

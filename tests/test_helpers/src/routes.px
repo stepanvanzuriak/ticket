@@ -1,0 +1,24 @@
+module Routes
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  Controllers.ThingsController
+
+hosts
+  Node
+
+routes
+  get     /hello       -> ThingsController.hello
+  get     /login       -> ThingsController.login
+  get     /whoami      -> ThingsController.whoami
+  get     /notice      -> ThingsController.notice
+  post    /things      -> ThingsController.create
+  get     /things/:id  -> ThingsController.show
+  patch   /things/:id  -> ThingsController.update
+  delete  /things/:id  -> ThingsController.destroy
+
+exports
+  Node

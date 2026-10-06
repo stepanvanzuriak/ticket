@@ -1,0 +1,69 @@
+module Inflect
+
+uses
+  Std.List
+  Std.Option
+
+functions
+  singular(word: String) -> Option<String> {
+    let length = String.length(word)
+
+    if String.ends_with(word, "ies") {
+      if length > 3 { Some("#{String.slice(word, 0, length - 3)}y") } else { None }
+    } else if String.ends_with(word, "s") && length > 1 {
+      Some(String.slice(word, 0, length - 1))
+    } else {
+      None
+    }
+  }
+
+  plural(word: String) -> String {
+    let length = String.length(word)
+
+    if String.ends_with(word, "y")
+      && length > 1
+      && !vowel(String.slice(word, length - 2, length - 1)) {
+      "#{String.slice(word, 0, length - 1)}ies"
+    } else if List.any(
+      ["s", "x", "z", "ch", "sh"],
+      function(end) { String.ends_with(word, end) },
+    ) {
+      "#{word}es"
+    } else {
+      "#{word}s"
+    }
+  }
+
+  pascal(snake: String) -> String {
+    List.join(List.map(String.split(snake, "_"), capitalize), "")
+  }
+
+  snake(pascal: String) -> String {
+    List.join(underscored(String.split(pascal, ""), true), "")
+  }
+
+  underscored(chars: List<String>, first: Bool) -> List<String> {
+    match chars {
+      [] -> [],
+      [c, ..rest] -> {
+        let lower = String.lowercase(c)
+        let piece = if lower != c && !first { "_#{lower}" } else { lower }
+
+        [piece, ..underscored(rest, false)]
+      }
+    }
+  }
+
+  capitalize(word: String) -> String {
+    "#{String.uppercase(String.slice(word, 0, 1))}#{String.slice(word, 1, String.length(word))}"
+  }
+
+  vowel(letter: String) -> Bool {
+    List.any(["a", "e", "i", "o", "u"], function(v) { v == letter })
+  }
+
+exports
+  pascal
+  plural
+  singular
+  snake

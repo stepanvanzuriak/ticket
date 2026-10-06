@@ -1,0 +1,5 @@
+[project]
+name = "action_tests"
+
+[dependencies]
+ticket = { path = "../.." }

@@ -1,0 +1,29 @@
+
+module Cards
+
+uses
+  Std.Option
+  Ticket.Html
+
+views
+  bool_float()
+    <p>{true} {1.5}</p>
+
+  literal()
+    <a href="/x?a=1&amp;b=2">x</a>
+
+  disabled(on: Bool)
+    <input disabled={on} />
+
+  titled(title: Option<String>)
+    <a title={title}>x</a>
+
+  quoted()
+    <a title={"say \"hi\""}>x</a>
+
+exports
+  bool_float
+  disabled
+  literal
+  quoted
+  titled

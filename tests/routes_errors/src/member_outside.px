@@ -1,0 +1,13 @@
+module MemberOutside
+
+uses
+  Std.Http
+  Std.Id
+  Std.Option
+  Ticket.Conn
+  PagesController
+  PostsController
+
+routes
+  member
+    post  publish  -> PostsController.show

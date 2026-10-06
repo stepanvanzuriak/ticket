@@ -1,0 +1,334 @@
+error[POLAR0901]: an added column `age` needs a default
+  --> src/add_column_needs_default.px:20:5
+   |
+20 |     age  Int
+   |     ^^^^^^^^
+   |
+   = help: give it a default (`default …`), or make it `Option<Int>`
+
+error[POLAR0901]: SQLite can only add a `references` column that allows NULL
+  --> src/add_column_references.px:20:5
+   |
+20 |     boss_id  Id<User>  references users
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: make it `Option<Id<User>>`
+
+error[POLAR0901]: the association `post_author` is already taken
+  --> src/association_clash.px:21:5
+   |
+20 |     author     String
+   |     ----------------- by this one, in `posts`
+21 |     author_id  Id<User>  references users
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ from `posts.author_id`
+   |
+   = help: rename a column: associations are named after the `references` column
+
+error[POLAR0901]: `"x"` isn't a default for a column of type `Int`
+  --> src/bad_default.px:17:23
+   |
+17 |     age  Int  default "x"
+   |                       ^^^
+   |
+   = help: a default is a literal: `0`, `-1`, `1.5`, `"text"`, `true` or `false`
+
+error[POLAR0901]: `List<String>` can't be a column type
+  --> src/bad_type.px:17:11
+   |
+17 |     tags  List<String>
+   |           ^^^^^^^^^^^^
+   |
+   = help: the column types are `Int`, `Float`, `String`, `Bool` and `Id<Record>` (with `references`), or `Option<…>` of one
+
+error[POLAR0901]: a migration starts with its version, `YYYYMMDD_HHMMSS`
+  --> src/bad_version.px:16:3
+   |
+16 |   2026_1 create_table users
+   |   ^^^^^^
+   |
+   = help: a migration starts `<version> <change> <table>`, like `20261001_120000 create_table posts`
+
+error[POLAR0901]: can't tell the singular of `people`
+  --> src/cannot_singularise.px:16:32
+   |
+16 |   20261001_000000 create_table people
+   |                                ^^^^^^
+   |
+   = help: name its record with `as`, like `create_table people as Person`
+
+error[POLAR0901]: the column constant `post_title_body` is already taken
+  --> src/column_constant_clash.px:20:5
+   |
+17 |     title_body  String
+   |     ------------------ by this one, in `posts`
+...
+20 |     body  String
+   |     ^^^^^^^^^^^^ in `post_titles`
+   |
+   = help: rename one of the columns: the constant is `<record>_<column>`
+
+error[POLAR0901]: every table already has `id`
+  --> src/column_id.px:17:5
+   |
+17 |     id  Int
+   |     ^^
+   |
+   = help: leave it out
+
+error[POLAR0901]: can't drop `users`: `posts.author_id` references it
+  --> src/drop_referenced_table.px:22:3
+   |
+20 |     author_id  Option<Id<User>>  references users
+   |     --------------------------------------------- the reference
+21 | 
+22 |   20261003_000000 drop_table users
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove `posts.author_id` first
+
+error[POLAR0901]: `users` already has a column `name`
+  --> src/duplicate_column.px:18:5
+   |
+18 |     name  String
+   |     ^^^^
+
+error[POLAR0901]: an `Id` column needs `references`
+  --> src/id_without_references.px:20:16
+   |
+20 |     author_id  Id<User>
+   |                ^^^^^^^^
+   |
+   = help: add `references <table>` for the table whose id `author_id` holds
+
+error[POLAR0901]: `users` has no column `email`
+  --> src/index_unknown_column.px:20:5
+   |
+20 |     email unique
+   |     ^^^^^
+
+error[POLAR0901]: `create_table` needs its columns on the lines under it
+  --> src/needs_columns.px:16:3
+   |
+16 |   20261001_000000 create_table users
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[POLAR0901]: the `migrations` zone needs `Std.Json`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Std.Json` to the `uses` zone
+
+error[POLAR0901]: the `migrations` zone needs `Std.List`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Std.List` to the `uses` zone
+
+error[POLAR0901]: the `migrations` zone needs `Std.Option`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Std.Option` to the `uses` zone
+
+error[POLAR0901]: the `migrations` zone needs `Std.Result`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Std.Result` to the `uses` zone
+
+error[POLAR0901]: the `migrations` zone needs `Ticket.Db`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Ticket.Db` to the `uses` zone
+
+error[POLAR0901]: the `migrations` zone needs `Ticket.Form`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Ticket.Form` to the `uses` zone
+
+error[POLAR0901]: the `migrations` zone needs `Ticket.Migration`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Ticket.Migration` to the `uses` zone
+
+error[POLAR0901]: the `migrations` zone needs `Ticket.Model`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Ticket.Model` to the `uses` zone
+
+error[POLAR0901]: the `migrations` zone needs `Ticket.Query`
+ --> src/needs_imports.px:6:1
+  |
+6 | migrations
+  | ^^^^^^^^^^
+  |
+  = help: add `Ticket.Query` to the `uses` zone
+
+error[POLAR0901]: `on_delete` needs an action
+  --> src/on_delete_needs_action.px:20:44
+   |
+20 |     author_id  Id<User>  references users  on_delete
+   |                                            ^^^^^^^^^
+   |
+   = help: `on_delete` is `cascade` (delete the rows too), `set_null` (an `Option` column) or `restrict`
+
+error[POLAR0901]: `nullify` isn't an `on_delete` action
+  --> src/on_delete_unknown.px:20:62
+   |
+20 |     author_id  Option<Id<User>>  references users  on_delete nullify
+   |                                                              ^^^^^^^
+   |
+   = help: `on_delete` is `cascade` (delete the rows too), `set_null` (an `Option` column) or `restrict`
+
+error[POLAR0901]: `on_delete` needs `references` before it
+  --> src/on_delete_without_references.px:20:21
+   |
+20 |     author_id  Int  on_delete cascade
+   |                     ^^^^^^^^^
+   |
+   = help: write `references users  on_delete cascade`
+
+error[POLAR0901]: record `User` is already table `users`'s
+  --> src/record_clash.px:19:3
+   |
+16 |   20261001_000000 create_table users
+   |   ---------------------------------- that table
+...
+19 |   20261002_000000 create_table members as User
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: name this one's record with `as`
+
+error[POLAR0901]: a column that references `users` holds an `Id<User>`
+  --> src/references_wrong_type.px:20:16
+   |
+20 |     author_id  Int  references users
+   |                ^^^
+   |
+   = help: make it `Id<User>`, or `Option<Id<User>>`
+
+error[POLAR0901]: SQLite can't remove `author_id`: it's a `references` column
+  --> src/remove_references_column.px:23:5
+   |
+23 |     author_id
+   |     ^^^^^^^^^
+
+error[POLAR0901]: `users` has no column `age`
+  --> src/remove_unknown_column.px:20:5
+   |
+20 |     age
+   |     ^^^
+
+error[POLAR0901]: `users` has no index `index_users_on_name`
+  --> src/remove_unknown_index.px:20:5
+   |
+20 |     name
+   |     ^^^^
+
+error[POLAR0901]: `users` already has a column `email`
+  --> src/rename_to_existing.px:21:13
+   |
+21 |     name -> email
+   |             ^^^^^
+
+error[POLAR0901]: `set_null` needs `author_id` to allow NULL
+  --> src/set_null_not_option.px:20:54
+   |
+20 |     author_id  Id<User>  references users  on_delete set_null
+   |                                                      ^^^^^^^^
+   |
+   = help: make it `Option<Id<…>>`
+
+error[POLAR0901]: table `users` already exists
+  --> src/table_exists.px:19:32
+   |
+16 |   20261001_000000 create_table users
+   |   ---------------------------------- created here
+...
+19 |   20261002_000000 create_table users
+   |                                ^^^^^
+
+error[POLAR0901]: `Time` columns need `Std.Time`
+  --> src/time_needs_import.px:17:14
+   |
+17 |     seen_at  Time
+   |              ^^^^
+   |
+   = help: add `Std.Time` to the `uses` zone
+
+error[POLAR0901]: `timestamps` needs `Std.Time`
+  --> src/time_needs_import.px:18:5
+   |
+18 |     timestamps
+   |     ^^^^^^^^^^
+   |
+   = help: add `Std.Time` to the `uses` zone
+
+error[POLAR0901]: `timestamps` can only be in `create_table`: SQLite can't add a column that defaults to the current time
+  --> src/timestamps_add_column.px:21:5
+   |
+21 |     timestamps
+   |     ^^^^^^^^^^
+   |
+   = help: add `created_at  Time` and `updated_at  Time` with a `default`, or leave them out
+
+error[POLAR0901]: `users` already has a column `created_at`
+  --> src/timestamps_twice.px:19:5
+   |
+19 |     timestamps
+   |     ^^^^^^^^^^
+
+error[POLAR0901]: expected a change after the version
+  --> src/unknown_change.px:16:19
+   |
+16 |   20261001_000000 create_tables users
+   |                   ^^^^^^^^^^^^^
+   |
+   = help: the changes are: create_table, drop_table, add_column, remove_column, rename_column, add_index, remove_index
+
+error[POLAR0901]: unexpected `indexed` in a column
+  --> src/unknown_modifier.px:17:19
+   |
+17 |     name  String  indexed
+   |                   ^^^^^^^
+   |
+   = help: the modifiers are `default <value>`, `references <table>`, `on_delete <action>` and `unique`
+
+error[POLAR0901]: there's no table `posts` at this point
+  --> src/unknown_table.px:19:30
+   |
+19 |   20261002_000000 add_column posts
+   |                              ^^^^^
+   |
+   = help: the tables at this point are: users
+
+error[POLAR0901]: migration `20260901_000000` comes after `20261001_000000`
+  --> src/versions_decrease.px:19:3
+   |
+16 |   20261001_000000 create_table users
+   |   --------------- the migration before it
+...
+19 |   20260901_000000 create_table posts
+   |   ^^^^^^^^^^^^^^^ versions must increase
+
+error: aborting due to 42 errors

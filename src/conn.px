@@ -1,0 +1,155 @@
+module Conn
+
+uses
+  Ticket.Cookies
+  Ticket.Error
+  Ticket.QueryString
+  Std.Http
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Url
+
+types
+  Conn = {
+    request: Request,
+    method: String,
+    path: String,
+    segments: List<String>,
+    path_params: Map<String, String>,
+    query: Map<String, String>,
+    form: Map<String, String>,
+    cookies: Map<String, String>,
+    session: Map<String, String>,
+    flash: Map<String, String>,
+    flash_next: Map<String, String>,
+    csrf: String,
+    signing: Signing,
+  }
+
+  Signing = { secret: String, max_age: Int, secure: Bool, expires: Int }
+
+functions
+  from_request(request: Request) -> Conn {
+    let path = path_of(request.path)
+
+    {
+      request: request,
+      method: String.uppercase(request.method),
+      path: path,
+      segments: segments_of(path),
+      path_params: Map.empty(),
+      query: QueryString.parse(request.query),
+      form: form_of(request),
+      cookies: Cookies.parse(Http.header(request.headers, "cookie")),
+      session: Map.empty(),
+      flash: Map.empty(),
+      flash_next: Map.empty(),
+      csrf: "",
+      signing: { secret: "", max_age: 0, secure: false, expires: 0 },
+    }
+  }
+
+  with_path_params(conn: Conn, params: Map<String, String>) -> Conn {
+    { ..conn, path_params: params }
+  }
+
+  with_method_override(conn: Conn) -> Conn {
+    let wanted = String.uppercase(Option.with_default(Map.get(conn.form, "_method"), ""))
+
+    if conn.method == "POST"
+      && (wanted == "PATCH" || wanted == "PUT" || wanted == "DELETE") {
+      { ..conn, method: wanted }
+    } else {
+      conn
+    }
+  }
+
+  routing_method(conn: Conn) -> String {
+    if conn.method == "HEAD" { "GET" } else { conn.method }
+  }
+
+  with_path_param(conn: Conn, name: String, value: String) -> Conn {
+    { ..conn, path_params: Map.insert(conn.path_params, name, value) }
+  }
+
+  for_head(conn: Conn, response: Response) -> Response {
+    if conn.method == "HEAD" { { ..response, body: "" } } else { response }
+  }
+
+  method_not_allowed(methods: List<String>) -> Option<Response> {
+    let allowed = List.fold(
+      methods,
+      [],
+      function(seen, m) {
+        if List.any(seen, function(s) { s == m }) { seen } else { [m, ..seen] }
+      },
+    )
+
+    if List.is_empty(allowed) {
+      None
+    } else {
+      let allow = List.join(List.reverse(allowed), ", ")
+
+      Some(
+        {
+          status: 405,
+          headers: [
+            { name: "allow", value: allow },
+            { name: "content-type", value: "text/plain; charset=utf-8" },
+          ],
+          body: "method not allowed",
+        },
+      )
+    }
+  }
+
+  rescue_halt(action: function() -> Response / {Throws<Halt> | e}) -> Response / {| e} {
+    try {
+      action()
+    } catch {
+      Halt(response) -> response,
+    }
+  }
+
+  path_segment(text: String) -> String {
+    Url.encode(text)
+  }
+
+  header(conn: Conn, name: String) -> String {
+    Http.header(conn.request.headers, name)
+  }
+
+  path_of(raw: String) -> String {
+    match String.split(raw, "?") {
+      [""] -> "/",
+      [path, .._] -> path,
+      [] -> "/",
+    }
+  }
+
+  segments_of(path: String) -> List<String> {
+    List.map(List.filter(String.split(path, "/"), function(s) { s != "" }), Url.decode)
+  }
+
+  form_of(request: Request) -> Map<String, String> {
+    let kind = String.lowercase(Http.header(request.headers, "content-type"))
+
+    if String.starts_with(kind, "application/x-www-form-urlencoded") {
+      QueryString.parse(request.body)
+    } else {
+      Map.empty()
+    }
+  }
+
+exports
+  for_head
+  from_request
+  header
+  method_not_allowed
+  path_segment
+  rescue_halt
+  routing_method
+  with_method_override
+  with_path_param
+  with_path_params

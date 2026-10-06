@@ -1,0 +1,24 @@
+module Routes
+
+uses
+  Std.List
+  Std.Process
+
+hosts
+  Node
+
+functions
+  run(root: String) -> Int / {Process} {
+    let options = Process.in_dir(Process.inherit(), root)
+    let build = Process.output("polar", ["build"], options)
+
+    if build.code == 0 {
+      Process.run("polar", ["start", "--", "routes"], options)
+    } else {
+      Log.error(String.trim("#{build.stdout}#{build.stderr}"))
+      build.code
+    }
+  }
+
+exports
+  run

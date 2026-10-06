@@ -1,0 +1,14 @@
+module Admin
+
+uses
+  Ticket.Html
+
+views
+  stats(articles: Int)
+    <dl>
+      <dt>Articles</dt>
+      <dd>{articles}</dd>
+    </dl>
+
+exports
+  stats
