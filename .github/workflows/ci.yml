@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: true
+      - name: Install polar
+        run: cargo install --locked --git https://github.com/stepanvanzuriak/polar polar-cli
+      - run: polar --version
+      - run: node scripts/test.mjs
+        env:
+          NODE_NO_WARNINGS: "1"
