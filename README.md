@@ -1,6 +1,6 @@
 # Ticket
 
-A Rails-shaped web framework written in [Polar](https://github.com/stepanvanzuriak/polar), for Polar projects.
+A Rails-shaped web framework written in [Polar](https://polar-lang.vercel.app/), for Polar projects.
 
 > Version 0.1.0. Controllers, views and components, resource routing, SQLite with migrations and typed queries,
 > validations, forms, sessions, flash and CSRF, generators, and a test runner, all in Polar.
