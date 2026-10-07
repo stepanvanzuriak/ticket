@@ -32,13 +32,13 @@
       <h1>Your First App</h1>
       <p class="lead">The smallest Ticket app is one route, one view and a layout. It's the same app as Ticket's examples/hello.</p>
       <h2 id="project">The project file</h2>
-      <p>Make a folder next to your Ticket checkout with a <code>polar.toml</code>. The dependency makes <code>Ticket.*</code> modules available, and the launcher line makes <code>polar run</code> serve your app over HTTP.</p>
+      <p>Make a folder with a <code>polar.toml</code>, or run <code>polar add github.com/stepanvanzuriak/ticket</code> in one to write the dependency for you. The dependency makes <code>Ticket.*</code> modules available, and the launcher line makes <code>polar run</code> serve your app over HTTP.</p>
       <pre class="code"><code>[project]
 name = "hello"
 hosts = ["Node"]
 
 [dependencies]
-ticket = { path = "../ticket" }
+ticket = { git = "github.com/stepanvanzuriak/ticket", version = "v0.1.0" }
 
 [run]
 launcher = "ticket"

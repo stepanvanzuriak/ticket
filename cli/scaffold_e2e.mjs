@@ -32,7 +32,7 @@ function app(name) {
   const dir = join(scratch, name);
 
   mkdirSync(dir, { recursive: true });
-  ticket(["new", name], dir);
+  ticket(["new", name, "--path"], dir);
   return join(dir, name);
 }
 

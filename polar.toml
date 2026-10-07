@@ -1,6 +1,7 @@
 [package]
 name = "ticket"
 module = "Ticket"
+polar = "0.2.0"
 
 [plugin]
 zones = ["migrations", "routes", "validations", "view_component", "views"]

@@ -847,7 +847,7 @@ views
 
   <section id="install" class="wrap try">
     <h2 class="section-title">Try it early</h2>
-    <p class="section-intro">Ticket isn't published yet. Clone it next to your app and add it as a path dependency. You'll need the <code>polar</code> toolchain and Node 22.5 or newer.</p>
+    <p class="section-intro">Add Ticket to an app straight from GitHub with <code>polar add github.com/stepanvanzuriak/ticket</code>. You'll need Polar 0.2.0 or newer and Node 22.5 or newer.</p>
     <div class="try-grid">
       <div class="panel">
         <div class="panes">
@@ -858,7 +858,7 @@ hosts = [<span class="st">"Node"</span>]
 main = <span class="st">"src/routes.px"</span>
 
 [dependencies]
-ticket = { path = <span class="st">"../ticket"</span> }
+ticket = { git = <span class="st">"github.com/stepanvanzuriak/ticket"</span>, version = <span class="st">"v0.1.0"</span> }
 
 [run]
 launcher = <span class="st">"ticket"</span>

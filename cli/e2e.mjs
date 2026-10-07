@@ -111,7 +111,7 @@ try {
   result = ticket(["new", "taken", "--skip-build"], outside);
   row(8, "new_non_empty", `exit=${result.status} files=${files(join(outside, "taken")).join(",")}`);
 
-  result = ticket(["new", "blog_app", "--skip-build"], outside);
+  result = ticket(["new", "blog_app", "--skip-build", "--path"], outside);
 
   const created = result.stdout
     .split("\n")
@@ -129,7 +129,14 @@ try {
     yes(readFileSync(join(app, "polar.toml"), "utf8").includes(`ticket = { path = "${home.replace(/\/$/, "")}" }`)),
   );
 
-  result = ticket(["new", "demo"], outside);
+  result = ticket(["new", "from_git", "--skip-build"], outside);
+  row(
+    9,
+    "new_git_dependency",
+    `exit=${result.status} ${readFileSync(join(outside, "from_git", "polar.toml"), "utf8").match(/^ticket = .*$/m)?.[0]} fetch=${yes(result.stdout.includes("  polar fetch"))}`,
+  );
+
+  result = ticket(["new", "demo", "--path"], outside);
 
   const demo = join(outside, "demo");
 
@@ -152,7 +159,7 @@ try {
   symlinkSync(home, join(work, "ticket"));
   result = spawnSync(
     process.execPath,
-    [join(home, "cli", "dist", "start.mjs"), "--", "new", "sibling", "--skip-build"],
+    [join(home, "cli", "dist", "start.mjs"), "--", "new", "sibling", "--skip-build", "--path"],
     { cwd: work, encoding: "utf8", env: { ...process.env, TICKET_HOME: join(work, "ticket") } },
   );
   row(
@@ -201,7 +208,7 @@ try {
     return { ...r, out: stamped(r.stdout.trim().split("\n").join(" | ")), err: stamped(r.stderr.trim()) };
   };
 
-  ticket(["new", "gen_app", "--skip-build"], outside);
+  ticket(["new", "gen_app", "--skip-build", "--path"], outside);
 
   const generated = join(outside, "gen_app");
 

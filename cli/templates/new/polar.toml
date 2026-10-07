@@ -3,7 +3,7 @@ name = "{{app}}"
 hosts = ["Node"]
 
 [dependencies]
-ticket = { path = "{{ticket_path}}" }
+ticket = {{ticket_dependency}}
 
 [run]
 launcher = "ticket"
