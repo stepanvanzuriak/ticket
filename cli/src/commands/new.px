@@ -15,11 +15,21 @@ hosts
 types
   Substitution = { placeholder: String, value: String }
 
+constants
+  repository: String = "github.com/stepanvanzuriak/ticket"
+
 functions
-  run(parsed: Parsed, home: String) -> Int / {Process, Fs} {
+  run(parsed: Parsed, home: String, version: String) -> Int / {Process, Fs} {
     match parsed.positional {
       [name] -> if valid(name) {
-        create(name, Path.join(Process.cwd(), name), home, Args.has(parsed, "skip-build"))
+        create(
+          name,
+          Path.join(Process.cwd(), name),
+          home,
+          version,
+          Args.has(parsed, "path"),
+          Args.has(parsed, "skip-build"),
+        )
       } else {
         usage("`#{name}` isn't a valid app name: use snake_case, like `my_app`")
       },
@@ -28,7 +38,14 @@ functions
     }
   }
 
-  create(name: String, target: String, home: String, skip_build: Bool) -> Int / {
+  create(
+    name: String,
+    target: String,
+    home: String,
+    version: String,
+    use_path: Bool,
+    skip_build: Bool,
+  ) -> Int / {
     Process,
     Fs,
   } {
@@ -40,7 +57,10 @@ functions
       let substitutions = [
         { placeholder: "{{app}}", value: name },
         { placeholder: "{{App}}", value: Inflect.pascal(name) },
-        { placeholder: "{{ticket_path}}", value: ticket_path(target, home) },
+        {
+          placeholder: "{{ticket_dependency}}",
+          value: dependency(target, home, version, use_path),
+        },
       ]
       let written = Result.and_then(
         Fs.walk(templates),
@@ -53,15 +73,20 @@ functions
           1
         }
         Ok(_) -> if skip_build {
-          next_steps(name)
+          next_steps(name, !use_path)
         } else {
-          let code = Process.run(
-            "polar",
-            ["build"],
-            Process.in_dir(Process.inherit(), target),
-          )
+          let fetched = if use_path {
+            0
+          } else {
+            Process.run("polar", ["fetch"], Process.in_dir(Process.inherit(), target))
+          }
+          let code = if fetched == 0 {
+            Process.run("polar", ["build"], Process.in_dir(Process.inherit(), target))
+          } else {
+            fetched
+          }
 
-          if code == 0 { next_steps(name) } else { code }
+          if code == 0 { next_steps(name, false) } else { code }
         },
       }
     }
@@ -106,6 +131,14 @@ functions
     )
   }
 
+  dependency(target: String, home: String, version: String, use_path: Bool) -> String {
+    if use_path {
+      "{ path = \"#{ticket_path(target, home)}\" }"
+    } else {
+      "{ git = \"#{repository}\", version = \"v#{version}\" }"
+    }
+  }
+
   ticket_path(target: String, home: String) -> String {
     let parent = Path.dirname(home)
 
@@ -143,12 +176,19 @@ functions
     c >= "0" && c <= "9" && String.length(c) == 1
   }
 
-  next_steps(name: String) -> Int {
+  next_steps(name: String, fetch: Bool) -> Int {
     Log.info("")
     Log.info("Created #{name}. Next:")
     Log.info("  cd #{name}")
-    Log.info("  ticket server")
-    0
+
+    if fetch {
+      Log.info("  polar fetch")
+      Log.info("  ticket server")
+      0
+    } else {
+      Log.info("  ticket server")
+      0
+    }
   }
 
   usage(message: String) -> Int {

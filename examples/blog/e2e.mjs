@@ -167,7 +167,7 @@ try {
 const notes = join(scratch, "notes");
 
 mkdirSync(notes);
-ticket(["new", "notes"], notes);
+ticket(["new", "notes", "--path"], notes);
 
 const app = join(notes, "notes");
 

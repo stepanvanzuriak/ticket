@@ -56,7 +56,7 @@ functions
           0
         }
         "new" -> match Process.env("TICKET_HOME") {
-          Some(home) -> New.run(parsed, home),
+          Some(home) -> New.run(parsed, home, version),
           None -> {
             Log.error("error: TICKET_HOME isn't set: run `ticket` through `bin/ticket`")
             1
@@ -171,7 +171,7 @@ functions
         "Usage: ticket <command> [args] [flags]",
         "",
         "Commands:",
-        "  new <name> [--skip-build]  create a Ticket app in ./<name>, then build it",
+        "  new <name> [--skip-build] [--path]  create a Ticket app in ./<name>, then build it",
         "  server, s [-p PORT]        build and serve the app (port 3000 by default)",
         "  routes                     print the app's routes",
         "  db:migrate [--version V]   apply the pending migrations",

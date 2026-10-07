@@ -22,7 +22,7 @@ It needs `polar` and `node` on `PATH`.
 
 | Command | What |
 |---|---|
-| `ticket new <name> [--skip-build]` | writes an app skeleton into `./<name>` (snake_case), then `polar build`s it. Refuses a non-empty directory |
+| `ticket new <name> [--skip-build] [--path]` | writes an app skeleton into `./<name>` (snake_case), then `polar fetch`es and `polar build`s it. Refuses a non-empty directory. The app depends on Ticket by its GitHub address and release tag; `--path` depends on this checkout instead |
 | `ticket server` / `s` `[-p PORT]` | `polar run` in the app: builds, then serves on `PORT` (3000 by default, or `options.port`) |
 | `ticket routes` | builds quietly, then prints the route table (`polar start -- routes`) |
 | `ticket db:migrate [--version V]` / `db:rollback [--step N]` / `db:status` / `db:reset` / `db:seed` | builds quietly, then runs the launcher's task of that name: apply pending migrations, undo the last N, list them, roll everything back and migrate again (then seed), run `seed` |
@@ -41,11 +41,21 @@ subprocess's code passes through.
 
 `ticket new` writes `polar.toml`, `src/main.px` (exports `router` and `route_table`),
 `src/routes.px`, `src/controllers/pages_controller.px`, `src/views/layout.px` and
-`src/views/pages.px`, `public/`, `ticket.toml`, `.gitignore` and a `README.md`. Its path dependency on
-Ticket is relative when the app sits under the checkout's parent directory (`../ticket`
-for `~/Work/blog`), and absolute otherwise.
+`src/views/pages.px`, `public/`, `ticket.toml`, `.gitignore` and a `README.md`. The app depends on
+Ticket by its GitHub address, pinned to the tag matching your `ticket --version`, and `ticket new`
+runs `polar fetch` so the tag is locked in `polar.lock`. With `--path` it depends on your checkout
+instead: relative when the app sits under the checkout's parent directory (`../ticket` for
+`~/Work/blog`), absolute otherwise. `--skip-build` skips the fetch too, so run `polar fetch` yourself.
 
 ### Without the CLI
+
+Needs Polar 0.2.0 or newer (`polar --version`). Add Ticket straight from GitHub:
+
+```sh
+polar add github.com/stepanvanzuriak/ticket     # newest tag; writes polar.toml + polar.lock
+```
+
+or by hand:
 
 ```toml
 # your project's polar.toml
@@ -54,7 +64,9 @@ name = "app"
 hosts = ["Node"]
 
 [dependencies]
-ticket = { path = "../ticket" }
+ticket = { git = "github.com/stepanvanzuriak/ticket", version = "v0.1.0" }
+# working on Ticket itself? use a checkout instead:
+# ticket = { path = "../ticket" }
 
 [run]
 launcher = "ticket"

@@ -7,6 +7,7 @@
 + new_public: 404.html,500.html,robots.txt
 9 new_files_on_disk: same=yes placeholders=0
 9 new_files_absolute_path: yes
+9 new_git_dependency: exit=0 ticket = { git = "github.com/stepanvanzuriak/ticket", version = "v0.1.0" } fetch=yes
 10 new_builds: exit=0 built=yes
 10 new_serves: status=200 <title>Demo</title>
 12 server_port: port=4001 status=200
