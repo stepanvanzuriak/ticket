@@ -151,6 +151,7 @@ for (const dir of projects("examples", "e2e.mjs")) {
 e2e("cli e2e", join(root, "cli"));
 e2e("scaffold e2e", join(root, "cli"), "scaffold_e2e.mjs", "scaffold_e2e.expected.txt");
 e2e("console e2e", join(root, "cli"), "console_e2e.mjs", "console_e2e.expected.txt");
+e2e("watch e2e", join(root, "cli"), "watch_e2e.mjs", "watch_e2e.expected.txt");
 e2e("launcher e2e", join(root, "launcher"));
 
 console.log(failed === 0 ? "\nall passed" : `\n${failed} failed`);

@@ -24,6 +24,7 @@ constants
     "pretend",
     "validations",
     "sandbox",
+    "watch",
   ]
 
 functions

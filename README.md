@@ -23,7 +23,7 @@ It needs `polar` and `node` on `PATH`.
 | Command | What |
 |---|---|
 | `ticket new <name> [--skip-build] [--path]` | writes an app skeleton into `./<name>` (snake_case), then `polar fetch`es and `polar build`s it. Refuses a non-empty directory. The app depends on Ticket by its GitHub address and release tag; `--path` depends on this checkout instead |
-| `ticket server` / `s` `[-p PORT]` | `polar run` in the app: builds, then serves on `PORT` (3000 by default, or `options.port`) |
+| `ticket server` / `s` `[-p PORT] [--watch]` | `polar run` in the app: builds, then serves on `PORT` (3000 by default, or `options.port`). `--watch` runs `polar run --watch` in development mode (exit 2 with `TICKET_ENV=production`) |
 | `ticket routes` | builds quietly, then prints the route table (`polar start -- routes`) |
 | `ticket db:migrate [--version V]` / `db:rollback [--step N]` / `db:status` / `db:reset` / `db:seed` | builds quietly, then runs the launcher's task of that name: apply pending migrations, undo the last N, list them, roll everything back and migrate again (then seed), run `seed` |
 | `ticket g migration <Name> [f:T…]` / `g model <Name> [f:T…]` | appends an entry to `src/schema.px` (`Create…`, `Add…To…`, `Remove…From…`) and, for a model, writes `src/models/<name>.px`. Fields: `title:String`, `body:String?`, `email:String:unique`, `n:Int:default=0`, `author:references` |

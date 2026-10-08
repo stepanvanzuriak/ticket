@@ -11,22 +11,27 @@ hosts
 
 functions
   run(root: String, parsed: Parsed) -> Int / {Process} {
-    let options = Process.in_dir(Process.inherit(), root)
+    let watching = Args.has(parsed, "watch")
 
-    match Args.flag(parsed, "port") {
-      None -> Process.run("polar", ["run"], options),
-      Some(port) -> match Int.parse(port) {
-        Some(n) -> if n >= 0 && n < 65536 {
-          Process.run(
-            "polar",
-            ["run"],
-            Process.with_env(options, "PORT", Int.to_string(n)),
-          )
-        } else {
-          bad_port(port)
+    if watching && Process.env("TICKET_ENV") == Some("production") {
+      Log.error("error: `--watch` is for development; unset TICKET_ENV=production")
+      2
+    } else {
+      let base = Process.in_dir(Process.inherit(), root)
+      let options = if watching { Process.with_env(base, "TICKET_ENV", "development") } else { base }
+      let command = if watching { ["run", "--watch"] } else { ["run"] }
+
+      match Args.flag(parsed, "port") {
+        None -> Process.run("polar", command, options),
+        Some(port) -> match Int.parse(port) {
+          Some(n) -> if n >= 0 && n < 65536 {
+            Process.run("polar", command, Process.with_env(options, "PORT", Int.to_string(n)))
+          } else {
+            bad_port(port)
+          },
+          None -> bad_port(port),
         },
-        None -> bad_port(port),
-      },
+      }
     }
   }
 

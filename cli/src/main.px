@@ -172,7 +172,7 @@ functions
         "",
         "Commands:",
         "  new <name> [--skip-build] [--path]  create a Ticket app in ./<name>, then build it",
-        "  server, s [-p PORT]        build and serve the app (port 3000 by default)",
+        "  server, s [-p PORT] [--watch]  build and serve the app (port 3000 by default); --watch reloads on edit",
         "  routes                     print the app's routes",
         "  db:migrate [--version V]   apply the pending migrations",
         "  db:rollback [--step N]     undo the last migration (or N)",
