@@ -14,7 +14,23 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const polar = process.env.POLAR ?? "polar";
+const cliDir = join(root, "cli");
+
+const buffer = new AsyncLocalStorage();
 let failed = 0;
+
+const log = (message) => buffer.getStore().push(message);
+const pass = (name, detail = "") => log(`ok   ${name}${detail}`);
+const output = (result) => `${result.stdout}${result.stderr}`;
+
+function fail(name, detail) {
+  failed++;
+  log(`FAIL ${name}${detail}`);
+}
+
+function failExit(name, result, label = "exit") {
+  fail(name, ` (${label} ${result.status})\n${output(result)}`);
+}
 
 function projects(dir, marker) {
   const base = join(root, dir);
@@ -33,6 +49,10 @@ function projects(dir, marker) {
 }
 
 function hasNativeTests(dir) {
+  if (!existsSync(dir)) {
+    return false;
+  }
+
   return readdirSync(dir, { withFileTypes: true }).some((entry) =>
     entry.isDirectory()
       ? hasNativeTests(join(dir, entry.name))
@@ -53,9 +73,6 @@ function run(command, args, cwd) {
   });
 }
 
-const capture = new AsyncLocalStorage();
-const log = (message) => capture.getStore().push(message);
-
 function diff(expected, actual) {
   const want = expected.split("\n");
   const got = actual.split("\n");
@@ -63,40 +80,53 @@ function diff(expected, actual) {
 
   for (let i = 0; i < Math.max(want.length, got.length); i++) {
     if (want[i] !== got[i]) {
-      if (want[i] !== undefined) lines.push(`  - ${want[i]}`);
-      if (got[i] !== undefined) lines.push(`  + ${got[i]}`);
+      if (want[i] !== undefined) {
+        lines.push(`  - ${want[i]}`);
+      }
+      if (got[i] !== undefined) {
+        lines.push(`  + ${got[i]}`);
+      }
     }
   }
 
   return lines.join("\n");
 }
 
-function check(name, dir, expectedFile, result, output = "stdout") {
-  const expectedPath = join(dir, expectedFile);
-
-  if (output === "stdout" && result.status !== 0) {
-    failed++;
-    log(
-      `FAIL ${name} (exit ${result.status})\n${result.stdout}${result.stderr}`,
-    );
-    return;
-  }
-
+function expectMatch(name, expectedPath, actual) {
   if (!existsSync(expectedPath)) {
-    failed++;
-    log(`FAIL ${name}: missing ${relative(root, expectedPath)}`);
+    fail(name, `: missing ${relative(root, expectedPath)}`);
     return;
   }
 
   const expected = readFileSync(expectedPath, "utf8");
-  const actual = result[output].replace(/\(\d+ms\)/g, "(Nms)");
+  const normalized = actual.replace(/\(\d+ms\)/g, "(Nms)");
 
-  if (expected === actual) {
-    log(`ok   ${name}`);
+  if (expected === normalized) {
+    pass(name);
   } else {
-    failed++;
-    log(`FAIL ${name}\n${diff(expected, actual)}`);
+    fail(name, `\n${diff(expected, normalized)}`);
   }
+}
+
+function expectStdout(name, expectedPath, result) {
+  if (result.status !== 0) {
+    failExit(name, result);
+    return;
+  }
+
+  expectMatch(name, expectedPath, result.stdout);
+}
+
+async function nativeTests(name, dir) {
+  const result = await run(polar, ["test", "--no-color"], dir);
+
+  if (result.status !== 0) {
+    failExit(name, result, "polar test, exit");
+    return;
+  }
+
+  const count = result.stdout.match(/ℹ pass (\d+)/)?.[1] ?? "?";
+  pass(name, ` (polar test: ${count} passed)`);
 }
 
 async function formats(name, dir) {
@@ -107,34 +137,31 @@ async function formats(name, dir) {
   }
 
   const scratch = join(dir, ".polar", "fmt");
-
-  const expected = readdirSync(cases)
+  const files = readdirSync(cases)
     .filter((f) => !f.endsWith(".expected.px"))
     .sort();
 
-  for (const file of expected) {
+  for (const file of files) {
+    const caseName = `${name} fmt/${file}`;
+    const expectedPath = join(cases, file.replace(/\.px$/, ".expected.px"));
     const input = join(scratch, file);
 
     rmSync(scratch, { recursive: true, force: true });
     mkdirSync(scratch, { recursive: true });
     copyFileSync(join(cases, file), input);
 
-    let result = await run(polar, ["fmt", "--no-color", input], dir);
+    const first = await run(polar, ["fmt", "--no-color", input], dir);
+    const result =
+      first.status === 0
+        ? await run(polar, ["fmt", "--no-color", input], dir)
+        : first;
 
-    if (result.status === 0) {
-      result = await run(polar, ["fmt", "--no-color", input], dir);
+    if (result.status !== 0) {
+      failExit(caseName, result);
+      continue;
     }
 
-    if (result.status === 0) {
-      result = { status: 0, stdout: readFileSync(input, "utf8") };
-    }
-
-    check(
-      `${name} fmt/${file}`,
-      cases,
-      file.replace(/\.px$/, ".expected.px"),
-      result,
-    );
+    expectMatch(caseName, expectedPath, readFileSync(input, "utf8"));
   }
 }
 
@@ -144,120 +171,107 @@ async function e2e(
   script = "e2e.mjs",
   expected = "e2e.expected.txt",
 ) {
-  const build = existsSync(join(dir, "polar.toml"))
-    ? await run(polar, ["build"], dir)
-    : { status: 0 };
+  if (existsSync(join(dir, "polar.toml"))) {
+    const build = await run(polar, ["build"], dir);
 
-  if (build.status !== 0) {
-    check(name, dir, expected, build);
-    return;
+    if (build.status !== 0) {
+      failExit(name, build);
+      return;
+    }
   }
 
-  check(name, dir, expected, await run(process.execPath, [script], dir));
+  expectStdout(
+    name,
+    join(dir, expected),
+    await run(process.execPath, [script], dir),
+  );
 }
 
-const tasks = [];
+async function testProject(dir) {
+  const name = relative(root, dir);
+  const checkExpected = join(dir, "check.expected.txt");
+  const mainExpected = join(dir, "main.expected.txt");
 
-for (const dir of projects("tests", "polar.toml")) {
-  tasks.push([
-    async () => {
-      const name = relative(root, dir);
+  if (existsSync(checkExpected)) {
+    const result = await run(polar, ["check", "--no-color"], dir);
+    expectMatch(name, checkExpected, result.stderr);
+  } else if (existsSync(mainExpected) || !hasNativeTests(join(dir, "src"))) {
+    expectStdout(name, mainExpected, await run(polar, ["run"], dir));
+  } else {
+    await nativeTests(name, dir);
+  }
 
-      if (
-        !existsSync(join(dir, "main.expected.txt")) &&
-        !existsSync(join(dir, "check.expected.txt")) &&
-        existsSync(join(dir, "src")) &&
-        hasNativeTests(join(dir, "src"))
-      ) {
-        const result = await run(polar, ["test", "--no-color"], dir);
+  if (existsSync(join(dir, "e2e.mjs"))) {
+    await e2e(`${name} e2e`, dir);
+  }
 
-        if (result.status === 0) {
-          log(
-            `ok   ${name} (polar test: ${result.stdout.match(/ℹ pass (\d+)/)?.[1] ?? "?"} passed)`,
-          );
-        } else {
-          failed++;
-          log(
-            `FAIL ${name} (polar test, exit ${result.status})\n${result.stdout}${result.stderr}`,
-          );
-        }
-      } else if (existsSync(join(dir, "check.expected.txt"))) {
-        check(
-          name,
-          dir,
-          "check.expected.txt",
-          await run(polar, ["check", "--no-color"], dir),
-          "stderr",
-        );
-      } else {
-        check(name, dir, "main.expected.txt", await run(polar, ["run"], dir));
-      }
-
-      if (existsSync(join(dir, "e2e.mjs"))) {
-        await e2e(`${name} e2e`, dir);
-      }
-
-      await formats(name, dir);
-    },
-  ]);
+  await formats(name, dir);
 }
 
-for (const dir of projects("examples", "e2e.mjs")) {
-  tasks.push([() => e2e(`${relative(root, dir)} e2e`, dir)]);
-}
+const parallel = [
+  ...projects("tests", "polar.toml").map((dir) => () => testProject(dir)),
+  ...projects("examples", "e2e.mjs").map(
+    (dir) => () => e2e(`${relative(root, dir)} e2e`, dir),
+  ),
+  () => e2e("launcher e2e", join(root, "launcher")),
+];
 
-tasks.push([
-  () => e2e("cli e2e", join(root, "cli")),
+const exclusive = [
+  () => e2e("cli e2e", cliDir),
   () =>
     e2e(
       "scaffold e2e",
-      join(root, "cli"),
+      cliDir,
       "scaffold_e2e.mjs",
       "scaffold_e2e.expected.txt",
     ),
   () =>
-    e2e(
-      "console e2e",
-      join(root, "cli"),
-      "console_e2e.mjs",
-      "console_e2e.expected.txt",
-    ),
-  () =>
-    e2e(
-      "watch e2e",
-      join(root, "cli"),
-      "watch_e2e.mjs",
-      "watch_e2e.expected.txt",
-    ),
-]);
-tasks.push([() => e2e("launcher e2e", join(root, "launcher"))]);
+    e2e("console e2e", cliDir, "console_e2e.mjs", "console_e2e.expected.txt"),
+  () => e2e("watch e2e", cliDir, "watch_e2e.mjs", "watch_e2e.expected.txt"),
+];
 
-const results = tasks.map(() => null);
-let next = 0;
+const results = [];
+let flushed = 0;
 
-async function worker() {
-  while (next < tasks.length) {
-    const index = next++;
-    const lines = [];
-
-    await capture.run(lines, async () => {
-      for (const step of tasks[index]) await step();
-    });
-    results[index] = lines;
+function flush() {
+  while (results[flushed]) {
+    for (const line of results[flushed++]) console.log(line);
   }
 }
 
-await Promise.all(
-  Array.from(
-    { length: Math.min(availableParallelism(), tasks.length) },
-    worker,
-  ),
-);
+async function runTask(index, task) {
+  const lines = [];
 
-for (const lines of results) {
-  for (const line of lines) {
-    console.log(line);
+  await buffer.run(lines, task);
+  results[index] = lines;
+  flush();
+}
+
+async function runParallel(tasks) {
+  let next = 0;
+
+  async function worker() {
+    while (next < tasks.length) {
+      const index = next++;
+      await runTask(index, tasks[index]);
+    }
   }
+
+  const workers = Math.min(availableParallelism(), tasks.length);
+  await Promise.all(Array.from({ length: workers }, worker));
+}
+
+const cliBuild = await run(polar, ["build"], cliDir);
+
+if (cliBuild.status !== 0) {
+  console.log(`FAIL cli build\n${output(cliBuild)}`);
+  process.exit(1);
+}
+
+await runParallel(parallel);
+
+for (const [i, task] of exclusive.entries()) {
+  await runTask(parallel.length + i, task);
 }
 
 console.log(failed === 0 ? "\nall passed" : `\n${failed} failed`);
