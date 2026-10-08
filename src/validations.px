@@ -22,11 +22,13 @@ functions
     if blank(value) { Errors.add(errors, field, "can't be blank") } else { errors }
   }
 
-  length_between(errors: Errors, field: String, value: a, min: Int, max: Int) -> Errors where Sized<a> {
+  length_between(errors: Errors, field: String, value: a, min: Int, max: Int) -> Errors
+    where Sized<a> {
     length_at_most(length_at_least(errors, field, value, min), field, value, max)
   }
 
-  length_at_least(errors: Errors, field: String, value: a, min: Int) -> Errors where Sized<a> {
+  length_at_least(errors: Errors, field: String, value: a, min: Int) -> Errors
+    where Sized<a> {
     if size(value) < min {
       Errors.add(errors, field, "is too short (minimum is #{min} #{characters(min)})")
     } else {
@@ -34,7 +36,8 @@ functions
     }
   }
 
-  length_at_most(errors: Errors, field: String, value: a, max: Int) -> Errors where Sized<a> {
+  length_at_most(errors: Errors, field: String, value: a, max: Int) -> Errors
+    where Sized<a> {
     if size(value) > max {
       Errors.add(errors, field, "is too long (maximum is #{max} #{characters(max)})")
     } else {
@@ -42,7 +45,8 @@ functions
     }
   }
 
-  inclusion(errors: Errors, field: String, value: a, allowed: List<a>) -> Errors where Eq<a> {
+  inclusion(errors: Errors, field: String, value: a, allowed: List<a>) -> Errors
+    where Eq<a> {
     if List.any(allowed, function(x) { x == value }) {
       errors
     } else {
@@ -51,7 +55,11 @@ functions
   }
 
   format(errors: Errors, field: String, value: String, pattern: String) -> Errors {
-    if Regex.matches(pattern, value) { errors } else { Errors.add(errors, field, "is invalid") }
+    if Regex.matches(pattern, value) {
+      errors
+    } else {
+      Errors.add(errors, field, "is invalid")
+    }
   }
 
   uniqueness(errors: Errors, field: String, others: Int) -> Errors {

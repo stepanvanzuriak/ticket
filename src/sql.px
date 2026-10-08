@@ -31,7 +31,10 @@ functions
   }
 
   count(table: String, filters: List<Filter<r>>) -> Statement {
-    { sql: "SELECT COUNT(*) AS n FROM #{quote(table)}#{conditions(filters)}", params: values(filters) }
+    {
+      sql: "SELECT COUNT(*) AS n FROM #{quote(table)}#{conditions(filters)}",
+      params: values(filters),
+    }
   }
 
   insert(table: String, columns: List<String>, params: List<SqlValue>) -> Statement {
@@ -41,7 +44,10 @@ functions
       let marks = List.join(List.map(columns, function(_) { "?" }), ", ")
       let names = List.join(List.map(columns, quote), ", ")
 
-      { sql: "INSERT INTO #{quote(table)} (#{names}) VALUES (#{marks}) RETURNING *", params: params }
+      {
+        sql: "INSERT INTO #{quote(table)} (#{names}) VALUES (#{marks}) RETURNING *",
+        params: params,
+      }
     }
   }
 
@@ -77,22 +83,28 @@ functions
     if List.is_empty(filters) {
       ""
     } else {
-      let parts = List.map(filters, function(filter) {
-        match filter {
-          Filter(sql, _) -> "(#{sql})",
-        }
-      })
+      let parts = List.map(
+        filters,
+        function(filter) {
+          match filter {
+            Filter(sql, _) -> "(#{sql})",
+          }
+        },
+      )
 
       " WHERE #{List.join(parts, " AND ")}"
     }
   }
 
   values(filters: List<Filter<r>>) -> List<SqlValue> {
-    List.concat_map(filters, function(filter) {
-      match filter {
-        Filter(_, params) -> params,
-      }
-    })
+    List.concat_map(
+      filters,
+      function(filter) {
+        match filter {
+          Filter(_, params) -> params,
+        }
+      },
+    )
   }
 
   add_clause(parts: Parts, clause: Clause<r>) -> Parts {
@@ -100,7 +112,11 @@ functions
       OrderBy(column, descending) -> {
         let direction = if descending { "DESC" } else { "ASC" }
 
-        { orders: List.append(parts.orders, ["#{column} #{direction}"]), limit: parts.limit, offset: parts.offset }
+        {
+          orders: List.append(parts.orders, ["#{column} #{direction}"]),
+          limit: parts.limit,
+          offset: parts.offset,
+        }
       }
       Limit(count) -> { orders: parts.orders, limit: Some(count), offset: parts.offset },
       Offset(count) -> { orders: parts.orders, limit: parts.limit, offset: Some(count) },

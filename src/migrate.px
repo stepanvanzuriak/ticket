@@ -16,12 +16,10 @@ types
   Applied = { version: String } derive(Json)
 
 functions
-  run(
-    migrations: List<Migration>,
-    command: String,
-    step: Int,
-    version: String,
-  ) -> Int / {Db, Clock} {
+  run(migrations: List<Migration>, command: String, step: Int, version: String) -> Int / {
+    Db,
+    Clock,
+  } {
     match command {
       "migrate" -> finish(up(migrations, version)),
       "rollback" -> finish(down(migrations, step)),
@@ -40,11 +38,7 @@ functions
       Err(error) -> {
         Log.error("error: #{error.message}")
 
-        if error.sql != "" {
-          Log.error("  in: #{error.sql}")
-        } else {
-          {}
-        }
+        if error.sql != "" { Log.error("  in: #{error.sql}") } else { {} }
 
         1
       }
@@ -52,7 +46,9 @@ functions
   }
 
   applied() -> Result<DbError, List<String>> / {Db} {
-    match Db.script("CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY)") {
+    match Db.script(
+      "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY)",
+    ) {
       Err(error) -> Err(error),
       Ok(_) -> {
         let rows: Result<DbError, List<Applied>> = Db.all(
@@ -60,7 +56,8 @@ functions
           [],
         )
 
-        rows |> Result.map(function(list) { List.map(list, function(row) { row.version }) })
+        rows
+          |> Result.map(function(list) { List.map(list, function(row) { row.version }) })
       }
     }
   }
@@ -68,18 +65,20 @@ functions
   up(migrations: List<Migration>, version: String) -> Result<DbError, {}> / {Db, Clock} {
     match applied() {
       Err(error) -> Err(error),
-      Ok(done) -> if version != "" && !List.any(migrations, function(m) { m.version == version }) {
+      Ok(done) -> if version != ""
+        && !List.any(migrations, function(m) { m.version == version }) {
         Err(failure("no migration has version `#{version}`"))
       } else {
         let pending = List.filter(
           migrations,
           function(m) {
-            !List.any(done, function(v) { v == m.version }) && (version == "" || m.version <= version)
+            !List.any(done, function(v) { v == m.version })
+              && (version == "" || m.version <= version)
           },
         )
 
         apply(pending, true)
-      }
+      },
     }
   }
 
@@ -133,7 +132,9 @@ functions
     match result {
       Err(error) -> Err(error),
       Ok(_) -> {
-        Log.info("== #{m.version} #{m.name}: #{verb}ed (#{Time.millis(Clock.now()) - start}ms)")
+        Log.info(
+          "== #{m.version} #{m.name}: #{verb}ed (#{Time.millis(Clock.now()) - start}ms)",
+        )
         Ok({})
       }
     }
@@ -172,7 +173,9 @@ functions
           function(_, m) {
             let ran = List.any(done, function(v) { v == m.version })
 
-            Log.info("#{if ran { "   up  " } else { "  down " }}   #{m.version}  #{m.name}")
+            Log.info(
+              "#{if ran { "   up  " } else { "  down " }}   #{m.version}  #{m.name}",
+            )
           },
         )
         List.fold(

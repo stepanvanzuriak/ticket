@@ -16,18 +16,22 @@ traits
   }
 
 functions
-  required(fields: Map<String, String>, key: String, parse: function(String) -> Result<String, a>) -> Result<String, a> {
+  required(
+    fields: Map<String, String>,
+    key: String,
+    parse: function(String) -> Result<String, a>,
+  ) -> Result<String, a> {
     parse(Option.with_default(Map.get(fields, key), ""))
   }
 
-  optional(fields: Map<String, String>, key: String, parse: function(String) -> Result<String, a>) -> Result<String, Option<a>> {
+  optional(
+    fields: Map<String, String>,
+    key: String,
+    parse: function(String) -> Result<String, a>,
+  ) -> Result<String, Option<a>> {
     let text = Option.with_default(Map.get(fields, key), "")
 
-    if String.trim(text) == "" {
-      Ok(None)
-    } else {
-      Result.map(parse(text), Some)
-    }
+    if String.trim(text) == "" { Ok(None) } else { Result.map(parse(text), Some) }
   }
 
   text(value: String) -> Result<String, String> {
@@ -54,7 +58,7 @@ functions
           Ok(n) -> Ok(n),
           Err(_) -> Err("is not a number"),
         }
-      },
+      }
     }
   }
 
@@ -90,11 +94,7 @@ functions
   number(value: String) -> Result<String, String> {
     let text = String.trim(value)
 
-    if text == "" {
-      Err("can't be blank")
-    } else {
-      Ok(text)
-    }
+    if text == "" { Err("can't be blank") } else { Ok(text) }
   }
 
   failure(field: String, result: Result<String, a>) -> Option<FieldError> {
@@ -105,12 +105,17 @@ functions
   }
 
   errors(failures: List<Option<FieldError>>) -> Errors {
-    Errors.of(List.concat_map(failures, function(failure) {
-      match failure {
-        Some(error) -> [error],
-        None -> [],
-      }
-    }))
+    Errors.of(
+      List.concat_map(
+        failures,
+        function(failure) {
+          match failure {
+            Some(error) -> [error],
+            None -> [],
+          }
+        },
+      ),
+    )
   }
 
 exports
