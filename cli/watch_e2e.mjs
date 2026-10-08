@@ -62,6 +62,8 @@ try {
   child.stderr.on("data", (d) => (log += d));
 
   const first = await until(port, (t) => t.startsWith("200"));
+
+  if (!first.startsWith("200")) console.log(`server never came up: ${first}\n${log}`);
   const view = join(app, "src", "pages.px");
   const src = readFileSync(view, "utf8");
 
