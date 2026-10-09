@@ -1,0 +1,385 @@
+module MigrationsTest
+
+uses
+  Std.Assert
+  Std.Id
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Migration
+  Ticket.Test
+  Schema
+
+hosts
+  Node
+
+types
+  Name = { name: String } derive(Json)
+
+functions
+  migration(version: String) -> Migration / {Throws<Failed>} {
+    match List.find(Schema.migrations, function(m) { m.version == version }) {
+      Some(m) -> m,
+      None -> Assert.fail("no migration #{version}"),
+    }
+  }
+
+  each(list: List<Migration>, sql: function(Migration) -> List<String>) -> {} / {
+    Db,
+    Throws<Failed>,
+  } {
+    List.fold(
+      list,
+      {},
+      function(_, m) {
+        List.fold(
+          sql(m),
+          {},
+          function(_, statement) {
+            match Db.script(statement) {
+              Ok(_) -> {},
+              Err(e) -> Assert.fail("#{m.version}: #{e.message} in #{statement}"),
+            }
+          },
+        )
+      },
+    )
+  }
+
+  tables() -> String / {Db} {
+    let names: Result<DbError, List<Name>> = Db.all(
+      "select name from sqlite_master where name not like 'sqlite_%' order by name",
+      [],
+    )
+
+    match names {
+      Ok(list) -> "[#{List.join(List.map(list, function(n) { n.name }), ", ")}]",
+      Err(e) -> e.message,
+    }
+  }
+
+  with_db(body: function() -> {} / {Db, Fixture, Throws<Failed>}) {
+    Test.with_db(Schema.migrations, body)
+  }
+
+  test_20261001_120000_create_table_users() {
+    let m = migration("20261001_120000")
+
+    Assert.equal(m.name, "create_table users")
+    Assert.equal(
+      Migration.up_sql(m),
+      [
+        "CREATE TABLE \"users\" (\"id\" INTEGER PRIMARY KEY, \"name\" TEXT NOT NULL, \"email\" TEXT NOT NULL)",
+        "CREATE UNIQUE INDEX \"index_users_on_email\" ON \"users\" (\"email\")",
+      ],
+    )
+    Assert.equal(
+      Migration.down_sql(m),
+      ["DROP INDEX \"index_users_on_email\"", "DROP TABLE \"users\""],
+    )
+  }
+
+  test_20261001_130000_create_table_posts() {
+    let m = migration("20261001_130000")
+
+    Assert.equal(m.name, "create_table posts")
+    Assert.equal(
+      Migration.up_sql(m),
+      [
+        "CREATE TABLE \"posts\" (\"id\" INTEGER PRIMARY KEY, \"title\" TEXT NOT NULL, \"body\" TEXT NOT NULL, \"published\" BOOLEAN NOT NULL DEFAULT 0, \"score\" REAL NOT NULL DEFAULT 0, \"author_id\" INTEGER REFERENCES \"users\" (\"id\"))",
+      ],
+    )
+    Assert.equal(Migration.down_sql(m), ["DROP TABLE \"posts\""])
+  }
+
+  test_20261002_090000_add_column_posts() {
+    let m = migration("20261002_090000")
+
+    Assert.equal(m.name, "add_column posts")
+    Assert.equal(
+      Migration.up_sql(m),
+      [
+        "ALTER TABLE \"posts\" ADD COLUMN \"summary\" TEXT",
+        "ALTER TABLE \"posts\" ADD COLUMN \"status\" TEXT NOT NULL DEFAULT 'it''s a draft'",
+        "ALTER TABLE \"posts\" ADD COLUMN \"hits\" INTEGER NOT NULL DEFAULT -1",
+      ],
+    )
+    Assert.equal(
+      Migration.down_sql(m),
+      [
+        "ALTER TABLE \"posts\" DROP COLUMN \"hits\"",
+        "ALTER TABLE \"posts\" DROP COLUMN \"status\"",
+        "ALTER TABLE \"posts\" DROP COLUMN \"summary\"",
+      ],
+    )
+  }
+
+  test_20261003_090000_rename_column_posts() {
+    let m = migration("20261003_090000")
+
+    Assert.equal(m.name, "rename_column posts")
+    Assert.equal(
+      Migration.up_sql(m),
+      ["ALTER TABLE \"posts\" RENAME COLUMN \"body\" TO \"content\""],
+    )
+    Assert.equal(
+      Migration.down_sql(m),
+      ["ALTER TABLE \"posts\" RENAME COLUMN \"content\" TO \"body\""],
+    )
+  }
+
+  test_20261004_090000_add_index_posts() {
+    let m = migration("20261004_090000")
+
+    Assert.equal(m.name, "add_index posts")
+    Assert.equal(
+      Migration.up_sql(m),
+      [
+        "CREATE INDEX \"index_posts_on_author_id_and_published\" ON \"posts\" (\"author_id\", \"published\")",
+        "CREATE UNIQUE INDEX \"index_posts_on_title\" ON \"posts\" (\"title\")",
+      ],
+    )
+    Assert.equal(
+      Migration.down_sql(m),
+      [
+        "DROP INDEX \"index_posts_on_title\"",
+        "DROP INDEX \"index_posts_on_author_id_and_published\"",
+      ],
+    )
+  }
+
+  test_20261005_090000_remove_column_posts() {
+    let m = migration("20261005_090000")
+
+    Assert.equal(m.name, "remove_column posts")
+    Assert.equal(
+      Migration.up_sql(m),
+      [
+        "ALTER TABLE \"posts\" DROP COLUMN \"summary\"",
+        "DROP INDEX \"index_posts_on_title\"",
+        "ALTER TABLE \"posts\" DROP COLUMN \"title\"",
+      ],
+    )
+    Assert.equal(
+      Migration.down_sql(m),
+      [
+        "ALTER TABLE \"posts\" ADD COLUMN \"title\" TEXT NOT NULL DEFAULT ''",
+        "CREATE UNIQUE INDEX \"index_posts_on_title\" ON \"posts\" (\"title\")",
+        "ALTER TABLE \"posts\" ADD COLUMN \"summary\" TEXT",
+      ],
+    )
+  }
+
+  test_20261006_090000_remove_index_posts() {
+    let m = migration("20261006_090000")
+
+    Assert.equal(m.name, "remove_index posts")
+    Assert.equal(
+      Migration.up_sql(m),
+      ["DROP INDEX \"index_posts_on_author_id_and_published\""],
+    )
+    Assert.equal(
+      Migration.down_sql(m),
+      [
+        "CREATE INDEX \"index_posts_on_author_id_and_published\" ON \"posts\" (\"author_id\", \"published\")",
+      ],
+    )
+  }
+
+  test_20261007_090000_create_table_people() {
+    let m = migration("20261007_090000")
+
+    Assert.equal(m.name, "create_table people")
+    Assert.equal(
+      Migration.up_sql(m),
+      [
+        "CREATE TABLE \"people\" (\"id\" INTEGER PRIMARY KEY, \"nickname\" TEXT, \"parent_id\" INTEGER REFERENCES \"people\" (\"id\"))",
+      ],
+    )
+    Assert.equal(Migration.down_sql(m), ["DROP TABLE \"people\""])
+  }
+
+  test_20261008_090000_drop_table_people() {
+    let m = migration("20261008_090000")
+
+    Assert.equal(m.name, "drop_table people")
+    Assert.equal(Migration.up_sql(m), ["DROP TABLE \"people\""])
+    Assert.equal(
+      Migration.down_sql(m),
+      [
+        "CREATE TABLE \"people\" (\"id\" INTEGER PRIMARY KEY, \"nickname\" TEXT, \"parent_id\" INTEGER REFERENCES \"people\" (\"id\"))",
+      ],
+    )
+  }
+
+  test_20261009_090000_create_table_events() {
+    let m = migration("20261009_090000")
+
+    Assert.equal(m.name, "create_table events")
+    Assert.equal(
+      Migration.up_sql(m),
+      [
+        "CREATE TABLE \"events\" (\"id\" INTEGER PRIMARY KEY, \"name\" TEXT NOT NULL, \"seen_at\" TEXT, \"created_at\" TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), \"updated_at\" TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))",
+      ],
+    )
+    Assert.equal(Migration.down_sql(m), ["DROP TABLE \"events\""])
+  }
+
+  test_20261010_090000_remove_column_events() {
+    let m = migration("20261010_090000")
+
+    Assert.equal(m.name, "remove_column events")
+    Assert.equal(
+      Migration.up_sql(m),
+      ["ALTER TABLE \"events\" DROP COLUMN \"updated_at\""],
+    )
+    Assert.equal(
+      Migration.down_sql(m),
+      [
+        "ALTER TABLE \"events\" ADD COLUMN \"updated_at\" TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'",
+      ],
+    )
+  }
+
+  test_records() {
+    let user: User = { id: Id(1), name: "Ada", email: "ada@example.com" }
+    let post: NewPost = {
+      content: "Hello",
+      published: true,
+      score: 1.5,
+      author_id: Some(user.id),
+      status: "live",
+      hits: 3,
+    }
+
+    Assert.equal(
+      Json.encode(user),
+      "{\"id\":1,\"name\":\"Ada\",\"email\":\"ada@example.com\"}",
+    )
+    Assert.equal(
+      Json.encode(post),
+      "{\"content\":\"Hello\",\"published\":true,\"score\":1.5,\"author_id\":1,\"status\":\"live\",\"hits\":3}",
+    )
+  }
+
+  test_up_all() {
+    with_db(
+      function() {
+        Assert.equal(tables(), "[events, index_users_on_email, posts, users]")
+      },
+    )
+  }
+
+  test_defaults_and_decode() {
+    with_db(
+      function() {
+        let _ = Db.exec(
+          "insert into users (name, email) values (?, ?)",
+          [SqlText("Ada"), SqlText("ada@example.com")],
+        )
+        let _ = Db.exec(
+          "insert into posts (content, author_id) values (?, ?)",
+          [SqlText("Hi"), SqlInt(1)],
+        )
+        let posts: Result<DbError, List<Post>> = Db.all("select * from posts", [])
+
+        match posts {
+          Ok(list) -> Assert.equal(
+            Json.encode(list),
+            "[{\"id\":1,\"content\":\"Hi\",\"published\":false,\"score\":0,\"author_id\":1,\"status\":\"it's a draft\",\"hits\":-1}]",
+          ),
+          Err(e) -> Assert.fail(e.message),
+        }
+      },
+    )
+  }
+
+  test_unique_index() {
+    with_db(
+      function() {
+        let _ = Db.exec(
+          "insert into users (name, email) values (?, ?)",
+          [SqlText("Ada"), SqlText("ada@example.com")],
+        )
+        let duplicate = Db.exec(
+          "insert into users (name, email) values (?, ?)",
+          [SqlText("B"), SqlText("ada@example.com")],
+        )
+
+        match duplicate {
+          Ok(_) -> Assert.fail("inserted"),
+          Err(e) -> Assert.equal(e.kind, "unique"),
+        }
+      },
+    )
+  }
+
+  test_time_columns() {
+    with_db(
+      function() {
+        let _ = Db.exec(
+          "insert into events (name, seen_at) values (?, ?)",
+          [SqlText("boot"), SqlText("2026-10-02T09:30:00.123Z")],
+        )
+        let events: Result<DbError, List<Event>> = Db.all("select * from events", [])
+
+        match events {
+          Ok(list) -> Assert.equal(
+            List.join(
+              List.map(
+                list,
+                function(e) {
+                  "#{e.name} #{Option.map(e.seen_at, Time.to_iso)} filled=#{Time.millis(e.created_at) > 0}"
+                },
+              ),
+              ", ",
+            ),
+            "boot Some(2026-10-02T09:30:00.123Z) filled=true",
+          ),
+          Err(e) -> Assert.fail(e.message),
+        }
+      },
+    )
+  }
+
+  test_down_all() {
+    with_db(
+      function() {
+        each(List.reverse(Schema.migrations), Migration.down_sql)
+        Assert.equal(tables(), "[]")
+      },
+    )
+  }
+
+  test_up_again() {
+    with_db(
+      function() {
+        each(List.reverse(Schema.migrations), Migration.down_sql)
+        each(Schema.migrations, Migration.up_sql)
+        Assert.equal(tables(), "[events, index_users_on_email, posts, users]")
+      },
+    )
+  }
+
+exports
+  test_20261001_120000_create_table_users
+  test_20261001_130000_create_table_posts
+  test_20261002_090000_add_column_posts
+  test_20261003_090000_rename_column_posts
+  test_20261004_090000_add_index_posts
+  test_20261005_090000_remove_column_posts
+  test_20261006_090000_remove_index_posts
+  test_20261007_090000_create_table_people
+  test_20261008_090000_drop_table_people
+  test_20261009_090000_create_table_events
+  test_20261010_090000_remove_column_events
+  test_records
+  test_up_all
+  test_defaults_and_decode
+  test_unique_index
+  test_time_columns
+  test_down_all
+  test_up_again

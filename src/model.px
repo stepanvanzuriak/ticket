@@ -18,19 +18,17 @@ types
 
 functions
   find(table: String, id: Id<r>) -> Option<a> / {Db, Throws<DbFailure>} where Json<a> {
-    rows(Sql.find(table, Id.value(id)))
-    |> List.head
+    rows(Sql.find(table, Id.value(id))) |> List.head
   }
 
   all(table: String) -> List<a> / {Db, Throws<DbFailure>} where Json<a> {
     rows(Sql.select(table, [], []))
   }
 
-  filter(
-    table: String,
-    filters: List<Filter<r>>,
-    clauses: List<Clause<r>>,
-  ) -> List<a> / {Db, Throws<DbFailure>} where Json<a> {
+  filter(table: String, filters: List<Filter<r>>, clauses: List<Clause<r>>) -> List<a> / {
+    Db,
+    Throws<DbFailure>,
+  } where Json<a> {
     rows(Sql.select(table, filters, clauses))
   }
 
@@ -43,7 +41,10 @@ functions
     }
   }
 
-  insert(table: String, columns: List<String>, params: List<SqlValue>) -> a / {Db, Throws<DbFailure>} where Json<a> {
+  insert(table: String, columns: List<String>, params: List<SqlValue>) -> a / {
+    Db,
+    Throws<DbFailure>,
+  } where Json<a> {
     returned(Sql.insert(table, columns, params))
   }
 
@@ -80,12 +81,9 @@ functions
 
     match List.head(list) {
       Some(row) -> row,
-      None -> throw DbFailure({
-        kind: "not_found",
-        code: "",
-        message: "no row matched",
-        sql: statement.sql,
-      }),
+      None -> throw DbFailure(
+        { kind: "not_found", code: "", message: "no row matched", sql: statement.sql },
+      ),
     }
   }
 

@@ -23,4 +23,5 @@ functions
   }
 
 exports
+  Filter
   before

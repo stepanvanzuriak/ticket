@@ -1,11 +1,9 @@
-
 module Main
 
 uses
   Std.Assert
   Std.Crypto
   Std.Http
-  Std.List
   Std.Map
   Std.Option
   Std.Process
@@ -19,183 +17,8 @@ hosts
   Node
 
 functions
-  row(n: String, name: String, result: String) -> {} {
-    Log.info("#{n} #{name}: #{result}")
-  }
-
-  summary(reply: Reply) -> String {
-    "#{Int.to_string(Test.status(reply))} #{Test.body(reply)}"
-  }
-
-  failure(body: function() -> a / {Throws<Failed> | e}) -> String / {| e} {
-    try {
-      body()
-      "ok"
-    } catch {
-      Failed(message) -> message,
-    }
-  }
-
   cookie(reply: Reply) -> String {
     Option.with_default(Map.get(reply.client.cookies, "_ticket_session"), "-")
-  }
-
-  main() -> {} / {
-    Process,
-    Random,
-    Clock,
-    Db,
-    Things,
-    Fixture,
-    Throws<DbFailure>,
-    Throws<Failed>,
-  } {
-    Test.with_db(
-      Schema.migrations,
-      function() {
-        let client = Test.client()
-        let router = Routes.router
-
-        row("8", "db_fresh", summary(Test.get(router, client, "/things/1")))
-        row("1", "get_ok", summary(Test.get(router, client, "/hello")))
-        row("2", "get_unmatched", summary(Test.get(router, client, "/nope")))
-
-        let login = Test.get(router, client, "/login")
-
-        row(
-          "3",
-          "login_redirects",
-          "#{Int.to_string(Test.status(login))} #{Option.with_default(Test.location(login), "-")}",
-        )
-        row("3", "cookies_kept", summary(Test.get(router, login.client, "/whoami")))
-        row("3", "cookies_not_shared", summary(Test.get(router, client, "/whoami")))
-
-        row("4", "patch_override", summary(Test.patch(router, client, "/things/1", [])))
-        row("5", "delete", summary(Test.delete(router, client, "/things/1")))
-
-        row("6", "csrf_added", summary(Test.post(router, client, "/things", [])))
-        row(
-          "7",
-          "csrf_missing",
-          summary(Test.post_without_token(router, client, "/things", [])),
-        )
-        row(
-          "7",
-          "unprotected_client_rejected",
-          summary(Test.post(router, Test.client_unprotected(), "/things", [])),
-        )
-
-        let created = Test.post(router, client, "/things", [])
-
-        row("11", "follow", summary(Test.follow(router, created)))
-        row(
-          "12",
-          "follow_plain",
-          summary(Test.follow(router, Test.get(router, client, "/hello"))),
-        )
-        row(
-          "13",
-          "flash_read",
-          Option.with_default(Test.flash(created, "notice"), "none"),
-        )
-        row(
-          "14",
-          "flash_none",
-          Option.with_default(
-            Test.flash(Test.get(router, client, "/hello"), "notice"),
-            "none",
-          ),
-        )
-        row(
-          "13",
-          "flash_shown_after_follow",
-          summary(Test.get(router, created.client, "/notice")),
-        )
-
-        row(
-          "15",
-          "assertion_message",
-          failure(
-            function() { Test.assert_status(Test.get(router, client, "/nope"), 200) },
-          ),
-        )
-        row(
-          "15",
-          "assertion_redirect",
-          failure(function() { Test.assert_redirect(created, "/things/1") }),
-        )
-        row(
-          "15",
-          "assertion_redirect_fails",
-          failure(function() { Test.assert_redirect(created, "/elsewhere") }),
-        )
-        row(
-          "15",
-          "assertion_body",
-          failure(
-            function() {
-              Test.assert_body_contains(Test.get(router, client, "/hello"), "world")
-            },
-          ),
-        )
-        row(
-          "15",
-          "assertion_header",
-          failure(function() { Test.assert_header(created, "location", "/things/1") }),
-        )
-        row(
-          "15",
-          "assertion_passes",
-          failure(
-            function() {
-              Test.assert_status(created, 303)
-              Test.assert_body_not_contains(Test.get(router, client, "/hello"), "world")
-            },
-          ),
-        )
-
-        row("8", "db_after_inserts", summary(Test.get(router, client, "/things/1")))
-      },
-    )
-
-    Test.with_db(
-      Schema.migrations,
-      function() {
-        row(
-          "9",
-          "db_isolated",
-          summary(Test.get(Routes.router, Test.client(), "/things/1")),
-        )
-      },
-    )
-
-    row(
-      "10",
-      "db_throws",
-      failure(
-        function() {
-          Test.with_db(
-            Schema.migrations,
-            function() {
-              let _ = Things.insert({ title: "kept?" })
-
-              Assert.fail("boom")
-            },
-          )
-        },
-      ),
-    )
-
-    Test.with_db(
-      Schema.migrations,
-      function() {
-        row(
-          "10",
-          "db_after_throw_empty",
-          summary(Test.get(Routes.router, Test.client(), "/things/1")),
-        )
-      },
-    )
   }
 
   determinism() -> String / {
@@ -235,7 +58,5 @@ functions
   }
 
 exports
-  Node
   determinism
-  main
   sample

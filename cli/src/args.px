@@ -24,6 +24,7 @@ constants
     "pretend",
     "validations",
     "sandbox",
+    "watch",
   ]
 
 functions
@@ -89,13 +90,12 @@ functions
       ),
       [arg, ..rest] -> match flag_name(arg) {
         None -> collect(rest, { ..parsed, positional: [arg, ..parsed.positional] }),
-        Some(name) -> match String.split(name, "=") {
-          [key, ..value] -> if List.is_empty(value) {
-            given(long(key), rest, parsed)
-          } else {
-            collect(rest, with_flag(parsed, long(key), Some(List.join(value, "="))))
-          },
-          [] -> Err(UnknownFlag(arg)),
+        Some(name) -> match String.split_once(name, "=") {
+          Some(pair) -> collect(
+            rest,
+            with_flag(parsed, long(pair.before), Some(pair.after)),
+          ),
+          None -> given(long(name), rest, parsed),
         },
       },
     }
@@ -133,6 +133,9 @@ functions
   }
 
 exports
+  Flag
+  Parsed
+  ArgError
   flag
   has
   parse

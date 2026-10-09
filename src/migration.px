@@ -42,14 +42,27 @@ functions
   sql(change: Change) -> String {
     match change {
       CreateTable(table, columns) -> {
-        let defined = List.join(["\"id\" INTEGER PRIMARY KEY", ..List.map(columns, column_sql)], ", ")
+        let defined = List.join(
+          ["\"id\" INTEGER PRIMARY KEY", ..List.map(columns, column_sql)],
+          ", ",
+        )
 
         "CREATE TABLE #{quote(table)} (#{defined})"
       }
       DropTable(table) -> "DROP TABLE #{quote(table)}",
-      AddColumn(table, column) -> "ALTER TABLE #{quote(table)} ADD COLUMN #{column_sql(column)}",
-      RemoveColumn(table, name) -> "ALTER TABLE #{quote(table)} DROP COLUMN #{quote(name)}",
-      RenameColumn(table, from, to) -> "ALTER TABLE #{quote(table)} RENAME COLUMN #{quote(from)} TO #{quote(to)}",
+      AddColumn(
+        table,
+        column,
+      ) -> "ALTER TABLE #{quote(table)} ADD COLUMN #{column_sql(column)}",
+      RemoveColumn(
+        table,
+        name,
+      ) -> "ALTER TABLE #{quote(table)} DROP COLUMN #{quote(name)}",
+      RenameColumn(
+        table,
+        from,
+        to,
+      ) -> "ALTER TABLE #{quote(table)} RENAME COLUMN #{quote(from)} TO #{quote(to)}",
       AddIndex(index) -> {
         let unique = if index.unique { "UNIQUE " } else { "" }
         let columns = List.join(List.map(index.columns, quote), ", ")
@@ -64,10 +77,8 @@ functions
     let kind = match column.kind {
       IntColumn -> "INTEGER",
       FloatColumn -> "REAL",
-      TextColumn -> "TEXT",
+      TextColumn | TimeColumn | NowColumn -> "TEXT",
       BoolColumn -> "BOOLEAN",
-      TimeColumn -> "TEXT",
-      NowColumn -> "TEXT",
     }
     let null = if column.nullable { "" } else { " NOT NULL" }
     let default = match column.kind {
@@ -78,7 +89,10 @@ functions
       ),
     }
     let references = Option.with_default(
-      Option.map(column.references, function(table) { " REFERENCES #{quote(table)} (\"id\")" }),
+      Option.map(
+        column.references,
+        function(table) { " REFERENCES #{quote(table)} (\"id\")" },
+      ),
       "",
     )
     let on_delete = Option.with_default(
@@ -104,6 +118,11 @@ functions
   }
 
 exports
+  Migration
+  Change
+  Column
+  ColumnKind
+  Index
   up_sql
   down_sql
   sql

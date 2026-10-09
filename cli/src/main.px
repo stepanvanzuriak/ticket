@@ -1,4 +1,3 @@
-
 module Main
 
 uses
@@ -49,8 +48,7 @@ functions
       help()
     } else {
       match parsed.command {
-        "" -> help(),
-        "help" -> help(),
+        "" | "help" -> help(),
         "version" -> {
           Log.info("ticket #{version}")
           0
@@ -70,11 +68,9 @@ functions
           Some(root) -> Routes.run(root),
           None -> not_in_app(),
         },
-        "db:migrate" -> database(parsed),
-        "db:rollback" -> database(parsed),
-        "db:status" -> database(parsed),
-        "db:reset" -> database(parsed),
-        "db:seed" -> database(parsed),
+        "db:migrate" | "db:rollback" | "db:status" | "db:reset" | "db:seed" -> database(
+          parsed,
+        ),
         "generate" -> match app() {
           Some(root) -> generate(root, parsed),
           None -> not_in_app(),
@@ -108,8 +104,7 @@ functions
 
   generate(root: String, parsed: Parsed) -> Int / {Process, Fs, Clock} {
     match parsed.positional {
-      ["scaffold", .._] -> scaffolded(root, parsed),
-      ["controller", .._] -> scaffolded(root, parsed),
+      ["scaffold", .._] | ["controller", .._] -> scaffolded(root, parsed),
       ["model", .._] -> if Args.has(parsed, "validations") {
         scaffolded(root, parsed)
       } else {
@@ -172,7 +167,7 @@ functions
         "",
         "Commands:",
         "  new <name> [--skip-build] [--path]  create a Ticket app in ./<name>, then build it",
-        "  server, s [-p PORT]        build and serve the app (port 3000 by default)",
+        "  server, s [-p PORT] [--watch]  build and serve the app (port 3000 by default); --watch reloads on edit",
         "  routes                     print the app's routes",
         "  db:migrate [--version V]   apply the pending migrations",
         "  db:rollback [--step N]     undo the last migration (or N)",

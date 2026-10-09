@@ -40,7 +40,10 @@ functions
   }
 
   on(errors: Errors, field: String) -> List<String> {
-    List.map(List.filter(all(errors), function(e) { e.field == field }), function(e) { e.message })
+    List.map(
+      List.filter(all(errors), function(e) { e.field == field }),
+      function(e) { e.message },
+    )
   }
 
   has(errors: Errors, field: String) -> Bool {
@@ -58,6 +61,8 @@ functions
   }
 
 exports
+  FieldError
+  Errors
   empty
   of
   all

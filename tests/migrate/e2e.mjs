@@ -90,6 +90,18 @@ options = { port = 0 }
   result = ticket(["db:status"]);
   row(19, "status", `exit=${result.code} ${lines(result.out)}`);
 
+  const orphan = new DatabaseSync(database);
+
+  orphan.exec("insert into schema_migrations (version) values ('20200101_000000')");
+  orphan.close();
+  result = ticket(["db:status"]);
+  row(19, "status_no_file", `exit=${result.code} ${lines(result.out)}`);
+
+  const cleanup = new DatabaseSync(database);
+
+  cleanup.exec("delete from schema_migrations where version = '20200101_000000'");
+  cleanup.close();
+
   result = ticket(["db:seed"]);
   row(20, "seed", `exit=${result.code} ${result.out.trim()} users=${users()}`);
 

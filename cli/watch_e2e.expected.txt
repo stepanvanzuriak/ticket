@@ -1,0 +1,4 @@
+3 production: exit=2 error: `--watch` is for development; unset TICKET_ENV=production
+1 reload: true -> true same_port=true
+2 broken_edit: old body served
+2 diagnostics: printed

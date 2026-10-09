@@ -1,0 +1,180 @@
+module MigrateTest
+
+uses
+  Std.Assert
+  Std.Http
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Db
+  Ticket.Migrate
+  Schema
+
+hosts
+  Node
+
+types
+  Name = { name: String } derive(Json)
+
+  Version = { version: String } derive(Json)
+
+functions
+  tables() -> String / {Db} {
+    let names: Result<DbError, List<Name>> = Db.all(
+      "select name from sqlite_master where name not like 'sqlite_%' order by name",
+      [],
+    )
+
+    match names {
+      Ok(list) -> "[#{List.join(List.map(list, function(n) { n.name }), ", ")}]",
+      Err(e) -> e.message,
+    }
+  }
+
+  versions() -> String / {Db} {
+    match Migrate.applied() {
+      Ok(list) -> "[#{List.join(list, ", ")}]",
+      Err(e) -> e.message,
+    }
+  }
+
+  fresh() -> {} / {Db} {
+    let _ = Db.connect({ adapter: "sqlite", database: ":memory:" })
+
+    {}
+  }
+
+  go(command: String, step: Int, version: String) -> Int / {Db, Clock} {
+    Migrate.run(Schema.migrations, command, step, version)
+  }
+
+  test_status_fresh() {
+    fresh()
+
+    Assert.equal("#{go("status", 1, "")} #{tables()}", "0 [schema_migrations]")
+  }
+
+  test_migrate_to_version() {
+    fresh()
+
+    Assert.equal(
+      "#{go("migrate", 1, "20261001_130000")} #{versions()} #{tables()}",
+      "0 [20261001_120000, 20261001_130000] [index_users_on_email, posts, schema_migrations, users]",
+    )
+  }
+
+  test_migrate_rest() {
+    fresh()
+    let _ = go("migrate", 1, "20261001_130000")
+
+    Assert.equal(
+      "#{go("migrate", 1, "")} #{versions()}",
+      "0 [20261001_120000, 20261001_130000, 20261002_090000]",
+    )
+  }
+
+  test_migrate_again() {
+    fresh()
+    let _ = go("migrate", 1, "")
+
+    Assert.equal(
+      "#{go("migrate", 1, "")} #{versions()}",
+      "0 [20261001_120000, 20261001_130000, 20261002_090000]",
+    )
+  }
+
+  test_status_all() {
+    fresh()
+    let _ = go("migrate", 1, "")
+
+    Assert.equal("#{go("status", 1, "")}", "0")
+  }
+
+  test_rollback_one() {
+    fresh()
+    let _ = go("migrate", 1, "")
+
+    Assert.equal(
+      "#{go("rollback", 1, "")} #{versions()}",
+      "0 [20261001_120000, 20261001_130000]",
+    )
+  }
+
+  test_rollback_two() {
+    fresh()
+    let _ = go("migrate", 1, "")
+    let _ = go("rollback", 1, "")
+
+    Assert.equal(
+      "#{go("rollback", 2, "")} #{versions()} #{tables()}",
+      "0 [] [schema_migrations]",
+    )
+  }
+
+  test_unknown_version() {
+    fresh()
+
+    Assert.equal("#{go("migrate", 1, "1")} #{versions()}", "1 []")
+  }
+
+  test_reset() {
+    fresh()
+
+    Assert.equal(
+      "#{go("migrate", 1, "")} #{go("reset", 1, "")} #{versions()}",
+      "0 0 [20261001_120000, 20261001_130000, 20261002_090000]",
+    )
+  }
+
+  test_rollback_none() {
+    fresh()
+    let _ = go("migrate", 1, "")
+
+    Assert.equal(
+      "#{go("rollback", 9, "")} #{go("rollback", 1, "")} #{versions()}",
+      "0 0 []",
+    )
+  }
+
+  test_unknown_command() {
+    fresh()
+
+    Assert.equal("#{go("frobnicate", 1, "")}", "2")
+  }
+
+  test_failing_migration() {
+    fresh()
+    let _ = Db.script("create table posts (id integer primary key)")
+
+    Assert.equal(
+      "#{go("migrate", 1, "")} #{versions()} #{tables()}",
+      "1 [20261001_120000] [index_users_on_email, posts, schema_migrations, users]",
+    )
+  }
+
+  test_no_file() {
+    fresh()
+    let _ = go("status", 1, "")
+    let _ = Db.script(
+      "insert into schema_migrations (version) values ('20200101_000000')",
+    )
+
+    Assert.equal("#{go("status", 1, "")}", "0")
+  }
+
+exports
+  test_status_fresh
+  test_migrate_to_version
+  test_migrate_rest
+  test_migrate_again
+  test_status_all
+  test_rollback_one
+  test_rollback_two
+  test_unknown_version
+  test_reset
+  test_rollback_none
+  test_unknown_command
+  test_failing_migration
+  test_no_file

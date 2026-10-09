@@ -145,6 +145,7 @@ impls
   }
 
 exports
+  Html
   Attr { attr }
   Render { render }
   concat

@@ -1,0 +1,415 @@
+module TestHelpersTest
+
+uses
+  Std.Assert
+  Std.Crypto
+  Std.Http
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Process
+  Std.Time
+  Routes
+  Schema
+  Ticket.Db
+  Ticket.Test
+
+hosts
+  Node
+
+functions
+  summary(reply: Reply) -> String {
+    "#{Int.to_string(Test.status(reply))} #{Test.body(reply)}"
+  }
+
+  failure(body: function() -> a / {Throws<Failed> | e}) -> String / {| e} {
+    try {
+      body()
+      "ok"
+    } catch {
+      Failed(message) -> message,
+    }
+  }
+
+  fresh(
+    body: function() -> {} / {
+      Db,
+      Fixture,
+      Throws<Failed>,
+      Throws<DbFailure>,
+      Process,
+      Random,
+      Clock,
+      Things,
+    },
+  ) {
+    Test.with_db(Schema.migrations, body)
+  }
+
+  created_second(client: Client) -> Reply / {
+    Process,
+    Random,
+    Clock,
+    Db,
+    Things,
+    Throws<DbFailure>,
+  } {
+    let _ = Test.post(Routes.router, client, "/things", [])
+
+    Test.post(Routes.router, client, "/things", [])
+  }
+
+  test_db_fresh() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.get(Routes.router, Test.client(), "/things/1")),
+          "200 things=0",
+        )
+      },
+    )
+  }
+
+  test_get_ok() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.get(Routes.router, Test.client(), "/hello")),
+          "200 hello",
+        )
+      },
+    )
+  }
+
+  test_get_unmatched() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.get(Routes.router, Test.client(), "/nope")),
+          "404 not found",
+        )
+      },
+    )
+  }
+
+  test_login_redirects() {
+    fresh(
+      function() {
+        let login = Test.get(Routes.router, Test.client(), "/login")
+
+        Assert.equal(Test.status(login), 302)
+        Assert.equal(Test.location(login), Some("/whoami"))
+      },
+    )
+  }
+
+  test_cookies_kept() {
+    fresh(
+      function() {
+        let login = Test.get(Routes.router, Test.client(), "/login")
+
+        Assert.equal(summary(Test.get(Routes.router, login.client, "/whoami")), "200 ann")
+      },
+    )
+  }
+
+  test_cookies_not_shared() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.get(Routes.router, Test.client(), "/whoami")),
+          "200 nobody",
+        )
+      },
+    )
+  }
+
+  test_patch_override() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.patch(Routes.router, Test.client(), "/things/1", [])),
+          "200 PATCH ok",
+        )
+      },
+    )
+  }
+
+  test_delete() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.delete(Routes.router, Test.client(), "/things/1")),
+          "200 DELETE ok",
+        )
+      },
+    )
+  }
+
+  test_csrf_added() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.post(Routes.router, Test.client(), "/things", [])),
+          "303 ",
+        )
+      },
+    )
+  }
+
+  test_csrf_missing() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.post_without_token(Routes.router, Test.client(), "/things", [])),
+          "403 Invalid authenticity token",
+        )
+      },
+    )
+  }
+
+  test_unprotected_client_rejected() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.post(Routes.router, Test.client_unprotected(), "/things", [])),
+          "403 Invalid authenticity token",
+        )
+      },
+    )
+  }
+
+  test_follow() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.follow(Routes.router, created_second(Test.client()))),
+          "200 things=2",
+        )
+      },
+    )
+  }
+
+  test_follow_plain() {
+    fresh(
+      function() {
+        Assert.equal(
+          summary(
+            Test.follow(Routes.router, Test.get(Routes.router, Test.client(), "/hello")),
+          ),
+          "200 hello",
+        )
+      },
+    )
+  }
+
+  test_flash_read() {
+    fresh(
+      function() {
+        Assert.equal(
+          Test.flash(created_second(Test.client()), "notice"),
+          Some("Thing was created."),
+        )
+      },
+    )
+  }
+
+  test_flash_none() {
+    fresh(
+      function() {
+        Assert.equal(
+          Test.flash(Test.get(Routes.router, Test.client(), "/hello"), "notice"),
+          None,
+        )
+      },
+    )
+  }
+
+  test_flash_shown_after_follow() {
+    fresh(
+      function() {
+        let created = created_second(Test.client())
+
+        Assert.equal(
+          summary(Test.get(Routes.router, created.client, "/notice")),
+          "200 Thing was created.",
+        )
+      },
+    )
+  }
+
+  test_assertion_message() {
+    fresh(
+      function() {
+        Assert.equal(
+          failure(
+            function() {
+              Test.assert_status(Test.get(Routes.router, Test.client(), "/nope"), 200)
+            },
+          ),
+          "expected status 200: status 404, body not found",
+        )
+      },
+    )
+  }
+
+  test_assertion_redirect() {
+    fresh(
+      function() {
+        let created = created_second(Test.client())
+
+        Assert.equal(
+          failure(function() { Test.assert_redirect(created, "/things/1") }),
+          "expected a redirect to /things/1: status 303, body , location /things/2",
+        )
+      },
+    )
+  }
+
+  test_assertion_redirect_fails() {
+    fresh(
+      function() {
+        let created = created_second(Test.client())
+
+        Assert.equal(
+          failure(function() { Test.assert_redirect(created, "/elsewhere") }),
+          "expected a redirect to /elsewhere: status 303, body , location /things/2",
+        )
+      },
+    )
+  }
+
+  test_assertion_body() {
+    fresh(
+      function() {
+        Assert.equal(
+          failure(
+            function() {
+              Test.assert_body_contains(
+                Test.get(Routes.router, Test.client(), "/hello"),
+                "world",
+              )
+            },
+          ),
+          "expected the body to contain world: status 200, body hello",
+        )
+      },
+    )
+  }
+
+  test_assertion_header() {
+    fresh(
+      function() {
+        let created = created_second(Test.client())
+
+        Assert.equal(
+          failure(function() { Test.assert_header(created, "location", "/things/1") }),
+          "expected header location: /things/1, got /things/2: status 303, body ",
+        )
+      },
+    )
+  }
+
+  test_assertion_passes() {
+    fresh(
+      function() {
+        let created = created_second(Test.client())
+
+        Assert.equal(
+          failure(
+            function() {
+              Test.assert_status(created, 303)
+              Test.assert_body_not_contains(
+                Test.get(Routes.router, Test.client(), "/hello"),
+                "world",
+              )
+            },
+          ),
+          "ok",
+        )
+      },
+    )
+  }
+
+  test_db_after_inserts() {
+    fresh(
+      function() {
+        let _ = created_second(Test.client())
+
+        Assert.equal(
+          summary(Test.get(Routes.router, Test.client(), "/things/1")),
+          "200 things=2",
+        )
+      },
+    )
+  }
+
+  test_db_isolated() {
+    fresh(
+      function() {
+        let _ = created_second(Test.client())
+
+        {}
+      },
+    )
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.get(Routes.router, Test.client(), "/things/1")),
+          "200 things=0",
+        )
+      },
+    )
+  }
+
+  test_db_throws_rolls_back() {
+    Assert.equal(
+      failure(
+        function() {
+          fresh(
+            function() {
+              let _ = Things.insert({ title: "kept?" })
+
+              Assert.fail("boom")
+            },
+          )
+        },
+      ),
+      "boom",
+    )
+    fresh(
+      function() {
+        Assert.equal(
+          summary(Test.get(Routes.router, Test.client(), "/things/1")),
+          "200 things=0",
+        )
+      },
+    )
+  }
+
+exports
+  test_db_fresh
+  test_get_ok
+  test_get_unmatched
+  test_login_redirects
+  test_cookies_kept
+  test_cookies_not_shared
+  test_patch_override
+  test_delete
+  test_csrf_added
+  test_csrf_missing
+  test_unprotected_client_rejected
+  test_follow
+  test_follow_plain
+  test_flash_read
+  test_flash_none
+  test_flash_shown_after_follow
+  test_assertion_message
+  test_assertion_redirect
+  test_assertion_redirect_fails
+  test_assertion_body
+  test_assertion_header
+  test_assertion_passes
+  test_db_after_inserts
+  test_db_isolated
+  test_db_throws_rolls_back

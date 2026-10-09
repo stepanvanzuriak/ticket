@@ -148,7 +148,7 @@ try {
 }
 
 const ticket = (args, cwd, env = {}) => spawnSync(join(home, "bin", "ticket"), args, { cwd, encoding: "utf8", env: { ...process.env, ...env } });
-const passes = (text) => text.match(/ℹ pass (\d+)/)?.[1] ?? "?";
+const passes = (text) => text.match(/(\d+) passed/)?.[1] ?? "?";
 
 let r = ticket(["test"], here);
 row(19, "ticket_test", `exit=${r.status} pass=${passes(r.stdout)}`);

@@ -27,16 +27,22 @@ constants
 functions
   run(root: String, parsed: Parsed) -> Int / {Process, Fs, Clock} {
     match parsed.positional {
-      ["migration", name, ..fields] -> if pascal_name(name) {
-        generate(root, migration_entry(Inflect.snake(name), fields), None)
-      } else {
-        usage("`#{name}` isn't a valid name: use PascalCase, like `AddAuthorToPosts`")
-      },
-      ["model", name, ..fields] -> if pascal_name(name) {
-        generate(root, model_entry(name, fields), Some(name))
-      } else {
-        usage("`#{name}` isn't a valid name: use PascalCase, like `Post`")
-      },
+      ["migration", name, ..fields] if pascal_name(name) -> generate(
+        root,
+        migration_entry(Inflect.snake(name), fields),
+        None,
+      ),
+      ["migration", name, .._] -> usage(
+        "`#{name}` isn't a valid name: use PascalCase, like `AddAuthorToPosts`",
+      ),
+      ["model", name, ..fields] if pascal_name(name) -> generate(
+        root,
+        model_entry(name, fields),
+        Some(name),
+      ),
+      ["model", name, .._] -> usage(
+        "`#{name}` isn't a valid name: use PascalCase, like `Post`",
+      ),
       _ -> usage(
         "`ticket g` takes `migration <Name> [field:Type…]` or `model <Name> [field:Type…]`",
       ),
@@ -373,20 +379,13 @@ functions
 
   parse_field(field: String) -> Result<String, String> {
     match String.split(field, ":") {
-      [name, "references"] -> if snake_name(name) {
-        Ok(
-          "#{name}_id  Option<Id<#{Inflect.pascal(name)}>>  references #{Inflect.plural(name)}",
-        )
-      } else {
-        bad_field(field)
-      },
-      [name, kind, ..modifiers] -> if snake_name(name) && kind != "" {
-        match parse_modifiers(modifiers, []) {
-          Err(message) -> Err(message),
-          Ok(parts) -> Ok(List.join(["#{name}", optional(kind), ..parts], "  ")),
-        }
-      } else {
-        bad_field(field)
+      [name, "references"] if snake_name(name) -> Ok(
+        "#{name}_id  Option<Id<#{Inflect.pascal(name)}>>  references #{Inflect.plural(name)}",
+      ),
+      [name, kind, ..modifiers] if snake_name(name)
+        && kind != "" -> match parse_modifiers(modifiers, []) {
+        Err(message) -> Err(message),
+        Ok(parts) -> Ok(List.join(["#{name}", optional(kind), ..parts], "  ")),
       },
       _ -> bad_field(field),
     }
@@ -406,16 +405,15 @@ functions
   ) -> Result<String, List<String>> {
     match modifiers {
       [] -> Ok(List.reverse(done)),
-      [modifier, ..rest] -> if modifier == "unique" {
-        parse_modifiers(rest, ["unique", ..done])
-      } else if String.starts_with(modifier, "default=") && String.length(modifier) > 8 {
-        parse_modifiers(
-          rest,
-          ["default #{String.slice(modifier, 8, String.length(modifier))}", ..done],
-        )
-      } else {
-        Err("unknown modifier `#{modifier}`: use `unique` or `default=V`")
-      },
+      ["unique", ..rest] -> parse_modifiers(rest, ["unique", ..done]),
+      [modifier, ..rest] if String.starts_with(modifier, "default=")
+        && String.length(modifier) > 8 -> parse_modifiers(
+        rest,
+        ["default #{String.slice(modifier, 8, String.length(modifier))}", ..done],
+      ),
+      [modifier, .._] -> Err(
+        "unknown modifier `#{modifier}`: use `unique` or `default=V`",
+      ),
     }
   }
 
@@ -560,6 +558,8 @@ functions
   }
 
 exports
+  Planned
+  Entry
   drop
   failed
   format

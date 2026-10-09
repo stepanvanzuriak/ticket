@@ -1,0 +1,155 @@
+module RoutesTest
+
+uses
+  Std.Assert
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Option
+  Routes
+
+functions
+  name_of(name: String) -> String {
+    if name == "" { "-" } else { name }
+  }
+
+  table(controller: String) -> List<String> {
+    let rows = List.filter(
+      Routes.route_table,
+      function(r) {
+        String.starts_with(r.action, "#{controller}.")
+          && r.action != "PostsController.publish"
+          && r.action != "PostsController.drafts"
+      },
+    )
+
+    List.map(rows, function(r) { "#{r.method} #{r.path} #{r.action} #{name_of(r.name)}" })
+  }
+
+  count(controller: String) -> Int {
+    List.length(
+      List.filter(
+        Routes.route_table,
+        function(r) { String.starts_with(r.action, "#{controller}.") },
+      ),
+    )
+  }
+
+  member_and_collection() -> String {
+    let rows = List.filter(
+      Routes.route_table,
+      function(r) {
+        r.action == "PostsController.publish" || r.action == "PostsController.drafts"
+      },
+    )
+
+    List.join(List.map(rows, function(r) { "#{r.method} #{r.path} #{r.name}" }), ", ")
+  }
+
+  head(path: String) -> String {
+    let request = { method: "HEAD", path: path, query: "", headers: [], body: "" }
+
+    match Routes.router(request) {
+      Some(
+        response,
+      ) -> "#{response.status} body=\"#{response.body}\" headers=#{List.length(response.headers)}",
+      None -> "None",
+    }
+  }
+
+  test_table_resources() {
+    Assert.equal(
+      table("PostsController"),
+      [
+        "GET /posts PostsController.index posts",
+        "GET /posts/new PostsController.new new_post",
+        "POST /posts PostsController.create -",
+        "GET /posts/:id PostsController.show post",
+        "GET /posts/:id/edit PostsController.edit edit_post",
+        "PATCH /posts/:id PostsController.update -",
+        "PUT /posts/:id PostsController.update -",
+        "DELETE /posts/:id PostsController.destroy -",
+      ],
+    )
+  }
+
+  test_table_nested() {
+    Assert.equal(
+      table("CommentsController"),
+      [
+        "POST /posts/:post_id/comments CommentsController.create post_comments",
+        "DELETE /posts/:post_id/comments/:id CommentsController.destroy post_comment",
+      ],
+    )
+  }
+
+  test_table_namespace() {
+    Assert.equal(
+      table("UsersController"),
+      [
+        "GET /admin/users UsersController.index admin_users",
+        "GET /admin/users/new UsersController.new new_admin_user",
+        "POST /admin/users UsersController.create -",
+        "GET /admin/users/:id UsersController.show admin_user",
+        "GET /admin/users/:id/edit UsersController.edit edit_admin_user",
+        "PATCH /admin/users/:id UsersController.update -",
+        "PUT /admin/users/:id UsersController.update -",
+      ],
+    )
+  }
+
+  test_table_only_except() {
+    Assert.equal(count("CommentsController"), 2)
+    Assert.equal(count("UsersController"), 7)
+  }
+
+  test_table_member_collection() {
+    Assert.equal(
+      member_and_collection(),
+      "POST /posts/:id/publish publish_post, GET /posts/drafts drafts_posts",
+    )
+  }
+
+  test_helper_names_and_values() {
+    Assert.equal(
+      List.join(
+        [
+          Routes.root_path(),
+          Routes.about_path(),
+          Routes.webhook_path("github"),
+          Routes.posts_path(),
+          Routes.new_post_path(),
+          Routes.post_path(Id(3)),
+          Routes.edit_post_path(Id(3)),
+          Routes.post_comments_path(Id(2)),
+          Routes.post_comment_path(Id(2), Id(9)),
+          Routes.publish_post_path(Id(3)),
+          Routes.drafts_posts_path(),
+          Routes.admin_users_path(),
+          Routes.new_admin_user_path(),
+          Routes.admin_user_path(Id(4)),
+          Routes.edit_admin_user_path(Id(4)),
+        ],
+        " ",
+      ),
+      "/ /about /webhooks/github /posts /posts/new /posts/3 /posts/3/edit /posts/2/comments /posts/2/comments/9 /posts/3/publish /posts/drafts /admin/users /admin/users/new /admin/users/4 /admin/users/4/edit",
+    )
+  }
+
+  test_helper_encodes() {
+    Assert.equal(Routes.webhook_path("a b"), "/webhooks/a%20b")
+  }
+
+  test_head_as_get() {
+    Assert.equal(head("/about"), "200 body=\"\" headers=1")
+  }
+
+exports
+  test_table_resources
+  test_table_nested
+  test_table_namespace
+  test_table_only_except
+  test_table_member_collection
+  test_helper_names_and_values
+  test_helper_encodes
+  test_head_as_get

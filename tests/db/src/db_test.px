@@ -1,0 +1,416 @@
+module DbTest
+
+uses
+  Std.Assert
+  Std.Json
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+
+types
+  Post = {
+    id: Int,
+    title: String,
+    score: Float,
+    draft: Bool,
+    note: Option<String>,
+  } derive(Json)
+
+  Kind = { kind: String } derive(Json)
+
+  Count = { n: Int } derive(Json)
+
+  Boom = Boom(String)
+
+functions
+  shown(result: Result<DbError, a>, show: function(a) -> String) -> String {
+    match result {
+      Ok(value) -> "Ok(#{show(value)})",
+      Err(
+        error,
+      ) -> "Err(kind=#{error.kind} code=#{error.code} message=#{error.message} sql=#{error.sql})",
+    }
+  }
+
+  unit(_: {}) -> String {
+    "{}"
+  }
+
+  changes(c: Changes) -> String {
+    "changes=#{c.changes} last_id=#{c.last_id}"
+  }
+
+  post(p: Post) -> String {
+    let note = match p.note {
+      Some(text) -> "Some(#{text})",
+      None -> "None",
+    }
+
+    "#{p.id} #{p.title} #{p.score} #{p.draft} #{note}"
+  }
+
+  posts(ps: List<Post>) -> String {
+    "[#{List.join(List.map(ps, post), "; ")}]"
+  }
+
+  kind_of(value: SqlValue) -> String / {Db} {
+    let kinds: Result<DbError, List<Kind>> = Db.all("select typeof(?) as kind", [value])
+
+    shown(kinds, function(ks) { List.join(List.map(ks, function(k) { k.kind }), ",") })
+  }
+
+  count(table: String) -> Int / {Db} {
+    let counted: Result<DbError, Option<Count>> = Db.one(
+      "select count(*) as n from #{table}",
+      [],
+    )
+
+    match counted {
+      Ok(Some(c)) -> c.n,
+      _ -> -1,
+    }
+  }
+
+  insert(title: String) -> Result<DbError, Changes> / {Db} {
+    Db.exec(
+      "insert into posts (title, score, draft) values (?, ?, ?)",
+      [SqlText(title), SqlFloat(1.5), SqlBool(false)],
+    )
+  }
+
+  seed() -> {} / {Db} {
+    let _ = insert("first")
+    let _ = Db.exec(
+      "insert into posts (title, score, draft, note) values (?, ?, ?, ?)",
+      [SqlText("second"), SqlFloat(2.5), SqlBool(true), SqlText("hi")],
+    )
+
+    {}
+  }
+
+  in_db(body: function() -> String / {Db}) -> String / {Db} {
+    let _ = Db.connect({ adapter: "sqlite", database: ":memory:" })
+    let _ = Db.script(
+      "create table posts (id integer primary key, title text not null unique, score real not null, draft boolean not null, note text); create table comments (id integer primary key, post_id integer not null references posts(id))",
+    )
+
+    body()
+  }
+
+  count_text() -> DbError / {Db} {
+    { kind: "other", code: "", message: "rolled back with #{count("posts")}", sql: "" }
+  }
+
+  tx(body: function() -> Result<e, a> / {Db}) -> String / {Db} {
+    let result = Db.transaction(body)
+    let shown = match result {
+      Ok(_) -> "Ok",
+      Err(_) -> "Err",
+    }
+
+    "#{shown} posts=#{count("posts")}"
+  }
+
+  thrown() -> String / {Db} {
+    try {
+      let _: Result<String, Int> = Db.transaction(
+        function() {
+          let _ = insert("thrown")
+
+          throw Boom("after #{count("posts")} posts")
+        },
+      )
+
+      "no throw"
+    } catch {
+      Boom(message) -> "caught #{message}, posts=#{count("posts")}",
+    }
+  }
+
+  test_connect_memory() {
+    Assert.equal(
+      "#{shown(Db.connect({ adapter: "mysql", database: "x" }), unit)} #{shown(Db.connect({ adapter: "sqlite", database: ":memory:" }), unit)}",
+      "Err(kind=connection code= message=unknown database adapter `mysql`; the adapters are: sqlite sql=) Ok({})",
+    )
+  }
+
+  test_script_creates() {
+    Assert.equal(
+      shown(
+        Db.script(
+          "create table posts (id integer primary key, title text not null unique, score real not null, draft boolean not null, note text); create table comments (id integer primary key, post_id integer not null references posts(id))",
+        ),
+        unit,
+      ),
+      "Ok({})",
+    )
+  }
+
+  test_exec_insert() {
+    Assert.equal(
+      in_db(function() { shown(insert("first"), changes) }),
+      "Ok(changes=1 last_id=1)",
+    )
+  }
+
+  test_exec_values() {
+    Assert.equal(
+      in_db(
+        function() {
+          let _ = insert("first")
+
+          shown(
+            Db.exec(
+              "insert into posts (title, score, draft, note) values (?, ?, ?, ?)",
+              [SqlText("second"), SqlFloat(2.5), SqlBool(true), SqlText("hi")],
+            ),
+            changes,
+          )
+        },
+      ),
+      "Ok(changes=1 last_id=2)",
+    )
+  }
+
+  test_sql_value_types() {
+    Assert.equal(
+      in_db(
+        function() {
+          List.join(
+            List.map(
+              [SqlInt(2), SqlFloat(2.5), SqlText("2"), SqlNull, SqlBool(true)],
+              kind_of,
+            ),
+            " ",
+          )
+        },
+      ),
+      "Ok(integer) Ok(real) Ok(text) Ok(null) Ok(integer)",
+    )
+  }
+
+  test_all_decodes() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+
+          let all: Result<DbError, List<Post>> = Db.all(
+            "select * from posts order by id",
+            [],
+          )
+
+          shown(all, posts)
+        },
+      ),
+      "Ok([1 first 1.5 false None; 2 second 2.5 true Some(hi)])",
+    )
+  }
+
+  test_one_first_or_none() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+
+          let found: Result<DbError, Option<Post>> = Db.one(
+            "select * from posts where title = ?",
+            [SqlText("second")],
+          )
+          let missing: Result<DbError, Option<Post>> = Db.one(
+            "select * from posts where title = ?",
+            [SqlText("none")],
+          )
+
+          "#{shown(found, function(p) { Option.with_default(Option.map(p, post), "None") })} #{shown(missing, function(p) { Option.with_default(Option.map(p, post), "None") })}"
+        },
+      ),
+      "Ok(2 second 2.5 true Some(hi)) Ok(None)",
+    )
+  }
+
+  test_decode_error() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+
+          let wrong: Result<DbError, List<Count>> = Db.all(
+            "select title as n from posts",
+            [],
+          )
+
+          shown(wrong, function(_) { "?" })
+        },
+      ),
+      "Err(kind=decode code= message=a row doesn't decode: [0].n: expected Int, found a string sql=select title as n from posts)",
+    )
+  }
+
+  test_sql_error() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+
+          shown(Db.exec("selec 1", []), changes)
+        },
+      ),
+      "Err(kind=syntax code=1 message=near \"selec\": syntax error sql=selec 1)",
+    )
+  }
+
+  test_unique_violation() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+
+          shown(insert("first"), changes)
+        },
+      ),
+      "Err(kind=unique code=2067 message=UNIQUE constraint failed: posts.title sql=insert into posts (title, score, draft) values (?, ?, ?))",
+    )
+  }
+
+  test_foreign_keys_on() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+
+          shown(
+            Db.exec("insert into comments (post_id) values (?)", [SqlInt(99)]),
+            changes,
+          )
+        },
+      ),
+      "Err(kind=foreign_key code=787 message=FOREIGN KEY constraint failed sql=insert into comments (post_id) values (?))",
+    )
+  }
+
+  test_tx_commit() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+
+          tx(function() { Ok(insert("third")) })
+        },
+      ),
+      "Ok posts=3",
+    )
+  }
+
+  test_tx_rollback() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+          let _ = insert("third")
+
+          tx(
+            function() {
+              insert("fourth") |> Result.and_then(function(_) { Err(count_text()) })
+            },
+          )
+        },
+      ),
+      "Err posts=3",
+    )
+  }
+
+  test_tx_nested() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+          let _ = insert("third")
+
+          tx(
+            function() {
+              let inner: Result<String, Int> = Db.transaction(
+                function() {
+                  let _ = insert("inner")
+
+                  Err("inner #{count("posts")}")
+                },
+              )
+              let _ = insert("outer")
+
+              Ok(inner)
+            },
+          )
+        },
+      ),
+      "Ok posts=4",
+    )
+  }
+
+  test_tx_throw() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+          let _ = insert("third")
+          let _ = insert("outer")
+
+          thrown()
+        },
+      ),
+      "caught after 5 posts, posts=4",
+    )
+  }
+
+  test_tx_inner_error() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+          let _ = insert("third")
+          let _ = insert("outer")
+
+          tx(function() { insert("first") })
+        },
+      ),
+      "Err posts=4",
+    )
+  }
+
+  test_float_whole() {
+    Assert.equal(
+      in_db(
+        function() {
+          seed()
+
+          let whole: Result<DbError, List<Post>> = Db.all(
+            "select id, title, 2.0 as score, draft, note from posts where id = 1",
+            [],
+          )
+
+          shown(whole, posts)
+        },
+      ),
+      "Ok([1 first 2 false None])",
+    )
+  }
+
+exports
+  test_connect_memory
+  test_script_creates
+  test_exec_insert
+  test_exec_values
+  test_sql_value_types
+  test_all_decodes
+  test_one_first_or_none
+  test_decode_error
+  test_sql_error
+  test_unique_violation
+  test_foreign_keys_on
+  test_tx_commit
+  test_tx_rollback
+  test_tx_nested
+  test_tx_throw
+  test_tx_inner_error
+  test_float_whole

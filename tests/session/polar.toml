@@ -1,6 +1,5 @@
 [project]
 name = "session_tests"
-hosts = ["Node"]
 
 [dependencies]
 ticket = { path = "../.." }

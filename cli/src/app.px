@@ -50,9 +50,9 @@ functions
   }
 
   key(line: String) -> String {
-    match String.split(line, "=") {
-      [name, _, .._] -> String.trim(name),
-      _ -> "",
+    match String.split_once(line, "=") {
+      Some(pair) -> String.trim(pair.before),
+      None -> "",
     }
   }
 

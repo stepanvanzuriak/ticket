@@ -76,6 +76,11 @@ functions
   }
 
 exports
+  DbConfig
+  DbError
+  SqlValue
+  Changes
+  DbFailure
   Node
   Db
   all

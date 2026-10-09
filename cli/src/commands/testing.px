@@ -18,11 +18,7 @@ functions
 
     match parsed.positional {
       [] -> Process.run("polar", ["test"], options),
-      [filter] -> Process.run(
-        "polar",
-        ["test", "--", "--test-name-pattern=#{filter}"],
-        options,
-      ),
+      [filter] -> Process.run("polar", ["test", "--filter", filter], options),
       _ -> {
         Log.error("error: `ticket test` takes at most one filter")
         2

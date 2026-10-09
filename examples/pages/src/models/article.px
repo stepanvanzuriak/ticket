@@ -27,6 +27,7 @@ functions
   }
 
 exports
+  Article
   all
   create
   find

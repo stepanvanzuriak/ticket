@@ -11,6 +11,8 @@ uses
   Std.Url
 
 types
+  Signing = { secret: String, max_age: Int, secure: Bool, expires: Int }
+
   Conn = {
     request: Request,
     method: String,
@@ -26,8 +28,6 @@ types
     csrf: String,
     signing: Signing,
   }
-
-  Signing = { secret: String, max_age: Int, secure: Bool, expires: Int }
 
 functions
   from_request(request: Request) -> Conn {
@@ -122,9 +122,8 @@ functions
 
   path_of(raw: String) -> String {
     match String.split(raw, "?") {
-      [""] -> "/",
+      [""] | [] -> "/",
       [path, .._] -> path,
-      [] -> "/",
     }
   }
 
@@ -143,6 +142,8 @@ functions
   }
 
 exports
+  Signing
+  Conn
   for_head
   from_request
   header

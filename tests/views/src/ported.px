@@ -45,6 +45,7 @@ views
     </Frame>
 
 exports
+  Post
   card
   characters
   comment

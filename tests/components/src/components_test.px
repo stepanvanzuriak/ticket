@@ -1,0 +1,54 @@
+module ComponentsTest
+
+uses
+  Std.Assert
+  Pages
+  Ticket.Html
+
+functions
+  test_cross_module() {
+    Assert.equal(
+      Html.to_string(Pages.home()),
+      "<div><button>test</button><button>test Cool</button></div>",
+    )
+  }
+
+  test_children() {
+    Assert.equal(
+      Html.to_string(Pages.wrapped()),
+      "<section class=\"card\"><h2>T</h2><p>body</p></section>",
+    )
+  }
+
+  test_empty_children() {
+    Assert.equal(
+      Html.to_string(Pages.empty_card()),
+      "<section class=\"card\"><h2>E</h2></section>",
+    )
+  }
+
+  test_bool_and_no_props() {
+    Assert.equal(
+      Html.to_string(Pages.bare()),
+      "<p><input type=\"checkbox\" checked><input type=\"checkbox\"><hr></p>",
+    )
+  }
+
+  test_component_in_component() {
+    Assert.equal(
+      Html.to_string(Pages.nested()),
+      "<label><i class=\"icon\" data-name=\"tag\"></i> L</label>",
+    )
+  }
+
+  test_local_component_in_view() {
+    Assert.equal(Html.to_string(Pages.local()), "<span class=\"badge\">new</span>")
+  }
+
+exports
+  test_cross_module
+  test_children
+  test_empty_children
+  test_bool_and_no_props
+  test_component_in_component
+  test_local_component_in_view

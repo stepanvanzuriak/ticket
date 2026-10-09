@@ -53,7 +53,10 @@ functions
   redirect_to(conn: Conn, path: String) -> Response {
     let status = if conn.method == "GET" || conn.method == "HEAD" { 302 } else { 303 }
 
-    commit(conn, { status: status, headers: [{ name: "location", value: path }], body: "" })
+    commit(
+      conn,
+      { status: status, headers: [{ name: "location", value: path }], body: "" },
+    )
   }
 
   add_header(response: Response, name: String, value: String) -> Response {
@@ -67,11 +70,14 @@ functions
         let size = String.length(value)
 
         if size > 4000 {
-          text(500, "the session cookie is #{Int.to_string(size)} bytes, over the 4000 byte limit")
+          text(
+            500,
+            "the session cookie is #{Int.to_string(size)} bytes, over the 4000 byte limit",
+          )
         } else {
           add_header(response, "set-cookie", value)
         }
-      },
+      }
     }
   }
 

@@ -39,7 +39,7 @@ functions
   }
 
   snake(pascal: String) -> String {
-    List.join(underscored(String.split(pascal, ""), true), "")
+    List.join(underscored(String.chars(pascal), true), "")
   }
 
   underscored(chars: List<String>, first: Bool) -> List<String> {

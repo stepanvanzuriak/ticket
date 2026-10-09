@@ -1,0 +1,199 @@
+module ActionTest
+
+uses
+  Std.Assert
+  Std.Http
+  Std.List
+  Std.Ref
+  Std.Result
+  Ticket.Action
+  Ticket.Conn
+  Ticket.Error
+  Ticket.Html
+  Ticket.Response
+
+functions
+  conn(method: String) -> Conn {
+    Conn.from_request({ method: method, path: "/", query: "", headers: [], body: "" })
+  }
+
+  show(response: Response) -> String {
+    let headers = List.map(response.headers, function(h) { "#{h.name}: #{h.value}" })
+
+    "#{Int.to_string(response.status)} [#{List.join(headers, ", ")}] #{response.body}"
+  }
+
+  step(runs: Ref<Int>, name: String) -> function(Conn) -> Result<Response, Conn> / {Mut} {
+    function(c) {
+      Ref.update(runs, function(n) { n + 1 })
+
+      let trail = Conn.header(c, "x-trail")
+      let request = c.request
+      let headers = [{ name: "x-trail", value: "#{trail}#{name}" }]
+
+      Ok({ ..c, request: { ..request, headers: headers } })
+    }
+  }
+
+  stop(c: Conn) -> Result<Response, Conn> {
+    Err(Response.text(401, "halted"))
+  }
+
+  echo(runs: Ref<Int>) -> function(Conn) -> Response / {Mut} {
+    function(c) {
+      Ref.update(runs, function(n) { n + 1 })
+      Response.text(200, "action saw #{Conn.header(c, "x-trail")}")
+    }
+  }
+
+  deep(n: Int) -> String / {Throws<Halt>} {
+    if n > 1 { throw Halt(Response.not_found()) } else { "fine" }
+  }
+
+  test_before_empty() {
+    let runs = Ref.new(0)
+
+    Assert.equal(
+      show(Action.before([], echo(runs))(conn("GET"))),
+      "200 [content-type: text/plain; charset=utf-8] action saw ",
+    )
+  }
+
+  test_before_order() {
+    let runs = Ref.new(0)
+
+    Assert.equal(
+      show(Action.before([step(runs, "a"), step(runs, "b")], echo(runs))(conn("GET"))),
+      "200 [content-type: text/plain; charset=utf-8] action saw ab",
+    )
+  }
+
+  test_before_halt() {
+    let runs = Ref.new(0)
+
+    Assert.equal(
+      "#{show(Action.before([step(runs, "a"), stop, step(runs, "b")], echo(runs))(conn("GET")))} (runs: #{Int.to_string(Ref.get(runs))})",
+      "401 [content-type: text/plain; charset=utf-8] halted (runs: 1)",
+    )
+  }
+
+  test_before_alias() {
+    let filters: List<Filter> = [stop]
+
+    Assert.equal(
+      show(
+        Action.before(filters, function(c) { Response.text(200, "ran") })(conn("GET")),
+      ),
+      "401 [content-type: text/plain; charset=utf-8] halted",
+    )
+  }
+
+  test_with_header_replace() {
+    let typed = Response.text(200, "x")
+
+    Assert.equal(
+      show(Response.with_header(typed, "Content-Type", "text/csv")),
+      "200 [Content-Type: text/csv] x",
+    )
+  }
+
+  test_with_header_append() {
+    let typed = Response.text(200, "x")
+
+    Assert.equal(
+      show(Response.with_header(typed, "x-a", "1")),
+      "200 [content-type: text/plain; charset=utf-8, x-a: 1] x",
+    )
+  }
+
+  test_with_header_duplicates() {
+    let typed = Response.text(200, "x")
+
+    Assert.equal(
+      show(
+        Response.with_header(
+          {
+            ..typed,
+            headers: [{ name: "X-A", value: "1" }, { name: "x-a", value: "2" }],
+          },
+          "x-a",
+          "3",
+        ),
+      ),
+      "200 [x-a: 3] x",
+    )
+  }
+
+  test_content_type() {
+    Assert.equal(
+      show(Response.content_type(Response.empty(200), "text/csv")),
+      "200 [content-type: text/csv] ",
+    )
+  }
+
+  test_render() {
+    Assert.equal(
+      show(Response.render(Html.raw("<p>hi</p>"))),
+      "200 [content-type: text/html; charset=utf-8] <!doctype html><p>hi</p>",
+    )
+  }
+
+  test_render_status() {
+    Assert.equal(
+      show(Response.render_status(422, Html.raw("<p>no</p>"))),
+      "422 [content-type: text/html; charset=utf-8] <!doctype html><p>no</p>",
+    )
+  }
+
+  test_redirect_get() {
+    Assert.equal(show(Response.redirect_to(conn("GET"), "/a")), "302 [location: /a] ")
+  }
+
+  test_redirect_head() {
+    Assert.equal(show(Response.redirect_to(conn("HEAD"), "/a")), "302 [location: /a] ")
+  }
+
+  test_redirect_post() {
+    Assert.equal(show(Response.redirect_to(conn("POST"), "/a")), "303 [location: /a] ")
+  }
+
+  test_redirect_delete() {
+    Assert.equal(show(Response.redirect_to(conn("delete"), "/a")), "303 [location: /a] ")
+  }
+
+  test_head() {
+    Assert.equal(show(Response.head(204)), "204 [] ")
+  }
+
+  test_halt_deep() {
+    Assert.equal(
+      show(Conn.rescue_halt(function() { Response.text(200, deep(2)) })),
+      "404 [content-type: text/plain; charset=utf-8] not found",
+    )
+  }
+
+  test_halt_none() {
+    Assert.equal(
+      show(Conn.rescue_halt(function() { Response.text(200, deep(1)) })),
+      "200 [content-type: text/plain; charset=utf-8] fine",
+    )
+  }
+
+exports
+  test_before_empty
+  test_before_order
+  test_before_halt
+  test_before_alias
+  test_with_header_replace
+  test_with_header_append
+  test_with_header_duplicates
+  test_content_type
+  test_render
+  test_render_status
+  test_redirect_get
+  test_redirect_head
+  test_redirect_post
+  test_redirect_delete
+  test_head
+  test_halt_deep
+  test_halt_none
