@@ -19,9 +19,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install polar
-        env:
-          POLAR_VERSION: "0.2.0"
         run: |
+          POLAR_VERSION="$(sed -n 's/^polar *= *"\(.*\)"/\1/p' polar.toml)"
+          test -n "$POLAR_VERSION"
+          export POLAR_VERSION
           curl -fsSL https://polar-lang.vercel.app/install.sh | sh
           echo "$HOME/.polar/bin" >> "$GITHUB_PATH"
       - run: polar --version
