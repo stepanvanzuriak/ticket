@@ -1,9 +1,7 @@
-
 module Main
 
 uses
   Std.Http
-  Std.Json
   Std.List
   Std.Option
   Std.Result
@@ -15,47 +13,16 @@ uses
 hosts
   Node
 
-types
-  Name = { name: String } derive(Json)
-
-  Version = { version: String } derive(Json)
-
 functions
-  row(n: Int, name: String, result: String) -> {} {
-    Log.info("#{n} #{name}: #{result}")
-  }
-
-  tables() -> String / {Db} {
-    let names: Result<DbError, List<Name>> = Db.all(
-      "select name from sqlite_master where name not like 'sqlite_%' order by name",
-      [],
-    )
-
-    match names {
-      Ok(list) -> "[#{List.join(List.map(list, function(n) { n.name }), ", ")}]",
-      Err(e) -> e.message,
-    }
-  }
-
-  versions() -> String / {Db} {
-    match Migrate.applied() {
-      Ok(list) -> "[#{List.join(list, ", ")}]",
-      Err(e) -> e.message,
-    }
-  }
-
-  fresh() -> {} / {Db} {
-    let _ = Db.connect({ adapter: "sqlite", database: ":memory:" })
-
-    {}
-  }
-
   migrate(command: String, step: Int, version: String) -> Int / {Db, Clock} {
     Migrate.run(Schema.migrations, command, step, version)
   }
 
   seed() -> {} / {Db} {
-    let _ = Db.exec("INSERT INTO users (name, email) VALUES (?, ?)", [SqlText("Ada"), SqlText("ada@example.com")])
+    let _ = Db.exec(
+      "INSERT INTO users (name, email) VALUES (?, ?)",
+      [SqlText("Ada"), SqlText("ada@example.com")],
+    )
 
     Log.info("seeded")
   }
@@ -64,34 +31,7 @@ functions
     None
   }
 
-  go(command: String, step: Int, version: String) -> Int / {Db, Clock} {
-    Migrate.run(Schema.migrations, command, step, version)
-  }
-
-  main() -> {} / {Db, Clock} {
-    fresh()
-    row(1, "status_fresh", "#{go("status", 1, "")} #{tables()}")
-    row(2, "migrate_to_version", "#{go("migrate", 1, "20261001_130000")} #{versions()} #{tables()}")
-    row(3, "migrate_rest", "#{go("migrate", 1, "")} #{versions()}")
-    row(4, "migrate_again", "#{go("migrate", 1, "")} #{versions()}")
-    row(5, "status_all", "#{go("status", 1, "")}")
-    row(6, "rollback_one", "#{go("rollback", 1, "")} #{versions()}")
-    row(7, "rollback_two", "#{go("rollback", 2, "")} #{versions()} #{tables()}")
-    row(8, "unknown_version", "#{go("migrate", 1, "1")} #{versions()}")
-    row(9, "reset", "#{go("migrate", 1, "")} #{go("reset", 1, "")} #{versions()}")
-    row(10, "rollback_none", "#{go("rollback", 9, "")} #{go("rollback", 1, "")} #{versions()}")
-    row(11, "unknown_command", "#{go("frobnicate", 1, "")}")
-
-    fresh()
-    let _ = Db.script("create table posts (id integer primary key)")
-    row(12, "failing_migration", "#{go("migrate", 1, "")} #{versions()} #{tables()}")
-    let _ = Db.script("insert into schema_migrations (version) values ('20200101_000000')")
-    row(13, "no_file", "#{go("status", 1, "")}")
-  }
-
 exports
-  Node
-  main
   migrate
   router
   seed

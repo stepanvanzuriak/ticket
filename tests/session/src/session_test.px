@@ -1,0 +1,554 @@
+module SessionTest
+
+uses
+  Std.Assert
+  Std.Crypto
+  Std.Http
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Time
+  Ticket.Conn
+  Ticket.Csrf
+  Ticket.Flash
+  Ticket.Forms
+  Ticket.Html
+  Ticket.Links
+  Ticket.Response
+  Ticket.Session
+
+hosts
+  Node
+
+functions
+  t0() -> Int {
+    1000000
+  }
+
+  at(now: Int, token: String) -> function(Conn) -> Response {
+    Session.wrap_at(dev(), now, token, action)
+  }
+
+  dev() -> Config {
+    { secret: "s3cret", max_age: 1209600, secure: false }
+  }
+
+  prod() -> Config {
+    { ..dev(), secure: true }
+  }
+
+  action(conn: Conn) -> Response {
+    if conn.path == "/set" {
+      Response.redirect_to(Session.put(conn, "user", "ann"), "/who")
+    } else if conn.path == "/who" {
+      Response.text(200, Option.with_default(Session.get(conn, "user"), "nobody"))
+    } else if conn.path == "/flash" {
+      Response.redirect_to(Flash.put(conn, "notice", "Saved."), "/show")
+    } else if conn.path == "/flash_same" {
+      Response.text(
+        200,
+        "#{Option.with_default(Flash.get(Flash.put(conn, "notice", "x"), "notice"), "none")}",
+      )
+    } else if conn.path == "/show" {
+      Response.text(200, Option.with_default(Flash.get(conn, "notice"), "none"))
+    } else if conn.path == "/token" {
+      Response.text(200, conn.csrf)
+    } else if conn.path == "/big" {
+      Response.redirect_to(Session.put(conn, "big", String.repeat("x", 5000)), "/")
+    } else if conn.path == "/touch" {
+      Response.text(200, "touched")
+    } else {
+      Response.text(200, "ran")
+    }
+  }
+
+  request(
+    app: function(Conn) -> Response / {| e},
+    cookie: String,
+    method: String,
+    path: String,
+    form: String,
+    extra: List<Header>,
+  ) -> Response / {| e} {
+    let headers = List.append(
+      [{ name: "content-type", value: "application/x-www-form-urlencoded" }],
+      List.append(
+        if cookie == "" { [] } else { [{ name: "cookie", value: cookie }] },
+        extra,
+      ),
+    )
+    let conn = Conn.with_method_override(
+      Conn.from_request(
+        { method: method, path: path, query: "", headers: headers, body: form },
+      ),
+    )
+
+    Conn.for_head(conn, app(conn))
+  }
+
+  get(
+    app: function(Conn) -> Response / {| e},
+    cookie: String,
+    path: String,
+  ) -> Response / {| e} {
+    request(app, cookie, "GET", path, "", [])
+  }
+
+  jar(response: Response) -> String {
+    match List.filter(response.headers, function(h) { h.name == "set-cookie" }) {
+      [first, .._] -> match String.split(first.value, ";") {
+        [pair, .._] -> pair,
+        [] -> "",
+      },
+      [] -> "",
+    }
+  }
+
+  cookies(response: Response) -> List<String> {
+    List.map(
+      List.filter(response.headers, function(h) { h.name == "set-cookie" }),
+      function(h) { h.value },
+    )
+  }
+
+  attributes(response: Response) -> String {
+    List.join(
+      List.map(
+        cookies(response),
+        function(c) { String.replace(c, jar_of(c), "_ticket_session=…") },
+      ),
+      " | ",
+    )
+  }
+
+  jar_of(cookie: String) -> String {
+    match String.split(cookie, ";") {
+      [pair, .._] -> pair,
+      [] -> "",
+    }
+  }
+
+  summary(response: Response) -> String {
+    "#{Int.to_string(response.status)} #{response.body}"
+  }
+
+  test_first_gets_cookie() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+
+    Assert.equal("#{List.length(cookies(first))} cookie", "1 cookie")
+  }
+
+  test_round_trip() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let again2 = get(app, jar(first), "/token")
+
+    Assert.equal("#{again.body == again2.body} #{again.body}", "true tok-A")
+  }
+
+  test_put_then_get() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let set = get(app, jar(first), "/set")
+
+    Assert.equal(
+      "#{summary(get(app, jar(set), "/who"))} (set #{List.length(cookies(set))} cookie)",
+      "200 ann (set 1 cookie)",
+    )
+  }
+
+  test_tampered_payload() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let set = get(app, jar(first), "/set")
+    let cookie = jar(set)
+    let flipped = String.replace(cookie, "_ticket_session=", "_ticket_session=A")
+
+    Assert.equal(summary(get(app, flipped, "/who")), "200 nobody")
+  }
+
+  test_bad_signature() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let set = get(app, jar(first), "/set")
+    let cookie = jar(set)
+    let resigned = "#{jar_of(cookie)}0"
+
+    Assert.equal(summary(get(app, resigned, "/who")), "200 nobody")
+  }
+
+  test_not_base64url() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+
+    Assert.equal(summary(get(app, "_ticket_session=!!!.abc", "/who")), "200 nobody")
+  }
+
+  test_no_dot() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+
+    Assert.equal(summary(get(app, "_ticket_session=abc", "/who")), "200 nobody")
+  }
+
+  test_other_secret() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let set = get(app, jar(first), "/set")
+    let cookie = jar(set)
+
+    Assert.equal(
+      summary(
+        get(
+          Session.wrap_at({ ..dev(), secret: "another" }, t0(), "tok-A", action),
+          cookie,
+          "/who",
+        ),
+      ),
+      "200 nobody",
+    )
+  }
+
+  test_expired() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let set = get(app, jar(first), "/set")
+    let cookie = jar(set)
+
+    Assert.equal(
+      summary(get(at(t0() + 1209600 * 1000 + 1, "tok-A"), cookie, "/who")),
+      "200 nobody",
+    )
+  }
+
+  test_not_yet_expired() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let set = get(app, jar(first), "/set")
+    let cookie = jar(set)
+
+    Assert.equal(
+      summary(get(at(t0() + 1209600 * 1000 - 1, "tok-A"), cookie, "/who")),
+      "200 ann",
+    )
+  }
+
+  test_attributes() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+
+    Assert.equal(
+      attributes(first),
+      "_ticket_session=…; Path=/; Max-Age=1209600; HttpOnly; SameSite=Lax",
+    )
+  }
+
+  test_secure_in_production() {
+    Assert.equal(
+      attributes(get(Session.wrap_at(prod(), t0(), "tok-A", action), "", "/touch")),
+      "_ticket_session=…; Path=/; Max-Age=1209600; HttpOnly; SameSite=Lax; Secure",
+    )
+  }
+
+  test_two_cookies() {
+    let two = Response.add_header(
+      Response.add_header(Response.text(200, ""), "set-cookie", "a=1"),
+      "set-cookie",
+      "b=2",
+    )
+    let replaced = Response.with_header(two, "set-cookie", "c=3")
+
+    Assert.equal(
+      "#{List.length(cookies(two))} then #{List.length(cookies(replaced))}",
+      "2 then 1",
+    )
+  }
+
+  test_flash_next_request() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let flashed = get(app, jar(first), "/flash")
+    let shown = get(app, jar(flashed), "/show")
+    let after = get(app, jar(shown), "/show")
+
+    Assert.equal("#{summary(shown)}, then #{summary(after)}", "200 Saved., then 200 none")
+  }
+
+  test_flash_cleared_by_render() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let flashed = get(app, jar(first), "/flash")
+    let shown = get(app, jar(flashed), "/show")
+    let after = get(app, jar(shown), "/show")
+
+    Assert.equal(
+      "#{List.length(cookies(shown))} cookie on the displaying response, then #{List.length(cookies(get(app, jar(shown), "/touch")))}",
+      "1 cookie on the displaying response, then 0",
+    )
+  }
+
+  test_flash_same_request() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+
+    Assert.equal(summary(get(app, jar(first), "/flash_same")), "200 none")
+  }
+
+  test_no_change_no_cookie() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+
+    Assert.equal(
+      "#{List.length(cookies(get(app, jar(first), "/touch")))} cookies",
+      "0 cookies",
+    )
+  }
+
+  test_csrf_get_passes() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+
+    Assert.equal(summary(get(app, "", "/touch")), "200 touched")
+  }
+
+  test_csrf_field_passes() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let token = again.body
+    let posted = function(cookie, form, extra) {
+      request(app, cookie, "POST", "/touch", form, extra)
+    }
+
+    Assert.equal(
+      summary(posted(jar(first), "authenticity_token=#{token}", [])),
+      "200 touched",
+    )
+  }
+
+  test_csrf_header_passes() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let token = again.body
+    let posted = function(cookie, form, extra) {
+      request(app, cookie, "POST", "/touch", form, extra)
+    }
+
+    Assert.equal(
+      summary(posted(jar(first), "", [{ name: "x-csrf-token", value: token }])),
+      "200 touched",
+    )
+  }
+
+  test_csrf_override_passes() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let token = again.body
+    let posted = function(cookie, form, extra) {
+      request(app, cookie, "POST", "/touch", form, extra)
+    }
+
+    Assert.equal(
+      summary(
+        request(
+          app,
+          jar(first),
+          "POST",
+          "/touch",
+          "_method=delete&authenticity_token=#{token}",
+          [],
+        ),
+      ),
+      "200 touched",
+    )
+  }
+
+  test_csrf_missing() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let token = again.body
+    let posted = function(cookie, form, extra) {
+      request(app, cookie, "POST", "/touch", form, extra)
+    }
+
+    Assert.equal(summary(posted(jar(first), "", [])), "403 Invalid authenticity token")
+  }
+
+  test_csrf_wrong() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let token = again.body
+    let posted = function(cookie, form, extra) {
+      request(app, cookie, "POST", "/touch", form, extra)
+    }
+
+    Assert.equal(
+      summary(posted(jar(first), "authenticity_token=token-99", [])),
+      "403 Invalid authenticity token",
+    )
+  }
+
+  test_csrf_no_session() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let token = again.body
+    let posted = function(cookie, form, extra) {
+      request(app, cookie, "POST", "/touch", form, extra)
+    }
+
+    Assert.equal(
+      summary(
+        request(
+          at(t0(), "tok-B"),
+          "",
+          "POST",
+          "/touch",
+          "authenticity_token=#{token}",
+          [],
+        ),
+      ),
+      "403 Invalid authenticity token",
+    )
+  }
+
+  test_csrf_unprotected() {
+    Assert.equal(
+      summary(
+        request(Session.wrap_unprotected(dev(), action), "", "POST", "/touch", "", []),
+      ),
+      "200 touched",
+    )
+  }
+
+  test_csrf_stable() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let token = again.body
+    let posted = function(cookie, form, extra) {
+      request(app, cookie, "POST", "/touch", form, extra)
+    }
+    let set = get(app, jar(first), "/set")
+
+    Assert.equal(
+      "#{token == get(at(t0() + 5, "tok-B"), jar(set), "/token").body}",
+      "true",
+    )
+  }
+
+  test_csrf_differs() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+    let again = get(app, jar(first), "/token")
+    let token = again.body
+    let posted = function(cookie, form, extra) {
+      request(app, cookie, "POST", "/touch", form, extra)
+    }
+
+    Assert.equal("#{token != get(at(t0(), "tok-B"), "", "/token").body}", "true")
+  }
+
+  test_form_field() {
+    let page = Conn.from_request(
+      { method: "GET", path: "/", query: "", headers: [], body: "" },
+    )
+    let loaded = { ..page, csrf: "abc\"<" }
+
+    Assert.equal(
+      Html.to_string(Csrf.field(loaded)),
+      "<input type=\"hidden\" name=\"authenticity_token\" value=\"abc&quot;&lt;\">",
+    )
+  }
+
+  test_meta() {
+    let page = Conn.from_request(
+      { method: "GET", path: "/", query: "", headers: [], body: "" },
+    )
+    let loaded = { ..page, csrf: "abc\"<" }
+
+    Assert.equal(
+      Html.to_string(Csrf.meta(loaded)),
+      "<meta name=\"csrf-token\" content=\"abc&quot;&lt;\">",
+    )
+  }
+
+  test_button_field() {
+    let page = Conn.from_request(
+      { method: "GET", path: "/", query: "", headers: [], body: "" },
+    )
+    let loaded = { ..page, csrf: "abc\"<" }
+
+    Assert.equal(
+      Html.to_string(
+        Links.button_to({ conn: loaded, text: "Delete", path: "/p/1", method: "delete" }),
+      ),
+      "<form method=\"post\" action=\"/p/1\"><input type=\"hidden\" name=\"_method\" value=\"delete\"><input type=\"hidden\" name=\"authenticity_token\" value=\"abc&quot;&lt;\"><button type=\"submit\">Delete</button></form>",
+    )
+  }
+
+  test_get_form_has_none() {
+    let page = Conn.from_request(
+      { method: "GET", path: "/", query: "", headers: [], body: "" },
+    )
+    let loaded = { ..page, csrf: "abc\"<" }
+
+    Assert.equal(
+      Html.to_string(
+        Forms.method_form(
+          { conn: loaded, action: "/", method: "get", children: Html.raw("") },
+        ),
+      ),
+      "<form method=\"get\" action=\"/\"></form>",
+    )
+  }
+
+  test_too_big() {
+    let app = at(t0(), "tok-A")
+    let first = get(app, "", "/touch")
+
+    Assert.equal(
+      summary(get(app, jar(first), "/big")),
+      "500 the session cookie is 6933 bytes, over the 4000 byte limit",
+    )
+  }
+
+exports
+  test_first_gets_cookie
+  test_round_trip
+  test_put_then_get
+  test_tampered_payload
+  test_bad_signature
+  test_not_base64url
+  test_no_dot
+  test_other_secret
+  test_expired
+  test_not_yet_expired
+  test_attributes
+  test_secure_in_production
+  test_two_cookies
+  test_flash_next_request
+  test_flash_cleared_by_render
+  test_flash_same_request
+  test_no_change_no_cookie
+  test_csrf_get_passes
+  test_csrf_field_passes
+  test_csrf_header_passes
+  test_csrf_override_passes
+  test_csrf_missing
+  test_csrf_wrong
+  test_csrf_no_session
+  test_csrf_unprotected
+  test_csrf_stable
+  test_csrf_differs
+  test_form_field
+  test_meta
+  test_button_field
+  test_get_form_has_none
+  test_too_big

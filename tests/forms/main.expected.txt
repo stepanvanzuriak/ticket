@@ -1,8 +1,0 @@
-1 decodes: Ok(Lamp 3 9.5 true Some(warm) Some(Id(7)) Some(2026-10-06T10:00:00.000Z))
-2 unknown_keys_dropped: Ok(Lamp 3 9.5 true Some(warm) Some(Id(7)) Some(2026-10-06T10:00:00.000Z))
-3 optional_blank: Ok(Lamp 3 1 false None None None)
-4 bool_spellings: TTTFFFF
-5 missing_fields: Err(Count can't be blank; Price can't be blank)
-6 ill_typed: Err(Count is not a whole number; Price is not a number; Active must be true or false; Owner id is not a valid id; Due is not a valid time)
-7 message_per_field: is not a whole number | is not a number |  | true false
-8 float_forms: 3 -2.5 100 0.5 bad

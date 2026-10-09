@@ -112,8 +112,8 @@ try {
 
   row(8, "model_validations", read(blog, "src/models/post.px").split("\n").filter((l) => /^  \w+  /.test(l)).join(" | "));
 
-  const passes = (text) => text.match(/ℹ pass (\d+)/)?.[1] ?? "?";
-  const fails = (text) => text.match(/ℹ fail (\d+)/)?.[1] ?? "?";
+  const passes = (text) => text.match(/(\d+) passed/)?.[1] ?? "?";
+  const fails = (text) => text.match(/(\d+) failed/)?.[1] ?? "?";
 
   writeFileSync(
     join(blog, "src/env_test.px"),
@@ -210,7 +210,7 @@ try {
   r = spawnSync("polar", ["check", "--no-color"], { cwd: items, encoding: "utf8" });
   row(10, "field_types_check", `exit=${r.status} ${r.stderr.trim().split("\n")[0]}`);
   r = ticket(["test"], items);
-  row(10, "two_resources_tests", `exit=${r.status} pass=${r.stdout.match(/ℹ pass (\d+)/)?.[1] ?? "?"} fail=${r.stdout.match(/ℹ fail (\d+)/)?.[1] ?? "?"}`);
+  row(10, "two_resources_tests", `exit=${r.status} pass=${r.stdout.match(/(\d+) passed/)?.[1] ?? "?"} fail=${r.stdout.match(/(\d+) failed/)?.[1] ?? "?"}`);
 
   const site = app("site");
 

@@ -1,0 +1,287 @@
+module ConnTest
+
+uses
+  Std.Assert
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Map
+  Std.Option
+  Ticket.Conn
+  Ticket.Cookies
+  Ticket.Params
+  Ticket.QueryString
+
+functions
+  show_map(map: Map<String, String>) -> String {
+    let entries = List.map(
+      List.reverse(Map.to_list(map)),
+      function(e) { "#{e.key}: \"#{e.value}\"" },
+    )
+
+    "{#{List.join(entries, ", ")}}"
+  }
+
+  show_option(option: Option<String>) -> String {
+    match option {
+      Some(value) -> "Some(\"#{value}\")",
+      None -> "None",
+    }
+  }
+
+  request(
+    method: String,
+    path: String,
+    query: String,
+    headers: List<Header>,
+    body: String,
+  ) -> Request {
+    { method: method, path: path, query: query, headers: headers, body: body }
+  }
+
+  get(path: String, query: String) -> Conn {
+    Conn.from_request(request("GET", path, query, [], ""))
+  }
+
+  form(body: String) -> Conn {
+    let headers = [
+      { name: "Content-Type", value: "application/x-www-form-urlencoded; charset=utf-8" },
+    ]
+
+    Conn.from_request(request("POST", "/", "", headers, body))
+  }
+
+  test_query_empty() {
+    Assert.equal(
+      "#{show_map(QueryString.parse(""))} #{show_map(QueryString.parse("?"))}",
+      "{} {}",
+    )
+  }
+
+  test_query_basic() {
+    Assert.equal(show_map(QueryString.parse("a=1&b=two")), "{a: \"1\", b: \"two\"}")
+  }
+
+  test_query_first_equals() {
+    Assert.equal(show_map(QueryString.parse("q=a=b")), "{q: \"a=b\"}")
+  }
+
+  test_query_bare_key() {
+    Assert.equal(show_map(QueryString.parse("flag")), "{flag: \"\"}")
+  }
+
+  test_query_decodes() {
+    Assert.equal(show_map(QueryString.parse("name=Ada%20L+ove")), "{name: \"Ada L ove\"}")
+  }
+
+  test_query_skips_empty() {
+    Assert.equal(show_map(QueryString.parse("a=1&&b=2")), "{a: \"1\", b: \"2\"}")
+  }
+
+  test_query_last_wins() {
+    Assert.equal(show_map(QueryString.parse("a=1&a=2")), "{a: \"2\"}")
+  }
+
+  test_cookies_basic() {
+    Assert.equal(
+      show_map(Cookies.parse("sid=abc; theme=dark")),
+      "{sid: \"abc\", theme: \"dark\"}",
+    )
+  }
+
+  test_cookies_malformed() {
+    Assert.equal(show_map(Cookies.parse("junk; =x; ok=1")), "{ok: \"1\"}")
+  }
+
+  test_conn_method_upper() {
+    Assert.equal(Conn.from_request(request("post", "/", "", [], "")).method, "POST")
+  }
+
+  test_conn_path_strips_query() {
+    Assert.equal(get("/posts?x=1", "").path, "/posts")
+  }
+
+  test_conn_segments() {
+    Assert.equal(List.join(get("//posts/3/", "").segments, ", "), "posts, 3")
+  }
+
+  test_conn_form_only_urlencoded() {
+    let json = [{ name: "content-type", value: "application/json" }]
+
+    Assert.equal(
+      show_map(Conn.from_request(request("POST", "/", "", json, "a=1")).form),
+      "{}",
+    )
+  }
+
+  test_conn_form_parsed() {
+    Assert.equal(show_map(form("post%5Btitle%5D=Hi").form), "{post[title]: \"Hi\"}")
+  }
+
+  test_params_precedence() {
+    let mixed = Conn.from_request(
+      request(
+        "POST",
+        "/posts/1",
+        "id=3",
+        [{ name: "content-type", value: "application/x-www-form-urlencoded" }],
+        "id=2",
+      ),
+    )
+    let routed = Conn.with_path_params(mixed, Map.insert(Map.empty(), "id", "1"))
+
+    Assert.equal(show_option(Params.string(routed, "id")), "Some(\"1\")")
+  }
+
+  test_params_int_bad() {
+    let bad = match Params.int(get("/", "id=abc"), "id") {
+      Some(n) -> "Some(#{n})",
+      None -> "None",
+    }
+
+    Assert.equal(bad, "None")
+  }
+
+  test_params_nested() {
+    Assert.equal(
+      show_map(
+        Params.nested(form("post[title]=Hi&post[body]=B&other=x&post[bad=1"), "post"),
+      ),
+      "{title: \"Hi\", body: \"B\"}",
+    )
+  }
+
+  test_query_malformed_escape() {
+    Assert.equal(show_map(QueryString.parse("q=%E0%A4%A")), "{q: \"%E0%A4%A\"}")
+  }
+
+  test_conn_empty_path() {
+    Assert.equal(get("", "").path, "/")
+  }
+
+  test_conn_segments_decoded() {
+    Assert.equal(List.join(get("/posts/a%20b", "").segments, ", "), "posts, a b")
+  }
+
+  test_conn_query() {
+    Assert.equal(show_map(get("/", "?page=2").query), "{page: \"2\"}")
+  }
+
+  test_conn_cookies() {
+    Assert.equal(
+      show_map(
+        Conn.from_request(
+          request("GET", "/", "", [{ name: "Cookie", value: "sid=a%20b" }], ""),
+        ).cookies,
+      ),
+      "{sid: \"a b\"}",
+    )
+  }
+
+  test_conn_header_any_case() {
+    Assert.equal(
+      Conn.header(form(""), "CONTENT-TYPE"),
+      "application/x-www-form-urlencoded; charset=utf-8",
+    )
+  }
+
+  test_params_int_ok() {
+    Assert.equal(
+      Option.with_default(
+        Option.map(Params.int(get("/", "n=-42"), "n"), Int.to_string),
+        "None",
+      ),
+      "-42",
+    )
+  }
+
+  test_params_id() {
+    Assert.equal(
+      Option.with_default(
+        Option.map(
+          Params.id(get("/", "id=7"), "id"),
+          function(id: Id<{}>) { Prelude.show(id) },
+        ),
+        "None",
+      ),
+      "Id(7)",
+    )
+  }
+
+  test_params_missing() {
+    Assert.equal(show_option(Params.string(get("/", ""), "id")), "None")
+  }
+
+  test_params_nested_form_over_query() {
+    Assert.equal(
+      show_map(
+        Params.nested(
+          Conn.from_request(
+            request(
+              "POST",
+              "/",
+              "post[a]=q&post[b]=q",
+              [{ name: "content-type", value: "application/x-www-form-urlencoded" }],
+              "post[a]=f",
+            ),
+          ),
+          "post",
+        ),
+      ),
+      "{b: \"q\", a: \"f\"}",
+    )
+  }
+
+  test_params_nested_ignores_deep() {
+    Assert.equal(
+      show_map(
+        Params.nested(form("post[a][b]=1&post[]=2&poster[x]=3&post[ok]=4"), "post"),
+      ),
+      "{ok: \"4\"}",
+    )
+  }
+
+  test_params_form_over_query() {
+    let mixed = Conn.from_request(
+      request(
+        "POST",
+        "/posts/1",
+        "id=3",
+        [{ name: "content-type", value: "application/x-www-form-urlencoded" }],
+        "id=2",
+      ),
+    )
+
+    Assert.equal(show_option(Params.string(mixed, "id")), "Some(\"2\")")
+  }
+
+exports
+  test_query_empty
+  test_query_basic
+  test_query_first_equals
+  test_query_bare_key
+  test_query_decodes
+  test_query_skips_empty
+  test_query_last_wins
+  test_cookies_basic
+  test_cookies_malformed
+  test_conn_method_upper
+  test_conn_path_strips_query
+  test_conn_segments
+  test_conn_form_only_urlencoded
+  test_conn_form_parsed
+  test_params_precedence
+  test_params_int_bad
+  test_params_nested
+  test_query_malformed_escape
+  test_conn_empty_path
+  test_conn_segments_decoded
+  test_conn_query
+  test_conn_cookies
+  test_conn_header_any_case
+  test_params_int_ok
+  test_params_id
+  test_params_missing
+  test_params_nested_form_over_query
+  test_params_nested_ignores_deep
+  test_params_form_over_query

@@ -1,0 +1,332 @@
+module AssociationsTest
+
+uses
+  Std.Assert
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Query
+  Ticket.Test
+  Schema
+
+hosts
+  Node
+
+functions
+  titles(posts: List<Post>) -> String {
+    "[#{List.join(List.map(posts, function(p) { p.title }), ", ")}]"
+  }
+
+  bodies(comments: List<Comment>) -> String {
+    "[#{List.join(List.map(comments, function(c) { c.body }), ", ")}]"
+  }
+
+  name_of(user: Option<User>) -> String {
+    match user {
+      Some(u) -> u.name,
+      None -> "none",
+    }
+  }
+
+  new_post(title: String, author: Id<User>, editor: Option<Id<User>>) -> NewPost {
+    { title: title, author_id: author, editor_id: editor }
+  }
+
+  new_comment(body: String, post: Id<Post>, parent: Option<Id<Comment>>) -> NewComment {
+    { body: body, post_id: post, parent_id: parent }
+  }
+
+  caught(
+    body: function() -> String / {Posts, Users, Comments, Notes, Db, Throws<DbFailure>},
+  ) -> String / {Posts, Users, Comments, Notes, Db} {
+    try {
+      body()
+    } catch {
+      DbFailure(error) -> "Err(kind=#{error.kind})",
+    }
+  }
+
+  with_db(
+    body: function() -> {} / {
+      Posts,
+      Users,
+      Comments,
+      Notes,
+      Db,
+      Fixture,
+      Throws<DbFailure>,
+      Throws<Failed>,
+    },
+  ) {
+    Test.with_db(Schema.migrations, body)
+  }
+
+  test_belongs_to() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+
+        Assert.equal(Schema.post_author(first).name, "Ada")
+      },
+    )
+  }
+
+  test_belongs_to_option() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+
+        Assert.equal(
+          "#{name_of(Schema.post_editor(first))} #{name_of(Schema.post_editor(second))}",
+          "Bob none",
+        )
+      },
+    )
+  }
+
+  test_has_many() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+
+        Assert.equal(
+          "#{titles(Schema.user_posts_as_author(ada))} #{titles(Schema.user_posts_as_author(bob))}",
+          "[First, Second] [Third]",
+        )
+      },
+    )
+  }
+
+  test_two_references() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+
+        Assert.equal(
+          "#{titles(Schema.user_posts_as_author(bob))} #{titles(Schema.user_posts_as_editor(bob))}",
+          "[Third] [First]",
+        )
+      },
+    )
+  }
+
+  test_has_many_filter() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+
+        Assert.equal(
+          titles(
+            Schema.user_posts_as_author_filter(
+              ada,
+              [Query.eq(Schema.post_title, "Second")],
+              [],
+            ),
+          ),
+          "[Second]",
+        )
+      },
+    )
+  }
+
+  test_has_many_order() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+
+        Assert.equal(
+          titles(
+            Schema.user_posts_as_author_filter(
+              ada,
+              [],
+              [Query.order_desc(Schema.post_id)],
+            ),
+          ),
+          "[Second, First]",
+        )
+      },
+    )
+  }
+
+  test_conventional_name() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let note = Notes.insert({ body: "Hi", user_id: ada.id })
+
+        Assert.equal(
+          "#{List.length(Schema.user_notes(ada))} #{List.length(Schema.user_notes(bob))} #{Schema.note_user(note).name}",
+          "1 0 Ada",
+        )
+      },
+    )
+  }
+
+  test_has_many_by_post() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+
+        Assert.equal(bodies(Schema.post_comments(first)), "[c1, c2]")
+      },
+    )
+  }
+
+  test_self_reference() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+
+        Assert.equal(
+          "#{bodies(Schema.comment_comments_as_parent(c1))} #{Schema.comment_post(c2).title}",
+          "[c2] First",
+        )
+      },
+    )
+  }
+
+  test_root_has_no_parent() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+
+        Assert.equal(
+          "#{match Schema.comment_parent(c1) { Some(_) -> "some", None -> "none" }} #{match Schema.comment_parent(c2) { Some(p) -> p.body, None -> "none" }}",
+          "none c1",
+        )
+      },
+    )
+  }
+
+  test_restrict_default() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let note = Notes.insert({ body: "Hi", user_id: ada.id })
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+
+        Assert.equal(
+          caught(function() { Users.delete(ada.id) |> (function(b) { "#{b}" }) }),
+          "Err(kind=foreign_key)",
+        )
+      },
+    )
+  }
+
+  test_cascade() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let note = Notes.insert({ body: "Hi", user_id: ada.id })
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+        let _ = Notes.delete(note.id)
+
+        Assert.equal(
+          "#{Posts.delete(first.id)} #{Comments.count([])} #{Posts.count([])}",
+          "true 1 2",
+        )
+      },
+    )
+  }
+
+  test_set_null() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let note = Notes.insert({ body: "Hi", user_id: ada.id })
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+        let _ = Notes.delete(note.id)
+        let _ = Posts.delete(first.id)
+        let fourth = Posts.insert(new_post("Fourth", ada.id, Some(bob.id)))
+
+        Assert.equal(
+          "#{Users.delete(bob.id)} #{Posts.count([])} #{match Posts.find(fourth.id) { Some(p) -> name_of(Schema.post_editor(p)), None -> "gone" }}",
+          "true 2 none",
+        )
+      },
+    )
+  }
+
+exports
+  test_belongs_to
+  test_belongs_to_option
+  test_has_many
+  test_two_references
+  test_has_many_filter
+  test_has_many_order
+  test_conventional_name
+  test_has_many_by_post
+  test_self_reference
+  test_root_has_no_parent
+  test_restrict_default
+  test_cascade
+  test_set_null

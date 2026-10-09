@@ -12,4 +12,5 @@ views
     <h2>{post.missing}</h2>
 
 exports
+  Post
   card

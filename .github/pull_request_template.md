@@ -16,7 +16,7 @@ Closes:
 
 ## Checklist
 
-- [ ] `node scripts/test.mjs` passes
+- [ ] `scripts/test.sh` passes
 - [ ] `polar fmt --check` leaves nothing to change
 - [ ] `*.expected.txt` changes are deliberate, and explained above
 - [ ] Docs updated where the surface changed (README, website)

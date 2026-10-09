@@ -3,6 +3,7 @@ module Cookies
 uses
   Std.List
   Std.Map
+  Std.Option
   Std.Url
 
 functions
@@ -11,12 +12,12 @@ functions
       String.split(header, ";"),
       Map.empty(),
       function(map, piece) {
-        match String.split(String.trim(piece), "=") {
-          [name, ..rest] -> if rest == [] || name == "" {
-            map
-          } else {
-            Map.insert(map, name, Url.decode(List.join(rest, "=")))
-          },
+        match String.split_once(String.trim(piece), "=") {
+          Some(pair) if pair.before != "" -> Map.insert(
+            map,
+            pair.before,
+            Url.decode(pair.after),
+          ),
           _ -> map,
         }
       },

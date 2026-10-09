@@ -1,0 +1,145 @@
+module FormsTest
+
+uses
+  Std.Assert
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Result
+  Std.Time
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Params
+  Schema
+
+functions
+  full() -> String {
+    "item[name]=Lamp&item[count]=3&item[price]=9.5&item[active]=on&item[note]=warm&item[owner_id]=7&item[due]=2026-10-06T10:00:00Z"
+  }
+
+  form(body: String) -> Conn {
+    let headers = [{ name: "Content-Type", value: "application/x-www-form-urlencoded" }]
+
+    Conn.from_request(
+      { method: "POST", path: "/", query: "", headers: headers, body: body },
+    )
+  }
+
+  item(conn: Conn) -> String {
+    match Params.record(conn, "item") {
+      Ok(row) -> shown(row),
+      Err(errors) -> "Err(#{List.join(Errors.full_messages(errors), "; ")})",
+    }
+  }
+
+  shown(row: NewItem) -> String {
+    "Ok(#{row.name} #{row.count} #{row.price} #{row.active} #{row.note} #{row.owner_id} #{Option.map(row.due, Time.to_iso)})"
+  }
+
+  active(value: String) -> String {
+    let shown = item(
+      form("item[name]=a&item[count]=1&item[price]=1&item[active]=#{value}"),
+    )
+
+    if String.contains(shown, " true ") { "T" } else { "F" }
+  }
+
+  price(value: String) -> String {
+    let parsed: Result<Errors, NewItem> = Params.record(
+      form("item[name]=a&item[count]=1&item[price]=#{value}&item[active]=1"),
+      "item",
+    )
+
+    match parsed {
+      Ok(r) -> "#{r.price}",
+      Err(_) -> "bad",
+    }
+  }
+
+  messages(errors: Errors) -> String {
+    "#{List.join(Errors.on(errors, "count"), ",")} | #{List.join(Errors.on(errors, "price"), ",")} | #{List.join(Errors.on(errors, "name"), ",")} | #{Errors.has(errors, "price")} #{Errors.has(errors, "name")}"
+  }
+
+  fields(conn: Conn) -> String {
+    let parsed: Result<Errors, NewItem> = Params.record(conn, "item")
+
+    match parsed {
+      Ok(_) -> "ok",
+      Err(errors) -> messages(errors),
+    }
+  }
+
+  test_decodes() {
+    Assert.equal(
+      item(form(full())),
+      "Ok(Lamp 3 9.5 true Some(warm) Some(Id(7)) Some(2026-10-06T10:00:00.000Z))",
+    )
+  }
+
+  test_unknown_keys_dropped() {
+    Assert.equal(
+      item(form("#{full()}&item[id]=99&item[admin]=true&other=1")),
+      "Ok(Lamp 3 9.5 true Some(warm) Some(Id(7)) Some(2026-10-06T10:00:00.000Z))",
+    )
+  }
+
+  test_optional_blank() {
+    Assert.equal(
+      item(
+        form(
+          "item[name]=Lamp&item[count]=3&item[price]=1&item[note]=&item[owner_id]=+&item[due]=",
+        ),
+      ),
+      "Ok(Lamp 3 1 false None None None)",
+    )
+  }
+
+  test_bool_spellings() {
+    Assert.equal(
+      List.join(List.map(["true", "on", "1", "false", "off", "0", ""], active), ""),
+      "TTTFFFF",
+    )
+  }
+
+  test_missing_fields() {
+    Assert.equal(
+      item(form("item[name]=Lamp")),
+      "Err(Count can't be blank; Price can't be blank)",
+    )
+  }
+
+  test_ill_typed() {
+    Assert.equal(
+      item(
+        form(
+          "item[name]=Lamp&item[count]=abc&item[price]=x&item[active]=maybe&item[owner_id]=q&item[due]=soon",
+        ),
+      ),
+      "Err(Count is not a whole number; Price is not a number; Active must be true or false; Owner id is not a valid id; Due is not a valid time)",
+    )
+  }
+
+  test_message_per_field() {
+    Assert.equal(
+      fields(form("item[count]=abc&item[price]=x")),
+      "is not a whole number | is not a number |  | true false",
+    )
+  }
+
+  test_float_forms() {
+    Assert.equal(
+      List.join(List.map(["3", "-2.5", "1e2", "0.5", ".5"], price), " "),
+      "3 -2.5 100 0.5 bad",
+    )
+  }
+
+exports
+  test_decodes
+  test_unknown_keys_dropped
+  test_optional_blank
+  test_bool_spellings
+  test_missing_fields
+  test_ill_typed
+  test_message_per_field
+  test_float_forms

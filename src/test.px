@@ -358,6 +358,8 @@ functions
   }
 
 exports
+  Client
+  Reply
   Fixture
   assert_body_contains
   assert_body_not_contains

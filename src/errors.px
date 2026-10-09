@@ -61,6 +61,8 @@ functions
   }
 
 exports
+  FieldError
+  Errors
   empty
   of
   all

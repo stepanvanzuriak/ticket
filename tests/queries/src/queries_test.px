@@ -1,0 +1,423 @@
+module QueriesTest
+
+uses
+  Std.Assert
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Time
+  Ticket.Db
+  Ticket.Migration
+  Ticket.Query
+  Ticket.Sql
+  Ticket.Test
+  Schema
+
+hosts
+  Node
+
+types
+  Seeded = { ada: User, first: Post, second: Post, third: Post, fourth: Post }
+
+functions
+  titles(posts: List<Post>) -> String {
+    "[#{List.join(List.map(posts, function(p) { p.title }), ", ")}]"
+  }
+
+  new_post(
+    title: String,
+    published: Bool,
+    score: Float,
+    author: Option<Id<User>>,
+  ) -> NewPost {
+    { title: title, published: published, score: score, author_id: author }
+  }
+
+  caught(body: function() -> String / {Posts, Users, Db, Throws<DbFailure>}) -> String / {
+    Posts,
+    Users,
+    Db,
+  } {
+    try {
+      body()
+    } catch {
+      DbFailure(error) -> "Err(kind=#{error.kind} message=#{error.message})",
+    }
+  }
+
+  statement(s: Statement) -> String {
+    "#{s.sql} #{List.length(s.params)}"
+  }
+
+  seeded(
+    body: function(Seeded) -> {} / {
+      Posts,
+      Users,
+      Events,
+      Db,
+      Fixture,
+      Throws<DbFailure>,
+      Throws<Failed>,
+    },
+  ) {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        let ada = Users.insert({ name: "Ada", email: "ada@example.com" })
+        let bob = Users.insert({ name: "Bob", email: "bob@example.com" })
+        let first = Posts.insert(new_post("First", true, 1.5, Some(ada.id)))
+        let second = Posts.insert(new_post("Second", false, 3.0, None))
+        let third = Posts.insert(new_post("Third", true, 2.0, Some(bob.id)))
+        let fourth = Posts.insert(new_post("Fourth", true, 0.5, Some(ada.id)))
+
+        body({ ada: ada, first: first, second: second, third: third, fourth: fourth })
+      },
+    )
+  }
+
+  test_insert_returns() {
+    seeded(
+      function(s) {
+        Assert.equal(s.first.id, Id(1))
+        Assert.equal(s.first.title, "First")
+        Assert.equal(s.first.published, true)
+        Assert.equal(s.first.score, 1.5)
+        Assert.equal(s.second.author_id, None)
+      },
+    )
+  }
+
+  test_timestamps_filled() {
+    seeded(
+      function(s) {
+        Assert.assert(Time.millis(s.first.created_at) > 0)
+        Assert.equal(s.first.created_at, s.first.updated_at)
+      },
+    )
+  }
+
+  test_find() {
+    seeded(
+      function(s) {
+        Assert.equal(
+          Option.map(Posts.find(s.first.id), function(p) { p.title }),
+          Some("First"),
+        )
+        Assert.equal(Option.map(Posts.find(Id(99)), function(p) { p.title }), None)
+      },
+    )
+  }
+
+  test_all() {
+    seeded(
+      function(_) { Assert.equal(titles(Posts.all()), "[First, Second, Third, Fourth]") },
+    )
+  }
+
+  test_filter_eq_order() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [Query.eq(Schema.post_published, true)],
+              [Query.order_desc(Schema.post_id)],
+            ),
+          ),
+          "[Fourth, Third, First]",
+        )
+      },
+    )
+  }
+
+  test_filter_comparisons() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [Query.gt(Schema.post_score, 1.0)],
+              [Query.order_asc(Schema.post_title)],
+            ),
+          ),
+          "[First, Second, Third]",
+        )
+        Assert.equal(
+          titles(Posts.filter([Query.lt(Schema.post_score, 1.0)], [])),
+          "[Fourth]",
+        )
+        Assert.equal(
+          titles(
+            Posts.filter([Query.not_eq(Schema.post_title, "First")], [Query.limit(1)]),
+          ),
+          "[Second]",
+        )
+      },
+    )
+  }
+
+  test_filter_like() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [Query.like(Schema.post_title, "%ir%")],
+              [Query.order_asc(Schema.post_id)],
+            ),
+          ),
+          "[First, Third]",
+        )
+      },
+    )
+  }
+
+  test_filter_nullable() {
+    seeded(
+      function(s) {
+        Assert.equal(
+          titles(Posts.filter([Query.is_null(Schema.post_author_id)], [])),
+          "[Second]",
+        )
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [Query.eq(Schema.post_author_id, Some(s.ada.id))],
+              [Query.order_asc(Schema.post_id)],
+            ),
+          ),
+          "[First, Fourth]",
+        )
+      },
+    )
+  }
+
+  test_filters_and() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [Query.eq(Schema.post_published, true), Query.gt(Schema.post_score, 1.0)],
+              [Query.order_asc(Schema.post_id)],
+            ),
+          ),
+          "[First, Third]",
+        )
+      },
+    )
+  }
+
+  test_paging() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [],
+              [Query.order_asc(Schema.post_id), Query.limit(2), Query.offset(1)],
+            ),
+          ),
+          "[Second, Third]",
+        )
+        Assert.equal(
+          titles(Posts.filter([], [Query.order_asc(Schema.post_id), Query.offset(3)])),
+          "[Fourth]",
+        )
+      },
+    )
+  }
+
+  test_count() {
+    seeded(
+      function(_) {
+        Assert.equal(Posts.count([]), 4)
+        Assert.equal(Posts.count([Query.eq(Schema.post_published, true)]), 3)
+        Assert.equal(Users.count([]), 2)
+      },
+    )
+  }
+
+  test_ordering_by_several() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [],
+              [
+                Query.order_desc(Schema.post_published),
+                Query.order_asc(Schema.post_score),
+              ],
+            ),
+          ),
+          "[Fourth, First, Third, Second]",
+        )
+      },
+    )
+  }
+
+  test_update_returns() {
+    seeded(
+      function(s) {
+        let renamed = Posts.update({ ..s.first, title: "Renamed", published: false })
+
+        Assert.equal(renamed.title, "Renamed")
+        Assert.equal(renamed.published, false)
+        Assert.equal(
+          Option.map(Posts.find(s.first.id), function(p) { p.title }),
+          Some("Renamed"),
+        )
+      },
+    )
+  }
+
+  test_update_touches() {
+    seeded(
+      function(s) {
+        let renamed = Posts.update({ ..s.first, title: "Renamed", published: false })
+
+        Assert.equal(renamed.created_at, s.first.created_at)
+        Assert.assert(Time.millis(renamed.updated_at) >= Time.millis(s.first.updated_at))
+      },
+    )
+  }
+
+  test_update_missing() {
+    seeded(
+      function(s) {
+        Assert.equal(
+          caught(
+            function() {
+              Posts.update({ ..s.first, id: Id(99) }) |> (function(p) { p.title })
+            },
+          ),
+          "Err(kind=not_found message=no row matched)",
+        )
+      },
+    )
+  }
+
+  test_delete() {
+    seeded(
+      function(s) {
+        Assert.equal(Posts.delete(s.third.id), true)
+        Assert.equal(Posts.delete(s.third.id), false)
+        Assert.equal(Posts.count([]), 3)
+      },
+    )
+  }
+
+  test_unique_violation() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          caught(
+            function() {
+              Users.insert({ name: "Ada 2", email: "ada@example.com" })
+                |> (function(u) { u.name })
+            },
+          ),
+          "Err(kind=unique message=UNIQUE constraint failed: users.email)",
+        )
+      },
+    )
+  }
+
+  test_foreign_key() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          caught(
+            function() {
+              Posts.insert(new_post("Orphan", true, 1.0, Some(Id(77))))
+                |> (function(p) { p.title })
+            },
+          ),
+          "Err(kind=foreign_key message=FOREIGN KEY constraint failed)",
+        )
+      },
+    )
+  }
+
+  test_time_column() {
+    seeded(
+      function(_) {
+        let boot = Events.insert({ name: "boot", seen_at: Some(Time.from_millis(1000)) })
+        let idle = Events.insert({ name: "idle", seen_at: None })
+
+        Assert.equal(
+          Option.map(boot.seen_at, Time.to_iso),
+          Some("1970-01-01T00:00:01.000Z"),
+        )
+        Assert.equal(Option.map(idle.seen_at, Time.to_iso), None)
+      },
+    )
+  }
+
+  test_sql_select() {
+    Assert.equal(
+      statement(
+        Sql.select(
+          "posts",
+          [Query.eq(Schema.post_title, "x"), Query.is_null(Schema.post_author_id)],
+          [Query.order_desc(Schema.post_id), Query.limit(5)],
+        ),
+      ),
+      "SELECT * FROM \"posts\" WHERE (\"posts\".\"title\" = ?) AND (\"posts\".\"author_id\" IS NULL) ORDER BY \"posts\".\"id\" DESC LIMIT 5 1",
+    )
+  }
+
+  test_sql_count_find() {
+    Assert.equal(
+      statement(Sql.count("posts", [])),
+      "SELECT COUNT(*) AS n FROM \"posts\" 0",
+    )
+    Assert.equal(
+      statement(Sql.find("posts", 3)),
+      "SELECT * FROM \"posts\" WHERE \"id\" = ? 1",
+    )
+  }
+
+  test_sql_insert_update_delete() {
+    Assert.equal(
+      statement(Sql.insert("posts", ["title"], [SqlText("a")])),
+      "INSERT INTO \"posts\" (\"title\") VALUES (?) RETURNING * 1",
+    )
+    Assert.equal(
+      statement(Sql.insert("posts", [], [])),
+      "INSERT INTO \"posts\" DEFAULT VALUES RETURNING * 0",
+    )
+    Assert.equal(
+      statement(Sql.update("posts", ["title"], [SqlText("a")], 3, true)),
+      "UPDATE \"posts\" SET \"title\" = ?, \"updated_at\" = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE \"id\" = ? RETURNING * 2",
+    )
+    Assert.equal(
+      statement(Sql.delete("posts", 3)),
+      "DELETE FROM \"posts\" WHERE \"id\" = ? 1",
+    )
+  }
+
+exports
+  test_insert_returns
+  test_timestamps_filled
+  test_find
+  test_all
+  test_filter_eq_order
+  test_filter_comparisons
+  test_filter_like
+  test_filter_nullable
+  test_filters_and
+  test_paging
+  test_count
+  test_ordering_by_several
+  test_update_returns
+  test_update_touches
+  test_update_missing
+  test_delete
+  test_unique_violation
+  test_foreign_key
+  test_time_column
+  test_sql_select
+  test_sql_count_find
+  test_sql_insert_update_delete

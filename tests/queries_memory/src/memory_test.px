@@ -1,7 +1,7 @@
-
-module Main
+module MemoryTest
 
 uses
+  Std.Assert
   Std.Id
   Std.List
   Std.Option
@@ -35,7 +35,10 @@ binds
     }
 
     insert(row) {
-      Table.insert(store, function(n) { { id: Id(n), title: row.title, published: row.published } })
+      Table.insert(
+        store,
+        function(n) { { id: Id(n), title: row.title, published: row.published } },
+      )
     }
 
     update(row) {
@@ -54,14 +57,23 @@ functions
     List.join(List.map(posts, function(p) { p.title }), ", ")
   }
 
-  main() -> {} / {Posts, Mut, Throws<DbFailure>} {
+  test_insert_find_update_delete() -> {} / {
+    Posts,
+    Mut,
+    Throws<DbFailure>,
+    Throws<Failed>,
+  } {
     let a = Posts.insert({ title: "a", published: true })
     let _ = Posts.insert({ title: "b", published: false })
 
-    Log.info("1 insert_find: #{a.id} #{Option.map(Posts.find(a.id), function(p) { p.title })}")
-    Log.info("2 all_count: #{titles(Posts.all())} #{Posts.count([])}")
-    Log.info("3 update_delete: #{Posts.update({ ..a, title: "A" }).title} #{Posts.delete(a.id)} #{Posts.count([Query.eq(Schema.post_published, true)])}")
+    Assert.equal(a.id, Id(1))
+    Assert.equal(Option.map(Posts.find(a.id), function(p) { p.title }), Some("a"))
+    Assert.equal(titles(Posts.all()), "a, b")
+    Assert.equal(Posts.count([]), 2)
+    Assert.equal(Posts.update({ ..a, title: "A" }).title, "A")
+    Assert.equal(Posts.delete(a.id), true)
+    Assert.equal(Posts.count([Query.eq(Schema.post_published, true)]), 1)
   }
 
 exports
-  main
+  test_insert_find_update_delete

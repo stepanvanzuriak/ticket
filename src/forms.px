@@ -153,6 +153,7 @@ functions
   }
 
 exports
+  Choice
   checked
   checkbox
   email_field

@@ -1,0 +1,112 @@
+module ViewsTest
+
+uses
+  Std.Assert
+  Std.List
+  Std.Option
+  Aliased
+  Cards
+  Items
+  Layout
+  Ported
+  Ticket.Html
+
+functions
+  post() -> { id: Int, title: String } {
+    { id: 1, title: "Hi & <bye>" }
+  }
+
+  test_ported_card() {
+    Assert.equal(
+      Html.to_string(Ported.card(post())),
+      "<article class=\"post\" data-id=\"1\"><h2>Hi &amp; &lt;bye&gt;</h2></article>",
+    )
+  }
+
+  test_ported_spaces() {
+    Assert.equal(
+      Html.to_string(Ported.spaces(post())),
+      "<p>Written by Hi &amp; &lt;bye&gt; today, not yesterday</p>",
+    )
+  }
+
+  test_ported_characters() {
+    Assert.equal(
+      Html.to_string(Ported.characters()),
+      "<p>Don't; 50% off? Q&amp;A @me $5 — “ok”</p>",
+    )
+  }
+
+  test_ported_comment() {
+    Assert.equal(Html.to_string(Ported.comment()), "<p>kept</p>")
+  }
+
+  test_ported_void() {
+    Assert.equal(Html.to_string(Ported.void()), "<div><br><span></span></div>")
+  }
+
+  test_ported_framed() {
+    Assert.equal(
+      Html.to_string(Ported.framed(post())),
+      "<section><h1>Hi &amp; &lt;bye&gt;</h1><p>body</p></section>",
+    )
+  }
+
+  test_alias_import() {
+    Assert.equal(
+      Html.to_string(Aliased.card(post())),
+      "<article class=\"post\" data-id=\"1\"><h2>Hi &amp; &lt;bye&gt;</h2></article>",
+    )
+  }
+
+  test_render_bool_float() {
+    Assert.equal(Html.to_string(Cards.bool_float()), "<p>true 1.5</p>")
+  }
+
+  test_attr_literal() {
+    Assert.equal(Html.to_string(Cards.literal()), "<a href=\"/x?a=1&amp;b=2\">x</a>")
+  }
+
+  test_attr_bool_true() {
+    Assert.equal(Html.to_string(Cards.disabled(true)), "<input disabled>")
+  }
+
+  test_attr_bool_false() {
+    Assert.equal(Html.to_string(Cards.disabled(false)), "<input>")
+  }
+
+  test_attr_option_none() {
+    Assert.equal(Html.to_string(Cards.titled(None)), "<a>x</a>")
+  }
+
+  test_attr_option_some() {
+    Assert.equal(Html.to_string(Cards.titled(Some("t"))), "<a title=\"t\">x</a>")
+  }
+
+  test_attr_escaped() {
+    Assert.equal(Html.to_string(Cards.quoted()), "<a title=\"say &quot;hi&quot;\">x</a>")
+  }
+
+  test_layout_from_controller() {
+    Assert.equal(
+      Html.document(Layout.app("T", Items.list(["a", "b"]))),
+      "<!doctype html><html><head><title>T</title></head><body><ul><li>a</li><li>b</li></ul></body></html>",
+    )
+  }
+
+exports
+  test_ported_card
+  test_ported_spaces
+  test_ported_characters
+  test_ported_comment
+  test_ported_void
+  test_ported_framed
+  test_alias_import
+  test_render_bool_float
+  test_attr_literal
+  test_attr_bool_true
+  test_attr_bool_false
+  test_attr_option_none
+  test_attr_option_some
+  test_attr_escaped
+  test_layout_from_controller

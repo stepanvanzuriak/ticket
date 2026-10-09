@@ -77,10 +77,8 @@ functions
     let kind = match column.kind {
       IntColumn -> "INTEGER",
       FloatColumn -> "REAL",
-      TextColumn -> "TEXT",
+      TextColumn | TimeColumn | NowColumn -> "TEXT",
       BoolColumn -> "BOOLEAN",
-      TimeColumn -> "TEXT",
-      NowColumn -> "TEXT",
     }
     let null = if column.nullable { "" } else { " NOT NULL" }
     let default = match column.kind {
@@ -120,6 +118,11 @@ functions
   }
 
 exports
+  Migration
+  Change
+  Column
+  ColumnKind
+  Index
   up_sql
   down_sql
   sql

@@ -176,6 +176,7 @@ functions
   }
 
 exports
+  Config
   clear
   commit
   config

@@ -1,0 +1,206 @@
+module ValidationsTest
+
+uses
+  Std.Assert
+  Std.List
+  Std.Option
+  Std.Result
+  Ticket.Db
+  Ticket.Errors
+  Ticket.Conn
+  Ticket.Params
+  Ticket.Test
+  Post
+  Schema
+
+hosts
+  Node
+
+functions
+  new_post(
+    title: String,
+    status: String,
+    slug: String,
+    summary: Option<String>,
+    views: Int,
+  ) -> NewPost {
+    { title: title, status: status, slug: slug, summary: summary, views: views }
+  }
+
+  valid() -> NewPost {
+    new_post("Hello", "draft", "hello", None, 1)
+  }
+
+  outcome(result: Result<Errors, r>) -> String {
+    match result {
+      Ok(_) -> "Ok",
+      Err(errors) -> "Err(#{List.join(Errors.full_messages(errors), "; ")})",
+    }
+  }
+
+  form(body: String) -> Conn {
+    let headers = [{ name: "Content-Type", value: "application/x-www-form-urlencoded" }]
+
+    Conn.from_request(
+      { method: "POST", path: "/", query: "", headers: headers, body: body },
+    )
+  }
+
+  submitted(body: String) -> String / {Posts, Throws<DbFailure>} {
+    let decoded: Result<Errors, NewPost> = Params.record(form(body), "post")
+
+    outcome(Result.and_then(decoded, Post.validate))
+  }
+
+  with_db(
+    body: function() -> {} / {Posts, Db, Fixture, Throws<DbFailure>, Throws<Failed>},
+  ) {
+    Test.with_db(Schema.migrations, body)
+  }
+
+  test_valid() {
+    with_db(function() { Assert.equal(outcome(Post.validate(valid())), "Ok") })
+  }
+
+  test_presence() {
+    with_db(
+      function() {
+        Assert.equal(
+          outcome(Post.validate({ ..valid(), title: "  ", slug: "" })),
+          "Err(Title can't be blank; Title is too short (minimum is 3 characters); Slug can't be blank)",
+        )
+      },
+    )
+  }
+
+  test_length() {
+    with_db(
+      function() {
+        Assert.equal(
+          "#{outcome(Post.validate({ ..valid(), title: "ab" }))} | #{outcome(Post.validate({ ..valid(), title: "a" }))} | #{outcome(Post.validate({ ..valid(), title: String.repeat("x", 121) }))} | #{outcome(Post.validate({ ..valid(), title: String.repeat("x", 120) }))}",
+          "Err(Title is too short (minimum is 3 characters)) | Err(Title is too short (minimum is 3 characters)) | Err(Title is too long (maximum is 120 characters)) | Ok",
+        )
+      },
+    )
+  }
+
+  test_inclusion() {
+    with_db(
+      function() {
+        Assert.equal(
+          "#{outcome(Post.validate({ ..valid(), status: "archived" }))} | #{outcome(Post.validate({ ..valid(), views: 3 }))} | #{outcome(Post.validate({ ..valid(), views: 2 }))}",
+          "Err(Status is not included in the list) | Err(Views is not included in the list) | Ok",
+        )
+      },
+    )
+  }
+
+  test_length_option() {
+    with_db(
+      function() {
+        Assert.equal(
+          "#{outcome(Post.validate({ ..valid(), summary: Some("short") }))} | #{outcome(Post.validate({ ..valid(), summary: Some("far too long for this") }))}",
+          "Ok | Err(Summary is too long (maximum is 10 characters))",
+        )
+      },
+    )
+  }
+
+  test_all_errors_in_order() {
+    with_db(
+      function() {
+        Assert.equal(
+          outcome(Post.validate(new_post("", "x", "", None, 9))),
+          "Err(Title can't be blank; Title is too short (minimum is 3 characters); Status is not included in the list; Slug can't be blank; Views is not included in the list)",
+        )
+      },
+    )
+  }
+
+  test_uniqueness_new() {
+    with_db(
+      function() {
+        let _ = Posts.insert(valid())
+
+        Assert.equal(
+          "#{outcome(Post.validate(valid()))} | #{outcome(Post.validate({ ..valid(), slug: "other" }))}",
+          "Err(Slug has already been taken) | Ok",
+        )
+      },
+    )
+  }
+
+  test_uniqueness_update_self() {
+    with_db(
+      function() {
+        let saved = Posts.insert(valid())
+
+        Assert.equal(outcome(Post.validate_update(saved)), "Ok")
+      },
+    )
+  }
+
+  test_uniqueness_update_other() {
+    with_db(
+      function() {
+        let _ = Posts.insert(valid())
+        let other = Posts.insert({ ..valid(), slug: "other" })
+
+        Assert.equal(
+          outcome(Post.validate_update({ ..other, slug: "hello" })),
+          "Err(Slug has already been taken)",
+        )
+      },
+    )
+  }
+
+  test_update_rules() {
+    with_db(
+      function() {
+        let saved = Posts.insert(valid())
+
+        Assert.equal(
+          outcome(Post.validate_update({ ..saved, title: "x" })),
+          "Err(Title is too short (minimum is 3 characters))",
+        )
+      },
+    )
+  }
+
+  test_form_then_validate() {
+    with_db(
+      function() {
+        let _ = Posts.insert(valid())
+
+        Assert.equal(
+          "#{submitted("post[title]=Fine&post[status]=live&post[slug]=fresh&post[views]=2")} | #{submitted("post[title]=No&post[status]=live&post[slug]=fresh&post[views]=2")} | #{submitted("post[title]=Fine&post[status]=live&post[slug]=hello&post[views]=lots")} | #{submitted("post[title]=Fine&post[status]=live&post[slug]=hello&post[views]=1")}",
+          "Ok | Err(Title is too short (minimum is 3 characters)) | Err(Views is not a whole number) | Err(Slug has already been taken)",
+        )
+      },
+    )
+  }
+
+  test_format() {
+    with_db(
+      function() {
+        Assert.equal(
+          "#{outcome(Post.validate({ ..valid(), slug: "Not A Slug" }))} | #{outcome(Post.validate({ ..valid(), slug: "a-b-1" }))}",
+          "Err(Slug is invalid) | Ok",
+        )
+      },
+    )
+  }
+
+exports
+  test_valid
+  test_presence
+  test_length
+  test_inclusion
+  test_length_option
+  test_all_errors_in_order
+  test_uniqueness_new
+  test_uniqueness_update_self
+  test_uniqueness_update_other
+  test_update_rules
+  test_form_then_validate
+  test_format

@@ -5,3 +5,6 @@ uses
 
 types
   Halt = Halt(Response)
+
+exports
+  Halt

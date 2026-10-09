@@ -122,6 +122,9 @@ impls
 
 exports
   ToSql { to_sql }
+  Column
+  Filter
+  Clause
   column
   eq
   not_eq

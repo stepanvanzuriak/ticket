@@ -57,7 +57,7 @@ functions
   }
 
   to_map(list: List<Entry>) -> Map<String, String> {
-    List.fold(list, Map.empty(), function(map, e) { Map.insert(map, e.key, e.value) })
+    Map.from_list(list)
   }
 
   cookie(conn: Conn) -> Option<String> {
@@ -80,6 +80,8 @@ functions
   }
 
 exports
+  Entry
+  Payload
   cookie
   entries
   name

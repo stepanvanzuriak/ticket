@@ -1,0 +1,213 @@
+module CliTest
+
+uses
+  Std.Assert
+  Std.Fs
+  Std.List
+  Std.Option
+  Std.Path
+  Std.Process
+  Std.Result
+  Args
+  App
+  Ticket.Inflect
+
+hosts
+  Node
+
+functions
+  show_option(option: Option<String>) -> String {
+    match option {
+      Some(value) -> "Some(\"#{value}\")",
+      None -> "None",
+    }
+  }
+
+  show_parsed(result: Result<ArgError, Parsed>) -> String {
+    match result {
+      Err(UnknownFlag(name)) -> "Err(UnknownFlag(\"#{name}\"))",
+      Err(MissingValue(name)) -> "Err(MissingValue(\"#{name}\"))",
+      Ok(parsed) -> {
+        let flags = List.map(
+          parsed.flags,
+          function(f) {
+            match f.value {
+              Some(value) -> "#{f.name}=#{value}",
+              None -> f.name,
+            }
+          },
+        )
+
+        "command=#{parsed.command} positional=[#{List.join(parsed.positional, ", ")}] flags=[#{List.join(flags, ", ")}]"
+      }
+    }
+  }
+
+  fixtures(base: String) -> Result<FsError, {}> / {Fs} {
+    Fs.remove_all(base)
+      |> Result.and_then(
+        function(_) { Fs.mkdir_all(Path.join(base, "demo/src/controllers")) },
+      )
+      |> Result.and_then(function(_) { Fs.mkdir_all(Path.join(base, "plain/src")) })
+      |> Result.and_then(
+        function(_) {
+          Fs.write(
+            Path.join(base, "demo/polar.toml"),
+            "[project]\nname = \"demo\"\n\n[dependencies]\nticket = { path = \"../ticket\" }\n",
+          )
+        },
+      )
+      |> Result.and_then(
+        function(_) {
+          Fs.write(
+            Path.join(base, "plain/polar.toml"),
+            "[project]\nname = \"plain\"\n\n[run]\nticket = \"not a dependency\"\n",
+          )
+        },
+      )
+  }
+
+  relative_root(base: String, from: String) -> String / {Fs} {
+    show_option(
+      Option.map(
+        App.root(Path.join(base, from)),
+        function(root) { Path.relative(base, root) },
+      ),
+    )
+  }
+
+  test_args_forms() {
+    Assert.equal(
+      show_parsed(Args.parse(["s", "-p", "1", "--x=2", "--skip-build"])),
+      "command=server positional=[] flags=[port=1, x=2, skip-build]",
+    )
+  }
+
+  test_args_forms_lookup() {
+    match Args.parse(["s", "-p", "1", "--x=2", "--skip-build"]) {
+      Ok(parsed) -> Assert.equal(
+        "port=#{show_option(Args.flag(parsed, "port"))} x=#{show_option(Args.flag(parsed, "x"))} skip-build=#{Bool.to_string(Args.has(parsed, "skip-build"))} help=#{Bool.to_string(Args.has(parsed, "help"))}",
+        "port=Some(\"1\") x=Some(\"2\") skip-build=true help=false",
+      ),
+      Err(_) -> Assert.fail("parse failed"),
+    }
+  }
+
+  test_args_missing_value() {
+    Assert.equal(show_parsed(Args.parse(["s", "--port"])), "Err(MissingValue(\"port\"))")
+  }
+
+  test_root_detection() {
+    let base = Path.join(
+      Option.with_default(Process.env("TMPDIR"), "/tmp"),
+      "ticket-cli-tests",
+    )
+
+    match fixtures(base) {
+      Ok(_) -> {
+        Assert.equal(relative_root(base, "demo/src/controllers"), "Some(\"demo\")")
+        Assert.equal(relative_root(base, "demo"), "Some(\"demo\")")
+        Assert.equal(relative_root(base, "plain/src"), "None")
+      }
+      Err(error) -> Assert.fail("fixtures failed: #{error.message}"),
+    }
+
+    let _ = Fs.remove_all(base)
+
+    {}
+  }
+
+  test_inflect_plural() {
+    Assert.equal(
+      List.join(
+        List.map(
+          ["post", "category", "box", "day"],
+          function(w) { "#{w} -> #{Inflect.plural(w)}" },
+        ),
+        ", ",
+      ),
+      "post -> posts, category -> categories, box -> boxes, day -> days",
+    )
+  }
+
+  test_inflect_singular() {
+    Assert.equal(
+      List.join(
+        List.map(
+          ["posts", "categories", "people", "s", "ies"],
+          function(w) { "#{w} -> #{show_option(Inflect.singular(w))}" },
+        ),
+        ", ",
+      ),
+      "posts -> Some(\"post\"), categories -> Some(\"category\"), people -> None, s -> None, ies -> None",
+    )
+  }
+
+  test_inflect_case() {
+    Assert.equal(
+      "blog_posts -> #{Option.with_default(Option.map(Inflect.singular("blog_posts"), Inflect.pascal), "None")}, BlogPost -> #{Inflect.plural(Inflect.snake("BlogPost"))}, blog_post -> #{Inflect.pascal("blog_post")}",
+      "blog_posts -> BlogPost, BlogPost -> blog_posts, blog_post -> BlogPost",
+    )
+  }
+
+  test_args_long_value() {
+    Assert.equal(
+      show_parsed(Args.parse(["server", "--port", "4000"])),
+      "command=server positional=[] flags=[port=4000]",
+    )
+  }
+
+  test_args_equals_value() {
+    Assert.equal(
+      show_parsed(Args.parse(["server", "--port=4000"])),
+      "command=server positional=[] flags=[port=4000]",
+    )
+  }
+
+  test_args_value_is_flag() {
+    Assert.equal(
+      show_parsed(Args.parse(["server", "-p", "--skip-build"])),
+      "Err(MissingValue(\"port\"))",
+    )
+  }
+
+  test_args_unknown_flag() {
+    Assert.equal(
+      show_parsed(Args.parse(["new", "demo", "--frobnicate"])),
+      "Err(UnknownFlag(\"frobnicate\"))",
+    )
+  }
+
+  test_args_aliases() {
+    Assert.equal(
+      show_parsed(Args.parse(["g", "model"])),
+      "command=generate positional=[model] flags=[]",
+    )
+  }
+
+  test_args_dashdash() {
+    Assert.equal(
+      show_parsed(Args.parse(["new", "--", "--skip-build"])),
+      "command=new positional=[--skip-build] flags=[]",
+    )
+  }
+
+  test_args_empty() {
+    Assert.equal(show_parsed(Args.parse([])), "command= positional=[] flags=[]")
+  }
+
+exports
+  test_args_forms
+  test_args_forms_lookup
+  test_args_missing_value
+  test_root_detection
+  test_inflect_plural
+  test_inflect_singular
+  test_inflect_case
+  test_args_long_value
+  test_args_equals_value
+  test_args_value_is_flag
+  test_args_unknown_flag
+  test_args_aliases
+  test_args_dashdash
+  test_args_empty
