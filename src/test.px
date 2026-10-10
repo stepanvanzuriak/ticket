@@ -61,6 +61,28 @@ functions
     { cookies: Map.empty(), protect: false }
   }
 
+  login_as(client: Client, user_id: Int) -> Client / {Process} {
+    let config = Session.config()
+    let known = Option.and_then(Map.get(client.cookies, Signed.name()), Signed.peek)
+    let payload = match known {
+      Some(p) -> p,
+      None -> { session: [], flash: [], expires: 0 },
+    }
+    let session = List.append(
+      List.filter(payload.session, function(e) { e.key != "_user_id" }),
+      [{ key: "_user_id", value: Int.to_string(user_id) }],
+    )
+
+    {
+      ..client,
+      cookies: Map.insert(
+        client.cookies,
+        Signed.name(),
+        Signed.seal(config.secret, { ..payload, session: session }),
+      ),
+    }
+  }
+
   csrf_token(client: Client) -> String {
     let payload = Option.and_then(Map.get(client.cookies, Signed.name()), Signed.peek)
 
@@ -378,6 +400,7 @@ exports
   get
   header
   location
+  login_as
   patch
   post
   post_without_token

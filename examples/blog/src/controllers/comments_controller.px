@@ -14,6 +14,8 @@ uses
   Models.Comment
   Paths
   Schema
+  Ticket.Action
+  Ticket.Auth
   Ticket.Conn
   Ticket.Db
   Ticket.Error
@@ -47,7 +49,7 @@ functions
     Random,
     Clock,
   } {
-    Session.handle(conn, remove)
+    Session.handle(conn, Action.before([Auth.require_login], remove))
   }
 
   add(conn: Conn) -> Response / {

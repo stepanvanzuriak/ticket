@@ -9,6 +9,7 @@ uses
   Std.Time
   Routes
   Schema
+  Ticket.Auth
   Ticket.Db
   Ticket.Test
 
@@ -17,7 +18,7 @@ hosts
 
 functions
   seed() {
-    let ann = Users.insert({ name: "Ann", email: "ann@example.com" })
+    let ann = Users.insert({ name: "Ann", email: "ann@example.com", password_digest: "x" })
     let _ = Posts.insert(
       {
         title: "Hello, Ticket",
@@ -36,7 +37,7 @@ functions
       function() {
         seed()
 
-        let reply = Test.get(Routes.router, Test.client(), "/posts")
+        let reply = Test.get(Routes.router, Test.login_as(Test.client(), 1), "/posts")
 
         Test.assert_status(reply, 200)
         Test.assert_body_contains(reply, "Hello, Ticket")
@@ -53,7 +54,7 @@ functions
 
         let reply = Test.post(
           Routes.router,
-          Test.client(),
+          Test.login_as(Test.client(), 1),
           "/posts",
           [
             { name: "post[title]", value: "A new post" },
@@ -75,7 +76,7 @@ functions
 
         let reply = Test.post(
           Routes.router,
-          Test.client(),
+          Test.login_as(Test.client(), 1),
           "/posts",
           [{ name: "post[title]", value: "Hi" }, { name: "post[body]", value: "Text" }],
         )
@@ -95,7 +96,7 @@ functions
 
         let reply = Test.post(
           Routes.router,
-          Test.client(),
+          Test.login_as(Test.client(), 1),
           "/posts",
           [
             { name: "post[title]", value: "Hello, Ticket" },
@@ -115,7 +116,7 @@ functions
       function() {
         seed()
 
-        let reply = Test.delete(Routes.router, Test.client(), "/posts/1")
+        let reply = Test.delete(Routes.router, Test.login_as(Test.client(), 1), "/posts/1")
 
         Test.assert_redirect(reply, "/posts")
         Test.assert_status(Test.get(Routes.router, reply.client, "/posts/1"), 404)
@@ -127,7 +128,7 @@ functions
     Test.with_db(
       Schema.migrations,
       function() {
-        Test.assert_status(Test.get(Routes.router, Test.client(), "/posts/99"), 404)
+        Test.assert_status(Test.get(Routes.router, Test.login_as(Test.client(), 1), "/posts/99"), 404)
       },
     )
   }
@@ -141,7 +142,7 @@ functions
         Test.assert_status(
           Test.post_without_token(
             Routes.router,
-            Test.client(),
+            Test.login_as(Test.client(), 1),
             "/posts",
             [
               { name: "post[title]", value: "No token here" },
@@ -154,7 +155,79 @@ functions
     )
   }
 
+  test_new_post_requires_login() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed()
+
+        let reply = Test.get(Routes.router, Test.client(), "/posts/new")
+
+        Test.assert_redirect(reply, "/login")
+        Assert.equal(Test.flash(reply, "alert"), Some("Please log in first."))
+      },
+    )
+  }
+
+  test_login_returns_to_the_requested_page() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        let digest = Auth.hash_password("password")
+        let _ = Users.insert({ name: "Ann", email: "ann@example.com", password_digest: digest })
+        let refused = Test.get(Routes.router, Test.client(), "/posts/new")
+        let reply = Test.post(
+          Routes.router,
+          refused.client,
+          "/login",
+          [
+            { name: "email", value: "ann@example.com" },
+            { name: "password", value: "password" },
+          ],
+        )
+
+        Test.assert_redirect(reply, "/posts/new")
+      },
+    )
+  }
+
+  test_login_failures_look_alike() {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        let digest = Auth.hash_password("password")
+        let _ = Users.insert({ name: "Ann", email: "ann@example.com", password_digest: digest })
+        let wrong = Test.post(
+          Routes.router,
+          Test.client(),
+          "/login",
+          [
+            { name: "email", value: "ann@example.com" },
+            { name: "password", value: "nope" },
+          ],
+        )
+        let unknown = Test.post(
+          Routes.router,
+          Test.client(),
+          "/login",
+          [
+            { name: "email", value: "nobody@example.com" },
+            { name: "password", value: "nope" },
+          ],
+        )
+
+        Test.assert_status(wrong, 422)
+        Test.assert_status(unknown, 422)
+        Test.assert_body_contains(wrong, "Invalid email or password.")
+        Test.assert_body_contains(unknown, "Invalid email or password.")
+      },
+    )
+  }
+
 exports
+  test_new_post_requires_login
+  test_login_returns_to_the_requested_page
+  test_login_failures_look_alike
   test_a_post_needs_a_token
   test_create_sets_a_notice_and_redirects
   test_delete_removes_the_post

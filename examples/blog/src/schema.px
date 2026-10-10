@@ -28,3 +28,6 @@ migrations
   20261001_100200 create_table comments
     body     String
     post_id  Id<Post>  references posts on_delete cascade
+
+  20261008_100000 add_column users
+    password_digest  String  default ""

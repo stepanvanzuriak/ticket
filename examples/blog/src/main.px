@@ -1,12 +1,14 @@
 module Main
 
 uses
+  Std.Crypto
   Std.Http
   Std.Id
   Std.List
   Std.Option
   Std.Process
   Std.Time
+  Ticket.Auth
   Ticket.Console
   Ticket.Db
   Ticket.Migrate
@@ -29,9 +31,10 @@ functions
     Migrate.run(Schema.migrations, command, step, version)
   }
 
-  seed() -> {} / {Users, Posts, Comments, Db, Throws<DbFailure>} {
-    let ann = Users.insert({ name: "Ann", email: "ann@example.com" })
-    let bob = Users.insert({ name: "Bob", email: "bob@example.com" })
+  seed() -> {} / {Users, Posts, Comments, Db, Throws<DbFailure>, Random, Async} {
+    let digest = Auth.hash_password("password")
+    let ann = Users.insert({ name: "Ann", email: "ann@example.com", password_digest: digest })
+    let bob = Users.insert({ name: "Bob", email: "bob@example.com", password_digest: digest })
     let first = Posts.insert(
       {
         title: "Hello, Ticket",

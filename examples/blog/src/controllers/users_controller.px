@@ -1,0 +1,96 @@
+module UsersController
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Process
+  Std.Result
+  Std.Time
+  Models.User
+  Paths
+  Schema
+  Ticket.Auth
+  Ticket.Conn
+  Ticket.Db
+  Ticket.Errors
+  Ticket.Flash
+  Ticket.Params
+  Ticket.Response
+  Ticket.Session
+  Views.Layout
+  Views.UserViews
+
+functions
+  new(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, blank)
+  }
+
+  create(conn: Conn) -> Response / {
+    Users,
+    Throws<DbFailure>,
+    Async,
+    Process,
+    Random,
+    Clock,
+  } {
+    Session.handle(conn, signup)
+  }
+
+  blank(conn: Conn) -> Response {
+    Response.render(
+      Layout.app(
+        conn,
+        "Sign up",
+        UserViews.new(conn, Params.nested(conn, "user"), Errors.empty()),
+      ),
+    )
+  }
+
+  signup(conn: Conn) -> Response / {Users, Throws<DbFailure>, Async, Random} {
+    let fields = Params.nested(conn, "user")
+    let plain = Option.with_default(Map.get(fields, "password"), "")
+    let confirmation = Option.with_default(Map.get(fields, "password_confirmation"), "")
+    let password = Auth.validate_password(plain, confirmation)
+    let digest = match password {
+      Ok(valid) -> Auth.hash_password(valid),
+      Err(_) -> "",
+    }
+    let decoded: Result<Errors, NewUser> = Params.record(
+      {
+        ..conn,
+        form: Map.insert(conn.form, "user[password_digest]", digest),
+      },
+      "user",
+    )
+    let checked = match password {
+      Ok(_) -> Result.and_then(decoded, User.validate),
+      Err(problems) -> Err(merge(decoded, problems)),
+    }
+
+    match checked {
+      Ok(row) -> {
+        let user = Users.insert(row)
+
+        Auth.finish_login(conn, Id.value(user.id), "Welcome!")
+      }
+      Err(errors) -> Response.render_status(
+        422,
+        Layout.app(conn, "Sign up", UserViews.new(conn, fields, errors)),
+      ),
+    }
+  }
+
+  merge(decoded: Result<Errors, NewUser>, problems: Errors) -> Errors {
+    match decoded {
+      Ok(_) -> problems,
+      Err(errors) -> Errors.merge(errors, problems),
+    }
+  }
+
+exports
+  create
+  new

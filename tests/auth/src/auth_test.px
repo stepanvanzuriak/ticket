@@ -1,0 +1,127 @@
+module AuthTest
+
+uses
+  Std.Assert
+  Std.Crypto
+  Std.Http
+  Std.List
+  Std.Map
+  Std.Option
+  Std.Result
+  Ticket.Auth
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Flash
+  Ticket.Response
+  Ticket.Session
+
+hosts
+  Node
+
+functions
+  conn_at(method: String, path: String) -> Conn {
+    Conn.from_request({ method: method, path: path, query: "", headers: [], body: "" })
+  }
+
+  header(response: Response, name: String) -> String {
+    match List.filter(response.headers, function(h) { h.name == name }) {
+      [first, .._] -> first.value,
+      [] -> "",
+    }
+  }
+
+  test_roundtrip() {
+    let digest = Auth.hash_password("secret")
+
+    Assert.equal(Auth.verify_password("secret", digest), true)
+    Assert.equal(Auth.verify_password("Secret", digest), false)
+  }
+
+  test_salted() {
+    let a = Auth.hash_password("a")
+    let b = Auth.hash_password("a")
+
+    Assert.equal(a != b, true)
+  }
+
+  test_garbage_digest() {
+    Assert.equal(Auth.verify_password("secret", "nope"), false)
+    Assert.equal(Auth.verify_password("secret", ""), false)
+  }
+
+  test_check_unknown_user() {
+    Assert.equal(Auth.check("secret", None), false)
+    Assert.equal(Auth.check("secret", Some(Auth.hash_password("secret"))), true)
+  }
+
+  test_login_logout() {
+    let conn = Session.put(conn_at("GET", "/"), "other", "x")
+    let user = Auth.login(conn, 7)
+
+    Assert.equal(Auth.current_user_id(user), Some(7))
+    Assert.equal(Session.get(user, "other"), None)
+    Assert.equal(Auth.current_user_id(Auth.logout(user)), None)
+  }
+
+  test_require_login_passes() {
+    let conn = Auth.login(conn_at("GET", "/posts/new"), 1)
+
+    match Auth.require_login(conn) {
+      Ok(_) -> Assert.equal(true, true),
+      Err(_) -> Assert.equal("refused", "passed"),
+    }
+  }
+
+  test_require_login_redirects() {
+    match Auth.require_login(conn_at("GET", "/posts/new")) {
+      Ok(_) -> Assert.equal("passed", "refused"),
+      Err(response) -> {
+        Assert.equal(response.status, 302)
+        Assert.equal(header(response, "location"), "/login")
+      }
+    }
+  }
+
+  test_return_to() {
+    let remembered = Auth.remember(conn_at("GET", "/posts/new"))
+
+    Assert.equal(Auth.return_to(remembered), "/posts/new")
+    Assert.equal(Auth.return_to(conn_at("GET", "/")), "/")
+  }
+
+  test_open_redirect() {
+    let hostile = Session.put(conn_at("GET", "/"), "_return_to", "https://evil.test")
+    let scheme_relative = Session.put(conn_at("GET", "/"), "_return_to", "//evil.test")
+
+    Assert.equal(Auth.return_to(hostile), "/")
+    Assert.equal(Auth.return_to(scheme_relative), "/")
+  }
+
+  test_post_not_remembered() {
+    Assert.equal(Auth.return_to(Auth.remember(conn_at("POST", "/posts"))), "/")
+  }
+
+  test_password_rules() {
+    Assert.equal(Auth.validate_password("longenough", "longenough"), Ok("longenough"))
+
+    match Auth.validate_password("short", "other") {
+      Ok(_) -> Assert.equal("ok", "errors"),
+      Err(errors) -> {
+        Assert.equal(Errors.has(errors, "password"), true)
+        Assert.equal(Errors.has(errors, "password_confirmation"), true)
+      }
+    }
+  }
+
+exports
+  test_check_unknown_user
+  test_garbage_digest
+  test_login_logout
+  test_open_redirect
+  test_password_rules
+  test_post_not_remembered
+  test_require_login_passes
+  test_require_login_redirects
+  test_return_to
+  test_roundtrip
+  test_salted

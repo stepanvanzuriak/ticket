@@ -46,8 +46,9 @@ functions
       ["scaffold", name, ..fields] -> scaffold(root, home, name, fields, flags),
       ["controller", name, ..actions] -> controller(root, home, name, actions, flags),
       ["model", name, ..fields] -> model(root, home, name, fields, flags),
+      ["auth"] -> auth(root, home, Option.with_default(Args.flag(parsed, "model"), "User"), flags),
       _ -> Generate.usage(
-        "`ticket g` takes `scaffold <Name> [field:Type…]` or `controller <Name> [action…]`",
+        "`ticket g` takes `scaffold <Name> [field:Type…]`, `controller <Name> [action…]` or `auth [--model User]`",
       ),
     }
   }
@@ -717,6 +718,155 @@ functions
     }
   }
 
+  auth_fields() -> List<String> {
+    ["email:String:unique", "password_digest:String"]
+  }
+
+  auth_files(home: String, n: Names) -> Result<String, List<File>> / {Fs} {
+    let pairs = [
+      { key: "model", value: n.model },
+      { key: "Model", value: n.pascal },
+      { key: "models", value: n.table },
+      { key: "Models", value: n.plural },
+    ]
+    let specs = [
+      { path: "src/models/#{n.model}.px", name: "model.px" },
+      { path: "src/controllers/sessions_controller.px", name: "sessions_controller.px" },
+      {
+        path: "src/controllers/registrations_controller.px",
+        name: "registrations_controller.px",
+      },
+      { path: "src/views/session_views.px", name: "session_views.px" },
+      { path: "src/views/registration_views.px", name: "registration_views.px" },
+      { path: "src/controllers/auth_controller_test.px", name: "auth_test.px" },
+    ]
+
+    List.fold(
+      specs,
+      Ok([]),
+      function(acc, spec) {
+        match acc {
+          Err(message) -> Err(message),
+          Ok(done) -> match Fs.read(Path.join(home, "cli/templates/auth/#{spec.name}")) {
+            Ok(text) -> Ok(
+              List.append(done, [{ path: spec.path, text: fill(text, pairs) }]),
+            ),
+            Err(error) -> Err("can't read the template: #{error.message}"),
+          },
+        }
+      },
+    )
+  }
+
+  auth_routes() -> List<String> {
+    [
+      "  get     /login   -> SessionsController.new           as login",
+      "  post    /login   -> SessionsController.create",
+      "  delete  /logout  -> SessionsController.destroy       as logout",
+      "  get     /signup  -> RegistrationsController.new      as signup",
+      "  post    /signup  -> RegistrationsController.create",
+    ]
+  }
+
+  auth_routing(text: String) -> Routing {
+    let present = function(line: String) { String.contains(line, "SessionsController.") }
+
+    match routing(text, "SessionsController", auth_routes(), present) {
+      Add(added) -> Add(
+        List.join(
+          with_use(String.split(added, "\n"), "RegistrationsController"),
+          "\n",
+        ),
+      ),
+      other -> other,
+    }
+  }
+
+  auth(
+    root: String,
+    home: String,
+    name: String,
+    flags: Flags,
+  ) -> Int / {Process, Fs, Clock} {
+    match names_for(name) {
+      Err(message) -> Generate.usage(message),
+      Ok(n) -> match Generate.model_entry(name, auth_fields()) {
+        Err(message) -> Generate.usage(message),
+        Ok(entry) -> match Generate.plan_schema(root, entry) {
+          Err(message) -> Generate.failed(message),
+          Ok(planned) -> match auth_files(home, n) {
+            Err(message) -> Generate.failed(message),
+            Ok(files) -> auth_write(root, flags, entry, planned, files),
+          },
+        },
+      },
+    }
+  }
+
+  auth_write(
+    root: String,
+    flags: Flags,
+    entry: Entry,
+    planned: Planned,
+    files: List<File>,
+  ) -> Int / {Process, Fs} {
+    let clashing = conflicts(root, files)
+
+    if !List.is_empty(clashing) && !flags.overwrite && !flags.skip {
+      conflict_error(clashing)
+    } else {
+      let routing = match routes_text(root) {
+        Some(text) -> auth_routing(text),
+        None -> NoFile,
+      }
+      let written = write_schema(root, flags, planned, entry)
+        |> Result.and_then(function(_) { write_files(root, flags, files) })
+        |> Result.and_then(
+          function(_) {
+            write_routes(
+              root,
+              flags,
+              routing,
+              "login, logout and signup routes to SessionsController and RegistrationsController",
+            )
+          },
+        )
+
+      match written {
+        Err(message) -> Generate.failed(message),
+        Ok(_) -> {
+          note_auth()
+          tidy(root, flags, ["src/schema.px", routes_file()])
+        }
+      }
+    }
+  }
+
+  note_auth() -> {} {
+    Log.info(
+      "        note  protect actions with `Action.before([Auth.require_login], action)`; the `password_digest` column holds the hash, never the password",
+    )
+  }
+
+  auth_targets(root: String, home: String, n: Names) -> List<Target> / {Fs} {
+    match auth_files(home, n) {
+      Err(_) -> [],
+      Ok(files) -> List.map(
+        files,
+        function(file) {
+          {
+            path: file.path,
+            acceptable: if String.contains(file.path, "/models/") {
+              [file.text, plain_model(n)]
+            } else {
+              [file.text]
+            },
+          }
+        },
+      ),
+    }
+  }
+
   model(
     root: String,
     home: String,
@@ -904,7 +1054,7 @@ functions
           n,
           scaffold_targets(root, home, n),
           true,
-          true,
+          [n.plural],
         ),
       },
       ["model", name] -> match names_for(name) {
@@ -915,7 +1065,7 @@ functions
           n,
           model_targets(root, home, n),
           true,
-          false,
+          [],
         ),
       },
       ["controller", name] -> match controller_names(name) {
@@ -926,11 +1076,22 @@ functions
           n,
           controller_targets(root, home, n),
           false,
+          [n.plural],
+        ),
+      },
+      ["auth"] -> match names_for(Option.with_default(Args.flag(parsed, "model"), "User")) {
+        Err(message) -> Generate.usage(message),
+        Ok(n) -> finish_destroy(
+          root,
+          flags,
+          n,
+          auth_targets(root, home, n),
           true,
+          ["Sessions", "Registrations"],
         ),
       },
       _ -> Generate.usage(
-        "`ticket destroy` takes `scaffold <Name>`, `model <Name>` or `controller <Name>`",
+        "`ticket destroy` takes `scaffold <Name>`, `model <Name>`, `controller <Name>` or `auth`",
       ),
     }
   }
@@ -1023,7 +1184,7 @@ functions
     n: Names,
     targets: List<Target>,
     migration: Bool,
-    routed: Bool,
+    routed: List<String>,
   ) -> Int / {Process, Fs} {
     let edited = List.concat_map(
       targets,
@@ -1056,7 +1217,7 @@ functions
 
       match Result.and_then(
         removed,
-        function(_) { if routed { unroute(root, flags, n) } else { Ok(false) } },
+        function(_) { unroute(root, flags, routed) },
       ) {
         Err(message) -> Generate.failed(message),
         Ok(changed) -> {
@@ -1084,21 +1245,27 @@ functions
     }
   }
 
-  unroute(root: String, flags: Flags, n: Names) -> Result<String, Bool> / {Fs} {
+  unroute(root: String, flags: Flags, plurals: List<String>) -> Result<String, Bool> / {
+    Fs,
+  } {
     match routes_text(root) {
       None -> Ok(false),
+      Some(_) if List.is_empty(plurals) -> Ok(false),
       Some(text) -> {
         let lines = String.split(text, "\n")
         let kept = List.filter(
           lines,
-          function(line) { !String.contains(line, "#{n.plural}Controller") },
+          function(line) {
+            !List.any(plurals, function(p) { String.contains(line, "#{p}Controller") })
+          },
         )
+        let what = List.join(List.map(plurals, function(p) { "#{p}Controller" }), ", ")
 
         if List.length(kept) == List.length(lines) {
-          say(flags, "skip", "#{routes_file()}  no lines for #{n.plural}Controller")
+          say(flags, "skip", "#{routes_file()}  no lines for #{what}")
           Ok(false)
         } else {
-          say(flags, "remove", "#{routes_file()}  the #{n.plural}Controller lines")
+          say(flags, "remove", "#{routes_file()}  the #{what} lines")
 
           if flags.pretend {
             Ok(false)

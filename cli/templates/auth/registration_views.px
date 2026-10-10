@@ -1,0 +1,25 @@
+module RegistrationViews
+
+uses
+  Std.Map
+  Paths
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Forms
+  Ticket.Html
+
+views
+  new(conn: Conn, fields: Map<String, String>, errors: Errors)
+    <section>
+      <h1>Sign up</h1>
+      <Forms.Form conn={conn} action={Paths.signup_path()}>
+        <Forms.ErrorSummary errors={errors} noun="account" />
+        <Forms.EmailField prefix="{{model}}" field="email" value={Forms.value(fields, "email")} errors={errors} />
+        <Forms.PasswordField prefix="{{model}}" field="password" value="" errors={errors} />
+        <Forms.PasswordField prefix="{{model}}" field="password_confirmation" value="" errors={errors} />
+        <Forms.Submit text="Sign up" />
+      </Forms.Form>
+    </section>
+
+exports
+  new

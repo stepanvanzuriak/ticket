@@ -7,12 +7,20 @@ uses
   Ticket.Conn
   Controllers.CommentsController
   Controllers.PostsController
+  Controllers.SessionsController
+  Controllers.UsersController
 
 hosts
   Node
 
 routes
   root  -> PostsController.index
+
+  get     /login   -> SessionsController.new      as login
+  post    /login   -> SessionsController.create
+  delete  /logout  -> SessionsController.destroy  as logout
+  get     /signup  -> UsersController.new         as signup
+  post    /signup  -> UsersController.create
 
   resources posts       -> PostsController
     resources comments  -> CommentsController  only create destroy

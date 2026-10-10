@@ -17,7 +17,7 @@ hosts
 
 functions
   seed() {
-    let ann = Users.insert({ name: "Ann", email: "ann@example.com" })
+    let ann = Users.insert({ name: "Ann", email: "ann@example.com", password_digest: "x" })
     let post = Posts.insert(
       {
         title: "Hello, Ticket",
@@ -39,7 +39,7 @@ functions
 
         let reply = Test.post(
           Routes.router,
-          Test.client(),
+          Test.login_as(Test.client(), 1),
           "/posts/1/comments",
           [{ name: "comment[body]", value: "Second!" }],
         )
@@ -58,7 +58,7 @@ functions
 
         let reply = Test.post(
           Routes.router,
-          Test.client(),
+          Test.login_as(Test.client(), 1),
           "/posts/1/comments",
           [{ name: "comment[body]", value: "" }],
         )
@@ -76,7 +76,7 @@ functions
       function() {
         seed()
 
-        let reply = Test.delete(Routes.router, Test.client(), "/posts/1/comments/1")
+        let reply = Test.delete(Routes.router, Test.login_as(Test.client(), 1), "/posts/1/comments/1")
 
         Test.assert_redirect(reply, "/posts/1")
         Test.assert_body_not_contains(Test.follow(Routes.router, reply), "First!")
@@ -91,7 +91,7 @@ functions
         Test.assert_status(
           Test.post(
             Routes.router,
-            Test.client(),
+            Test.login_as(Test.client(), 1),
             "/posts/99/comments",
             [{ name: "comment[body]", value: "x" }],
           ),

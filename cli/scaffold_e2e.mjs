@@ -313,6 +313,90 @@ try {
   row(18, "model_validations_flag", read(clean, "src/models/tag.px").split("\n").filter((l) => /^  \w+  /.test(l)).join(" | "));
   r = ticket(["destroy", "model", "Tag"], clean);
   row(18, "destroy_model", `exit=${r.status} ${lines(r)} exists=${existsSync(join(clean, "src/models/tag.px"))}`);
+  const authed = app("authed");
+
+  r = ticket(["g", "auth"], authed);
+  row(20, "g_auth", `exit=${r.status} ${lines(r)}`);
+  r = ticket(["g", "auth"], authed);
+  row(20, "g_auth_again", `exit=${r.status} ${lines(r).split(" | ").map((l) => l.trim().split(" ")[0]).join(",")}`);
+
+  ticket(["g", "controller", "Secrets", "show"], authed);
+  writeFileSync(
+    join(authed, "src/controllers/secrets_controller.px"),
+    `module SecretsController
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.List
+  Std.Process
+  Std.Time
+  Ticket.Action
+  Ticket.Auth
+  Ticket.Conn
+  Ticket.Response
+  Ticket.Session
+  Views.Layout
+
+functions
+  show(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, Action.before([Auth.require_login], reveal))
+  }
+
+  reveal(conn: Conn) -> Response {
+    Response.text(200, "the secret")
+  }
+
+exports
+  show
+`,
+  );
+  r = spawnSync("polar", ["check", "--no-color"], { cwd: authed, encoding: "utf8" });
+  row(20, "g_auth_checks", `exit=${r.status} diagnostics=${r.stderr.trim() === "" ? "none" : r.stderr.trim()}`);
+  r = ticket(["test"], authed);
+  row(20, "g_auth_tests", `exit=${r.status} pass=${r.stdout.match(/(\d+) passed/)?.[1] ?? "?"}`);
+
+  const authedDatabase = join(scratch, "authed.sqlite3");
+
+  ticket(["db:migrate"], authed, { TICKET_DATABASE: authedDatabase });
+
+  const authedServer = await start(authed, authedDatabase);
+
+  try {
+    const { visit } = authedServer;
+    const alert = (text) => text.match(/<p class="alert">(.*?)<\/p>/)?.[1] ?? "-";
+    const signup = "user[email]=ann%40example.com&user[password]=long+enough&user[password_confirmation]=long+enough";
+
+    let reply = await visit("GET", "/secrets/show");
+    row(20, "auth_protected", `${reply.status} ${reply.location}`);
+    reply = await visit("GET", "/login");
+    row(20, "auth_login_page", `${reply.status} ${notice(reply.text)} alert=${reply.text.includes("Please log in first.")}`);
+    reply = await visit("POST", "/signup", "user[email]=ann%40example.com&user[password]=short&user[password_confirmation]=short");
+    row(20, "auth_signup_invalid", `${reply.status} ${reply.text.includes("is too short")}`);
+    reply = await visit("POST", "/signup", signup);
+    row(20, "auth_signup", `${reply.status} ${reply.location}`);
+    reply = await visit("GET", reply.location);
+    row(20, "auth_returned_to", `${reply.status} ${reply.text}`);
+    reply = await visit("GET", "/");
+    row(20, "auth_signed_in", `${reply.status} logout=${reply.text.length > 0}`);
+    reply = await visit("POST", "/logout", "_method=delete");
+    row(20, "auth_logout", `${reply.status} ${reply.location}`);
+    reply = await visit("GET", reply.location);
+    reply = await visit("GET", "/secrets/show");
+    row(20, "auth_refused", `${reply.status} ${reply.location}`);
+    reply = await visit("GET", "/login");
+    reply = await visit("POST", "/login", "email=ann%40example.com&password=wrong+one");
+    row(20, "auth_wrong", `${reply.status} ${alert(reply.text)}`);
+    reply = await visit("POST", "/login", "email=ann%40example.com&password=long+enough");
+    row(20, "auth_login", `${reply.status} ${reply.location}`);
+    reply = await visit("GET", reply.location);
+    row(20, "auth_secret_again", `${reply.status} ${reply.text}`);
+  } finally {
+    await authedServer.stop();
+  }
+
+  r = ticket(["destroy", "auth"], authed);
+  row(20, "destroy_auth", `exit=${r.status} ${lines(r)}`);
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

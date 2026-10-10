@@ -13,7 +13,7 @@ types
   ArgError = UnknownFlag(String) | MissingValue(String) derive(Show)
 
 constants
-  value_flags: List<String> = ["port", "step", "version", "eval"]
+  value_flags: List<String> = ["port", "step", "version", "eval", "model"]
 
   boolean_flags: List<String> = [
     "help",

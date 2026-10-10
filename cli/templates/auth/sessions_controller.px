@@ -1,0 +1,72 @@
+module SessionsController
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.Id
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Time
+  Paths
+  Schema
+  Ticket.Auth
+  Ticket.Conn
+  Ticket.Db
+  Ticket.Flash
+  Ticket.Params
+  Ticket.Query
+  Ticket.Response
+  Ticket.Session
+  Views.Layout
+  Views.SessionViews
+
+functions
+  new(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, blank)
+  }
+
+  create(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Async, Process, Random, Clock} {
+    Session.handle(conn, attempt)
+  }
+
+  destroy(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, leave)
+  }
+
+  blank(conn: Conn) -> Response {
+    Response.render(Layout.app(conn, "Log in", SessionViews.new(conn, "", "")))
+  }
+
+  attempt(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Async} {
+    let email = Option.with_default(Params.string(conn, "email"), "")
+    let password = Option.with_default(Params.string(conn, "password"), "")
+    let found = List.head({{Models}}.filter([Query.eq(Schema.{{model}}_email, email)], []))
+    let digest = Option.map(found, function(user) { user.password_digest })
+    let accepted = Auth.check(password, digest)
+
+    match found {
+      Some(user) -> if accepted {
+        Auth.finish_login(conn, Id.value(user.id), "Logged in.")
+      } else {
+        refuse(conn, email)
+      },
+      None -> refuse(conn, email),
+    }
+  }
+
+  refuse(conn: Conn, email: String) -> Response {
+    Response.render_status(
+      422,
+      Layout.app(conn, "Log in", SessionViews.new(conn, email, "Invalid email or password.")),
+    )
+  }
+
+  leave(conn: Conn) -> Response {
+    Response.redirect_to(Flash.put(Auth.logout(conn), "notice", "Logged out."), Paths.root_path())
+  }
+
+exports
+  create
+  destroy
+  new
