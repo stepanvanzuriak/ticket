@@ -3,6 +3,7 @@ module Layout
 uses
   Std.Option
   Paths
+  Ticket.Auth
   Ticket.Conn
   Ticket.Csrf
   Ticket.Flash
@@ -21,6 +22,7 @@ views
         <nav>
           <a href={Paths.root_path()}>Ticket blog</a>
           <a href={Paths.new_post_path()}>New post</a>
+          {account(conn)}
         </nav>
         {flash(conn, "notice")}
         {flash(conn, "alert")}
@@ -29,6 +31,17 @@ views
     </html>
 
 functions
+  account(conn: Conn) -> Html {
+    match Auth.current_user_id(conn) {
+      Some(_) -> Html.raw(
+        "<form action=\"#{Paths.logout_path()}\" method=\"post\"><input type=\"hidden\" name=\"_method\" value=\"delete\">#{Html.to_string(Csrf.field(conn))}<button type=\"submit\">Log out</button></form>",
+      ),
+      None -> Html.raw(
+        "<a href=\"#{Paths.login_path()}\">Log in</a> <a href=\"#{Paths.signup_path()}\">Sign up</a>",
+      ),
+    }
+  }
+
   flash(conn: Conn, key: String) -> Html {
     match Flash.get(conn, key) {
       Some(text) -> Html.raw("<p class=\"#{key}\">#{Html.escape(text)}</p>"),

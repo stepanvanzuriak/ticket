@@ -104,7 +104,7 @@ functions
 
   generate(root: String, parsed: Parsed) -> Int / {Process, Fs, Clock} {
     match parsed.positional {
-      ["scaffold", .._] | ["controller", .._] -> scaffolded(root, parsed),
+      ["scaffold", .._] | ["controller", .._] | ["auth"] -> scaffolded(root, parsed),
       ["model", .._] -> if Args.has(parsed, "validations") {
         scaffolded(root, parsed)
       } else {
@@ -178,7 +178,8 @@ functions
         "  g model <Name> [f:T…]      a create_table migration and src/models/<name>.px (--validations: with a validations zone)",
         "  g scaffold <Name> [f:T…]   a model, a controller with the seven actions, views and a resources route",
         "  g controller <Names> <a…>  a controller with those actions, their views and a route each",
-        "  destroy controller|model|scaffold <Name>  remove what a generator wrote (the migration stays)",
+        "  g auth [--model User]      a users table with password_digest, login/signup controllers and views, and their routes",
+        "  destroy controller|model|scaffold <Name>|auth  remove what a generator wrote (the migration stays)",
         "  (g flags)                  --force overwrites, --skip keeps existing files, --pretend writes nothing",
         "  console, c [-e EXPR] [--sandbox]  a REPL with the app loaded (--sandbox: a throwaway :memory: database)",
         "  test [filter]              run the app's tests (polar test, in the test environment)",

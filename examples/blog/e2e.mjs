@@ -76,6 +76,42 @@ try {
   r = await visit("GET", "/posts/1");
   row(2, "show", `${r.status} ${strip(r.text.match(/<article>(.*?)<h2>/s)?.[1] ?? "")} | comments: ${[...r.text.matchAll(/<li>(.*?)<form/g)].map((m) => strip(m[1])).join(", ")}`);
 
+  const alert = (html) => html.match(/<p class="alert">(.*?)<\/p>/)?.[1] ?? "-";
+  const users = count("users");
+
+  r = await visit("GET", "/posts/new");
+  row(20, "protected", `${r.status} ${r.location}`);
+  r = await visit("GET", "/login");
+  row(20, "login_page", `${r.status} alert=${alert(r.text)}`);
+  r = await visit("POST", "/login", "email=ann%40example.com&password=wrong");
+  row(21, "wrong_password", `${r.status} ${alert(r.text)}`);
+  r = await visit("POST", "/login", "email=nobody%40example.com&password=wrong");
+  row(21, "unknown_email", `${r.status} ${alert(r.text)}`);
+  r = await visit("POST", "/login", "email=ann%40example.com&password=password");
+  row(22, "login_returns_to", `${r.status} ${r.location}`);
+  r = await visit("GET", r.location);
+  row(22, "logged_in_page", `${r.status} logout=${r.text.includes("Log out")}`);
+  r = await visit("POST", "/logout", "_method=delete");
+  row(22, "logout", `${r.status} ${r.location}`);
+  await visit("GET", r.location);
+  r = await visit("POST", "/posts", "post[title]=Not+logged+in&post[body]=x");
+  row(22, "create_refused", `${r.status} ${r.location}`);
+  r = await visit("POST", "/signup", "user[name]=Dan&user[email]=dan%40example.com&user[password]=short&user[password_confirmation]=different");
+  row(23, "signup_invalid", `${r.status} ${message(r.text)} users=${count("users") - users}`);
+  r = await visit("POST", "/signup", "user[name]=Dan&user[email]=dan%40example.com&user[password]=long-enough&user[password_confirmation]=long-enough");
+  row(23, "signup", `${r.status} ${r.location} users=${count("users") - users}`);
+  await visit("GET", r.location);
+  r = await visit("POST", "/logout", "_method=delete");
+  await visit("GET", r.location);
+  r = await visit("POST", "/login", "email=dan%40example.com&password=long-enough");
+  row(23, "login_new_user", `${r.status} ${r.location}`);
+  await visit("GET", r.location);
+  r = await visit("POST", "/logout", "_method=delete");
+  await visit("GET", r.location);
+  r = await visit("POST", "/login", "email=ann%40example.com&password=password");
+  row(24, "login_again", `${r.status} ${r.location}`);
+  await visit("GET", r.location);
+
   r = await visit("POST", "/posts", "post[title]=A+brand+new+post&post[body]=Some+text&post[published]=on");
   row(3, "create", `${r.status} ${r.location}`);
   const created = r.location;

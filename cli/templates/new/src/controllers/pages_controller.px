@@ -1,14 +1,22 @@
 module PagesController
 
 uses
+  Std.Crypto
   Std.Http
+  Std.Process
+  Std.Time
   Ticket.Conn
   Ticket.Response
+  Ticket.Session
   Views.Layout
   Views.Pages
 
 functions
-  home(conn: Conn) -> Response {
+  home(conn: Conn) -> Response / {Process, Random, Clock} {
+    Session.handle(conn, page)
+  }
+
+  page(conn: Conn) -> Response {
     Response.render(Layout.app(conn, "{{App}}", Pages.home()))
   }
 

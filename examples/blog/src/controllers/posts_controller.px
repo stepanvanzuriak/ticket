@@ -13,6 +13,8 @@ uses
   Models.Post
   Paths
   Schema
+  Ticket.Action
+  Ticket.Auth
   Ticket.Conn
   Ticket.Db
   Ticket.Error
@@ -52,7 +54,7 @@ functions
   }
 
   new(conn: Conn) -> Response / {Process, Random, Clock} {
-    Session.handle(conn, blank)
+    Session.handle(conn, Action.before([Auth.require_login], blank))
   }
 
   create(conn: Conn) -> Response / {
@@ -64,7 +66,7 @@ functions
     Random,
     Clock,
   } {
-    Session.handle(conn, save)
+    Session.handle(conn, Action.before([Auth.require_login], save))
   }
 
   edit(conn: Conn) -> Response / {
@@ -75,7 +77,7 @@ functions
     Random,
     Clock,
   } {
-    Session.handle(conn, form)
+    Session.handle(conn, Action.before([Auth.require_login], form))
   }
 
   update(conn: Conn) -> Response / {
@@ -86,7 +88,7 @@ functions
     Random,
     Clock,
   } {
-    Session.handle(conn, change)
+    Session.handle(conn, Action.before([Auth.require_login], change))
   }
 
   destroy(conn: Conn) -> Response / {
@@ -97,7 +99,7 @@ functions
     Random,
     Clock,
   } {
-    Session.handle(conn, remove)
+    Session.handle(conn, Action.before([Auth.require_login], remove))
   }
 
   list(conn: Conn) -> Response / {Posts, Users, Throws<DbFailure>} {
@@ -232,11 +234,9 @@ functions
   }
 
   current_author(conn: Conn) -> User / {Users, Throws<DbFailure>, Throws<Halt>} {
-    let email = Option.with_default(Params.string(conn, "as"), "ann@example.com")
-
-    match List.head(Users.filter([Query.eq(Schema.user_email, email)], [])) {
+    match Option.and_then(Auth.current_user_id(conn), function(id) { Users.find(Id(id)) }) {
       Some(user) -> user,
-      None -> throw Halt(Response.text(401, "unknown author #{email}")),
+      None -> throw Halt(Response.text(401, "log in first")),
     }
   }
 

@@ -1,0 +1,96 @@
+module AuthControllerTest
+
+uses
+  Std.Assert
+  Std.Crypto
+  Std.List
+  Std.Option
+  Std.Process
+  Std.Time
+  Routes
+  Schema
+  Ticket.Auth
+  Ticket.Db
+  Ticket.Test
+
+hosts
+  Node
+
+functions
+  test_signup_logs_in() {
+    Test.with_db(Schema.migrations, function() {
+      let reply = Test.post(
+        Routes.router,
+        Test.client(),
+        "/signup",
+        [
+          { name: "{{model}}[email]", value: "ann@example.com" },
+          { name: "{{model}}[password]", value: "long enough" },
+          { name: "{{model}}[password_confirmation]", value: "long enough" },
+        ],
+      )
+
+      Test.assert_redirect(reply, "/")
+      Assert.equal(Test.flash(reply, "notice"), Some("Welcome!"))
+    })
+  }
+
+  test_signup_needs_a_matching_password() {
+    Test.with_db(Schema.migrations, function() {
+      let reply = Test.post(
+        Routes.router,
+        Test.client(),
+        "/signup",
+        [
+          { name: "{{model}}[email]", value: "ann@example.com" },
+          { name: "{{model}}[password]", value: "long enough" },
+          { name: "{{model}}[password_confirmation]", value: "different" },
+        ],
+      )
+
+      Test.assert_status(reply, 422)
+      Test.assert_body_contains(reply, "match password")
+    })
+  }
+
+  test_login_with_a_wrong_password_is_422() {
+    Test.with_db(Schema.migrations, function() {
+      let _ = {{Models}}.insert(
+        { email: "ann@example.com", password_digest: Auth.hash_password("long enough") },
+      )
+      let reply = Test.post(
+        Routes.router,
+        Test.client(),
+        "/login",
+        [{ name: "email", value: "ann@example.com" }, { name: "password", value: "nope" }],
+      )
+
+      Test.assert_status(reply, 422)
+      Test.assert_body_contains(reply, "Invalid email or password.")
+    })
+  }
+
+  test_login_and_logout() {
+    Test.with_db(Schema.migrations, function() {
+      let _ = {{Models}}.insert(
+        { email: "ann@example.com", password_digest: Auth.hash_password("long enough") },
+      )
+      let reply = Test.post(
+        Routes.router,
+        Test.client(),
+        "/login",
+        [{ name: "email", value: "ann@example.com" }, { name: "password", value: "long enough" }],
+      )
+
+      let home = Test.follow(Routes.router, reply)
+
+      Test.assert_redirect(reply, "/")
+      Test.assert_redirect(Test.delete(Routes.router, home.client, "/logout"), "/")
+    })
+  }
+
+exports
+  test_login_and_logout
+  test_login_with_a_wrong_password_is_422
+  test_signup_logs_in
+  test_signup_needs_a_matching_password

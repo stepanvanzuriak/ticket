@@ -38,7 +38,7 @@
 12 lowercase_name: exit=2 unchanged=true error: `post` isn't a valid name: use PascalCase, like `Post`
 12 bad_field: exit=2 unchanged=true error: `title` isn't a field: write `name:Type`, `name:Type?`, `name:Type:unique`, `name:T
 12 no_fields: exit=2 unchanged=true error: `create_table` needs at least one field, like `title:String`
-12 no_name: exit=2 unchanged=true error: `ticket g` takes `scaffold <Name> [field:Type…]` or `controller <Name> [action…]`
+12 no_name: exit=2 unchanged=true error: `ticket g` takes `scaffold <Name> [field:Type…]`, `controller <Name> [action…]` or 
 12 controller_no_action: exit=2 unchanged=true error: `g controller Reports` needs at least one action, like `index`
 12 controller_singular_only: exit=2 unchanged=true error: `Staff` can't be made singular: name the controller after a plural, like `Posts`
 12 controller_bad_action: exit=2 unchanged=true error: an action is a snake_case name, like `index` or `show_all`
@@ -61,3 +61,19 @@
 18 destroy_controller: exit=0 remove  src/controllers/reports_controller.px |       remove  src/views/report_views.px |       remove  src/routes.px  the ReportsController lines routes=true
 18 model_validations_flag:   name  presence
 18 destroy_model: exit=0 remove  src/models/tag.px |         note  the `create_table tags` migration in src/schema.px was kept: add a `drop_table tags` migration to remove the table exists=false
+20 g_auth: exit=0 create  src/schema.px  V create_table users |         wire  src/main.px  migrate |       create  src/models/user.px |       create  src/controllers/sessions_controller.px |       create  src/controllers/registrations_controller.px |       create  src/views/session_views.px |       create  src/views/registration_views.px |       create  src/controllers/auth_controller_test.px |       append  src/routes.px  login, logout and signup routes to SessionsController and RegistrationsController |         note  protect actions with `Action.before([Auth.require_login], action)`; the `password_digest` column holds the hash, never the password
+20 g_auth_again: exit=0 identical,identical,identical,identical,identical,identical,identical,identical,note
+20 g_auth_checks: exit=0 diagnostics=none
+20 g_auth_tests: exit=0 pass=4
+20 auth_protected: 302 /login
+20 auth_login_page: 200 - alert=true
+20 auth_signup_invalid: 422 true
+20 auth_signup: 303 /secrets/show
+20 auth_returned_to: 200 the secret
+20 auth_signed_in: 200 logout=true
+20 auth_logout: 303 /
+20 auth_refused: 302 /login
+20 auth_wrong: 422 Invalid email or password.
+20 auth_login: 303 /secrets/show
+20 auth_secret_again: 200 the secret
+20 destroy_auth: exit=0 remove  src/models/user.px |       remove  src/controllers/sessions_controller.px |       remove  src/controllers/registrations_controller.px |       remove  src/views/session_views.px |       remove  src/views/registration_views.px |       remove  src/controllers/auth_controller_test.px |       remove  src/routes.px  the SessionsController, RegistrationsController lines |         note  the `create_table users` migration in src/schema.px was kept: add a `drop_table users` migration to remove the table

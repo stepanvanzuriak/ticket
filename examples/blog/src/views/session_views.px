@@ -1,0 +1,40 @@
+module SessionViews
+
+uses
+  Std.Option
+  Paths
+  Ticket.Conn
+  Ticket.Csrf
+  Ticket.Html
+
+views
+  new(conn: Conn, email: String, message: String)
+    <section>
+      <h1>Log in</h1>
+      {alert(message)}
+      <form action={Paths.login_path()} method="post">
+        {Csrf.field(conn)}
+        <p>
+          <label for="email">Email</label>
+          <input type="email" name="email" id="email" value={email} />
+        </p>
+        <p>
+          <label for="password">Password</label>
+          <input type="password" name="password" id="password" />
+        </p>
+        <p><button type="submit">Log in</button></p>
+      </form>
+      <p><a href={Paths.signup_path()}>Sign up</a></p>
+    </section>
+
+functions
+  alert(message: String) -> Html {
+    if message == "" {
+      Html.raw("")
+    } else {
+      Html.raw("<p class=\"alert\">#{Html.escape(message)}</p>")
+    }
+  }
+
+exports
+  new

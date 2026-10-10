@@ -1,0 +1,137 @@
+module Auth
+
+uses
+  Std.Crypto
+  Std.Http
+  Std.Map
+  Std.Option
+  Std.Result
+  Ticket.Conn
+  Ticket.Errors
+  Ticket.Flash
+  Ticket.Response
+  Ticket.Session
+
+functions
+  user_key() -> String {
+    "_user_id"
+  }
+
+  return_key() -> String {
+    "_return_to"
+  }
+
+  min_length() -> Int {
+    8
+  }
+
+  hash_password(plain: String) -> String / {Random, Async} {
+    Crypto.hash_password(plain)
+  }
+
+  verify_password(plain: String, digest: String) -> Bool / {Async} {
+    Crypto.verify_password(plain, digest)
+  }
+
+  dummy_digest() -> String {
+    "$scrypt$ln=15,r=8,p=1$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000"
+  }
+
+  check(plain: String, digest: Option<String>) -> Bool / {Async} {
+    match digest {
+      Some(stored) -> verify_password(plain, stored),
+      None -> {
+        let _ = verify_password(plain, dummy_digest())
+
+        false
+      }
+    }
+  }
+
+  validate_password(plain: String, confirmation: String) -> Result<Errors, String> {
+    let short = if String.length(plain) < min_length() {
+      Errors.add(
+        Errors.empty(),
+        "password",
+        "is too short (minimum is #{Int.to_string(min_length())} characters)",
+      )
+    } else {
+      Errors.empty()
+    }
+    let errors = if plain != confirmation {
+      Errors.add(short, "password_confirmation", "doesn't match password")
+    } else {
+      short
+    }
+
+    if Errors.is_empty(errors) { Ok(plain) } else { Err(errors) }
+  }
+
+  login(conn: Conn, user_id: Int) -> Conn {
+    let fresh = Session.clear(conn)
+
+    Session.put(fresh, user_key(), Int.to_string(user_id))
+  }
+
+  logout(conn: Conn) -> Conn {
+    Session.clear(conn)
+  }
+
+  current_user_id(conn: Conn) -> Option<Int> {
+    Option.and_then(Session.get(conn, user_key()), Int.parse)
+  }
+
+  safe_path(path: String) -> Bool {
+    String.starts_with(path, "/")
+      && !String.starts_with(path, "//")
+      && !String.contains(path, "\\")
+  }
+
+  return_to(conn: Conn) -> String {
+    match Session.get(conn, return_key()) {
+      Some(path) -> if safe_path(path) { path } else { "/" },
+      None -> "/",
+    }
+  }
+
+  remember(conn: Conn) -> Conn {
+    if conn.method == "GET" && safe_path(conn.path) {
+      Session.put(conn, return_key(), conn.path)
+    } else {
+      conn
+    }
+  }
+
+  require_login(conn: Conn) -> Result<Response, Conn> {
+    match current_user_id(conn) {
+      Some(_) -> Ok(conn),
+      None -> Err(
+        Response.redirect_to(
+          Flash.put(remember(conn), "alert", "Please log in first."),
+          "/login",
+        ),
+      ),
+    }
+  }
+
+  finish_login(conn: Conn, user_id: Int, notice: String) -> Response {
+    let target = return_to(conn)
+
+    Response.redirect_to(Flash.put(login(conn, user_id), "notice", notice), target)
+  }
+
+exports
+  check
+  current_user_id
+  dummy_digest
+  finish_login
+  hash_password
+  login
+  logout
+  min_length
+  remember
+  require_login
+  return_to
+  safe_path
+  validate_password
+  verify_password
