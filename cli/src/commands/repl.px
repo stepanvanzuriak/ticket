@@ -1,12 +1,7 @@
 module Repl
 
 uses
-  Std.Fs
-  Std.List
-  Std.Option
-  Std.Path
-  Std.Process
-  Std.Result
+  Std.{Fs, List, Option, Path, Process, Result}
   Args
 
 hosts

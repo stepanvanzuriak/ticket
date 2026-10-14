@@ -1,8 +1,7 @@
 module Testing
 
 uses
-  Std.List
-  Std.Process
+  Std.{List, Process}
   Args
 
 hosts

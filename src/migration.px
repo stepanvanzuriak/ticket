@@ -1,8 +1,7 @@
 module Migration
 
 uses
-  Std.List
-  Std.Option
+  Std.{List, Option}
   Ticket.Db
 
 types

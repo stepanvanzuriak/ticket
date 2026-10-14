@@ -1,16 +1,8 @@
 module Schema
 
 uses
-  Std.Id
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
-  Ticket.Db
-  Ticket.Form
-  Ticket.Migration
-  Ticket.Model
-  Ticket.Query
+  Std.{Id, Json, List, Option, Result}
+  Ticket.{Db, Form, Migration, Model, Query}
 
 hosts
   Node

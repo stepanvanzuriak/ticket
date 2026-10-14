@@ -1,3 +1,11 @@
+error[POLAR0501]: mismatched types
+  --> src/in_list_wrong_type.px:14:52
+   |
+14 |     Posts.filter([Query.in_list(Schema.post_title, [1])], [])
+   |                                                    ^^^ expected `List<String>`, found `List<Int>`
+   |
+   = note: argument 1 of `List` differs: expected `String`, found `Int`
+
 error[POLAR0502]: missing fields `author_id`, `published` and `score`
   --> src/insert_missing_field.px:13:18
    |
@@ -18,7 +26,7 @@ error[POLAR0305]: `Schema` exports no function `post_titel`
 13 |     Query.eq(Schema.post_titel, "x")
    |                     ^^^^^^^^^^
    |
-   = help: available: `post_author`, `user_posts_as_author`, `user_posts_as_author_filter`, `migrations`, `user_id`, `user_name`, `user_email`, `post_id`, `post_title`, `post_published`, `post_score`, `post_author_id`, `post_created_at`, `post_updated_at`, `event_id`, `event_name`, `event_seen_at`
+   = help: available: `post_author`, `user_posts_as_author`, `user_posts_as_author_filter`, `users_with_posts_as_author`, `migrations`, `user_id`, `user_name`, `user_email`, `post_id`, `post_title`, `post_published`, `post_score`, `post_author_id`, `post_created_at`, `post_updated_at`, `event_id`, `event_name`, `event_seen_at`
 
 error[POLAR0501]: mismatched types
   --> src/order_by_other_table.px:13:22
@@ -42,4 +50,4 @@ error[POLAR0501]: mismatched types
 13 |     Query.eq(Schema.post_title, 5)
    |                                 ^ expected `String`, found `Int`
 
-error: aborting due to 6 errors
+error: aborting due to 7 errors

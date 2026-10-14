@@ -1,0 +1,130 @@
+module PaginationTest
+
+uses
+  Std.{Assert, Id, List, Option}
+  Ticket.{Db, Query, Test}
+  Schema
+
+hosts
+  Node
+
+functions
+  titles(posts: List<Post>) -> String {
+    "[#{List.join(List.map(posts, function(p) { p.title }), ", ")}]"
+  }
+
+  seed(count: Int) -> {} / {Posts, Db, Throws<DbFailure>} {
+    List.fold(
+      List.range(1, count + 1),
+      {},
+      function(_, n) {
+        let _ = Posts.insert({ title: "P#{n}", views: n })
+
+        {}
+      },
+    )
+  }
+
+  with_posts(
+    count: Int,
+    body: function() -> {} / {Posts, Db, Fixture, Throws<DbFailure>, Throws<Failed>},
+  ) {
+    Test.with_db(
+      Schema.migrations,
+      function() {
+        seed(count)
+        body()
+      },
+    )
+  }
+
+  summary(page: Page<Post>) -> String {
+    "#{List.length(page.rows)} rows, page #{page.page}, per #{page.per_page}, total #{page.total}, pages #{page.pages}"
+  }
+
+  test_middle() {
+    with_posts(
+      25,
+      function() {
+        let page = Posts.paginate([], [Query.order_asc(Schema.post_id)], 2, 10)
+
+        Assert.equal(summary(page), "10 rows, page 2, per 10, total 25, pages 3")
+        Assert.equal(
+          Option.map(List.head(page.rows), function(p) { p.title }),
+          Some("P11"),
+        )
+      },
+    )
+  }
+
+  test_last_page_partial() {
+    with_posts(
+      25,
+      function() {
+        let page = Posts.paginate([], [Query.order_asc(Schema.post_id)], 3, 10)
+
+        Assert.equal(summary(page), "5 rows, page 3, per 10, total 25, pages 3")
+      },
+    )
+  }
+
+  test_past_end() {
+    with_posts(
+      25,
+      function() {
+        let page = Posts.paginate([], [Query.order_asc(Schema.post_id)], 9, 10)
+
+        Assert.equal(titles(page.rows), "[]")
+        Assert.equal(page.total, 25)
+      },
+    )
+  }
+
+  test_clamps_page() {
+    with_posts(
+      25,
+      function() {
+        let page = Posts.paginate([], [Query.order_asc(Schema.post_id)], 0, 10)
+        let negative = Posts.paginate([], [Query.order_asc(Schema.post_id)], -4, 10)
+
+        Assert.equal(summary(page), "10 rows, page 1, per 10, total 25, pages 3")
+        Assert.equal(negative.page, 1)
+      },
+    )
+  }
+
+  test_filtered_total() {
+    with_posts(
+      25,
+      function() {
+        let page = Posts.paginate(
+          [Query.gt(Schema.post_views, 20)],
+          [Query.order_desc(Schema.post_id)],
+          1,
+          2,
+        )
+
+        Assert.equal(summary(page), "2 rows, page 1, per 2, total 5, pages 3")
+        Assert.equal(titles(page.rows), "[P25, P24]")
+      },
+    )
+  }
+
+  test_empty() {
+    with_posts(
+      0,
+      function() {
+        let page = Posts.paginate([], [], 1, 10)
+
+        Assert.equal(summary(page), "0 rows, page 1, per 10, total 0, pages 0")
+      },
+    )
+  }
+
+exports
+  test_middle
+  test_last_page_partial
+  test_past_end
+  test_clamps_page
+  test_filtered_total
+  test_empty

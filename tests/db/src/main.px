@@ -1,10 +1,7 @@
 module Main
 
 uses
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
+  Std.{Json, List, Option, Result}
   Ticket.Db
 
 types

@@ -1,38 +1,27 @@
 module ArticlesController
 
 uses
-  Std.Http
-  Std.Map
-  Std.Option
-  Std.Process
-  Std.Crypto
-  Std.Time
+  Std.{Http, Map, Option}
   Layout
   Models.Article
   Paths
-  Ticket.Conn
-  Ticket.Error
-  Ticket.Errors
-  Ticket.Flash
-  Ticket.Params
-  Ticket.Response
-  Ticket.Session
+  Ticket.{Conn, Error, Errors, Flash, Params, Response, Session}
   Views.Articles
 
 functions
-  index(conn: Conn) -> Response / {Mut, Process, Random, Clock} {
+  index(conn: Conn) -> Response / {..} {
     Session.handle(conn, list)
   }
 
-  show(conn: Conn) -> Response / {Mut, Process, Random, Clock, Throws<Halt>} {
+  show(conn: Conn) -> Response / {..} {
     Session.handle(conn, details)
   }
 
-  new(conn: Conn) -> Response / {Process, Random, Clock} {
+  new(conn: Conn) -> Response / {..} {
     Session.handle(conn, blank)
   }
 
-  create(conn: Conn) -> Response / {Mut, Process, Random, Clock} {
+  create(conn: Conn) -> Response / {..} {
     Session.handle(conn, save)
   }
 

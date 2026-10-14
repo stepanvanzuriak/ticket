@@ -1,20 +1,9 @@
 module ThingsController
 
 uses
-  Std.Crypto
-  Std.Id
-  Std.Http
-  Std.List
-  Std.Option
-  Std.Process
-  Std.Result
-  Std.Time
+  Std.{Crypto, Id, Http, List, Option, Process, Result, Time}
   Schema
-  Ticket.Conn
-  Ticket.Db
-  Ticket.Flash
-  Ticket.Response
-  Ticket.Session
+  Ticket.{Conn, Db, Flash, Response, Session}
 
 functions
   hello(conn: Conn) -> Response {

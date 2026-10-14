@@ -1,10 +1,7 @@
 module Cookies
 
 uses
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Url
+  Std.{List, Map, Option, Url}
 
 functions
   parse(header: String) -> Map<String, String> {

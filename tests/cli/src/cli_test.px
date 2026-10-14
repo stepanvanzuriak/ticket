@@ -1,13 +1,7 @@
 module CliTest
 
 uses
-  Std.Assert
-  Std.Fs
-  Std.List
-  Std.Option
-  Std.Path
-  Std.Process
-  Std.Result
+  Std.{Assert, Fs, List, Option, Path, Process, Result}
   Args
   App
   Ticket.Inflect

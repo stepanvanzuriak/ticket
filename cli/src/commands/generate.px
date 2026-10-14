@@ -1,13 +1,7 @@
 module Generate
 
 uses
-  Std.Fs
-  Std.List
-  Std.Option
-  Std.Path
-  Std.Process
-  Std.Result
-  Std.Time
+  Std.{Fs, List, Option, Path, Process, Result, Time}
   Args
   Ticket.Inflect
 
@@ -22,7 +16,7 @@ types
 constants
   schema_file: String = "src/schema.px"
 
-  schema_header: String = "module Schema\n\nuses\n  Std.Id\n  Std.Json\n  Std.List\n  Std.Option\n  Std.Result\n  Std.Time\n  Ticket.Db\n  Ticket.Form\n  Ticket.Migration\n  Ticket.Model\n  Ticket.Query\n\nmigrations\n"
+  schema_header: String = "module Schema\n\nuses\n  Std.{Id, Json, List, Option, Result, Time}\n  Ticket.{Db, Form, Migration, Model, Query}\n\nmigrations\n"
 
 functions
   run(root: String, parsed: Parsed) -> Int / {Process, Fs, Clock} {
@@ -97,7 +91,7 @@ functions
       List.map(indexed(lines, 0), function(pair) { pair }),
       function(pair) { entry_table(pair.line) == Some(table) },
     ) {
-      [first, .._] -> Some(column_lines(drop(lines, first.at + 1))),
+      [first, .._] -> Some(column_lines(List.drop(lines, first.at + 1))),
 
       [] -> None,
     }
@@ -273,7 +267,7 @@ functions
   }
 
   add_use(text: String, name: String) -> String {
-    if String.contains(text, "\n  #{name}\n") {
+    if imports(String.split(text, "\n"), name) {
       text
     } else {
       String.replace(text, "\nuses\n", "\nuses\n  #{name}\n")
@@ -440,11 +434,84 @@ functions
         Ok(
           List.join(
             List.append(
-              List.append(take(lines, end), List.append(separator, entry)),
-              drop(lines, end),
+              List.append(List.take(lines, end), List.append(separator, entry)),
+              List.drop(lines, end),
             ),
             "\n",
           ),
+        )
+      }
+    }
+  }
+
+  /// The modules a `uses` line names: `  Std.{List, Option}` is `Std.List` and `Std.Option`.
+  imported(line: String) -> List<String> {
+    match String.split(String.trim(line), ".{") {
+      [prefix, members] -> List.map(
+        String.split(String.replace(members, "}", ""), ","),
+        function(member) { "#{prefix}.#{String.trim(member)}" },
+      ),
+      _ -> [String.trim(line)],
+    }
+  }
+
+  /// The lines of the `uses` zone, as `(start, end)` indexes into `lines`.
+  uses_zone(lines: List<String>) -> Option<{ start: Int, end: Int }> {
+    Option.map(
+      index_of(lines, "uses", 0),
+      function(at) { { start: at + 1, end: zone_end(lines, at + 1, at + 1) } },
+    )
+  }
+
+  /// Whether the `uses` zone names `name`, on its own line or in a group.
+  imports(lines: List<String>, name: String) -> Bool {
+    match uses_zone(lines) {
+      None -> false,
+      Some(zone) -> List.any(
+        List.take(List.drop(lines, zone.start), zone.end - zone.start),
+        function(line) { List.any(imported(line), function(m) { m == name }) },
+      ),
+    }
+  }
+
+  /// Drops the `uses` entries for which `unwanted` holds, keeping the rest of a group.
+  without_uses(lines: List<String>, unwanted: function(String) -> Bool) -> List<String> {
+    match uses_zone(lines) {
+      None -> lines,
+      Some(zone) -> {
+        let kept = List.concat_map(
+          List.take(List.drop(lines, zone.start), zone.end - zone.start),
+          function(line) {
+            let names = imported(line)
+            let left = List.filter(names, function(name) { !unwanted(name) })
+
+            if List.length(left) == List.length(names) {
+              [line]
+            } else {
+              match String.split(String.trim(line), ".{") {
+                [prefix, _] -> match left {
+                  [] -> [],
+                  [one] -> ["  #{one}"],
+                  _ -> {
+                    let members = List.map(
+                      left,
+                      function(name) {
+                        String.slice(name, String.length(prefix) + 1, String.length(name))
+                      },
+                    )
+
+                    ["  #{prefix}.{#{List.join(members, ", ")}}"]
+                  }
+                },
+                _ -> [],
+              }
+            }
+          },
+        )
+
+        List.append(
+          List.take(lines, zone.start),
+          List.append(kept, List.drop(lines, zone.end)),
         )
       }
     }
@@ -510,20 +577,6 @@ functions
     }
   }
 
-  take(list: List<a>, n: Int) -> List<a> {
-    match list {
-      [] -> [],
-      [x, ..rest] -> if n <= 0 { [] } else { [x, ..take(rest, n - 1)] },
-    }
-  }
-
-  drop(list: List<a>, n: Int) -> List<a> {
-    match list {
-      [] -> [],
-      [_, ..rest] -> if n <= 0 { list } else { drop(rest, n - 1) },
-    }
-  }
-
   pascal_name(name: String) -> Bool {
     match String.split(name, "") {
       [] -> false,
@@ -560,9 +613,9 @@ functions
 exports
   Planned
   Entry
-  drop
   failed
   format
+  imports
   index_of
   model_entry
   parse_field
@@ -571,7 +624,7 @@ exports
   run
   snake_name
   table_lines
-  take
   usage
   wire_main
+  without_uses
   zone_end

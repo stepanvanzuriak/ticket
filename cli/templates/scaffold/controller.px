@@ -1,61 +1,48 @@
 module {{Models}}Controller
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.Id
-  Std.Option
-  Std.Process
-  Std.Result
-  Std.Time
+  Std.{Http, Id, Option, Result}
   Models.{{Model}}
   Paths
   Schema
-  Ticket.Conn
-  Ticket.Db
-  Ticket.Error
-  Ticket.Errors
-  Ticket.Flash
-  Ticket.Params
-  Ticket.Response
-  Ticket.Session
+  Ticket.{Conn, Db, Error, Errors, Flash, Params, Response, Session}
   Views.Layout
   Views.{{Model}}Views
 
 functions
-  index(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Process, Random, Clock} {
+  index(conn: Conn) -> Response / {..} {
     Session.handle(conn, list)
   }
 
-  show(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>, Process, Random, Clock} {
+  show(conn: Conn) -> Response / {..} {
     Session.handle(conn, details)
   }
 
-  new(conn: Conn) -> Response / {Process, Random, Clock} {
+  new(conn: Conn) -> Response / {..} {
     Session.handle(conn, blank)
   }
 
-  create(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Process, Random, Clock} {
+  create(conn: Conn) -> Response / {..} {
     Session.handle(conn, save)
   }
 
-  edit(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>, Process, Random, Clock} {
+  edit(conn: Conn) -> Response / {..} {
     Session.handle(conn, form)
   }
 
-  update(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>, Process, Random, Clock} {
+  update(conn: Conn) -> Response / {..} {
     Session.handle(conn, change)
   }
 
-  destroy(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>, Process, Random, Clock} {
+  destroy(conn: Conn) -> Response / {..} {
     Session.handle(conn, remove)
   }
 
-  list(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>} {
+  list(conn: Conn) -> Response / {..} {
     Response.render(Layout.app(conn, "{{Models}}", {{Model}}Views.index(conn, {{Models}}.all())))
   }
 
-  details(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+  details(conn: Conn) -> Response / {..} {
     let {{model}} = find_or_halt(conn)
 
     Response.render(Layout.app(conn, "{{Words}}", {{Model}}Views.show(conn, {{model}})))
@@ -65,7 +52,7 @@ functions
     Response.render(Layout.app(conn, "New {{words}}", {{Model}}Views.new(conn, Params.nested(conn, "{{model}}"), Errors.empty())))
   }
 
-  save(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>} {
+  save(conn: Conn) -> Response / {..} {
     let decoded: Result<Errors, New{{Model}}> = Params.record(conn, "{{model}}")
 
     match Result.and_then(decoded, {{Model}}.validate) {
@@ -81,13 +68,13 @@ functions
     }
   }
 
-  form(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+  form(conn: Conn) -> Response / {..} {
     let {{model}} = find_or_halt(conn)
 
     Response.render(Layout.app(conn, "Edit {{words}}", {{Model}}Views.edit(conn, {{model}}, {{Model}}Views.values({{model}}), Errors.empty())))
   }
 
-  change(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+  change(conn: Conn) -> Response / {..} {
     let {{model}} = find_or_halt(conn)
     let decoded: Result<Errors, New{{Model}}> = Params.record(conn, "{{model}}")
     let merged = Result.map(decoded, function(row) { { ..{{model}}, {{permit}} } })
@@ -105,14 +92,14 @@ functions
     }
   }
 
-  remove(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+  remove(conn: Conn) -> Response / {..} {
     let {{model}} = find_or_halt(conn)
     let _ = {{Models}}.delete({{model}}.id)
 
     Response.redirect_to(Flash.put(conn, "notice", "{{Words}} was destroyed."), Paths.{{models}}_path())
   }
 
-  find_or_halt(conn: Conn) -> {{Model}} / {{{Models}}, Throws<DbFailure>, Throws<Halt>} {
+  find_or_halt(conn: Conn) -> {{Model}} / {..} {
     match Option.and_then(Params.id(conn, "id"), {{Models}}.find) {
       Some({{model}}) -> {{model}},
       None -> throw Halt(Response.not_found()),

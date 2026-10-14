@@ -2,18 +2,8 @@
 module HelpersTest
 
 uses
-  Std.Assert
-  Std.Http
-  Std.List
-  Std.Map
-  Std.Option
-  Ticket.Conn
-  Ticket.Errors
-  Ticket.Forms
-  Ticket.Html
-  Ticket.Links
-  Ticket.Params
-  Ticket.Form
+  Std.{Assert, Http, List, Map, Option}
+  Ticket.{Conn, Errors, Forms, Html, Links, Params, Form}
   Pages
 
 functions

@@ -1,16 +1,8 @@
 module MigrationsTest
 
 uses
-  Std.Assert
-  Std.Id
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
-  Std.Time
-  Ticket.Db
-  Ticket.Migration
-  Ticket.Test
+  Std.{Assert, Id, Json, List, Option, Result, Time}
+  Ticket.{Db, Migration, Test}
   Schema
 
 hosts
@@ -89,7 +81,7 @@ functions
     Assert.equal(
       Migration.up_sql(m),
       [
-        "CREATE TABLE \"posts\" (\"id\" INTEGER PRIMARY KEY, \"title\" TEXT NOT NULL, \"body\" TEXT NOT NULL, \"published\" BOOLEAN NOT NULL DEFAULT 0, \"score\" REAL NOT NULL DEFAULT 0, \"author_id\" INTEGER REFERENCES \"users\" (\"id\"))",
+        "CREATE TABLE \"posts\" (\"id\" INTEGER PRIMARY KEY, \"title\" TEXT NOT NULL, \"body\" TEXT NOT NULL, \"published\" BOOLEAN NOT NULL DEFAULT 0, \"score\" REAL NOT NULL DEFAULT 0.0, \"author_id\" INTEGER REFERENCES \"users\" (\"id\"))",
       ],
     )
     Assert.equal(Migration.down_sql(m), ["DROP TABLE \"posts\""])

@@ -1,12 +1,7 @@
 module Signed
 
 uses
-  Std.Crypto
-  Std.Json
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Result
+  Std.{Crypto, Json, List, Map, Option, Result}
   Ticket.Conn
 
 types

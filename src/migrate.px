@@ -1,13 +1,8 @@
 module Migrate
 
 uses
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
-  Std.Time
-  Ticket.Db
-  Ticket.Migration
+  Std.{Json, List, Option, Result, Time}
+  Ticket.{Db, Migration}
 
 hosts
   Node
@@ -91,7 +86,7 @@ functions
           function(m) { List.any(done, function(v) { v == m.version }) },
         )
 
-        apply(take(ran, step), false)
+        apply(List.take(ran, step), false)
       }
     }
   }
@@ -191,13 +186,6 @@ functions
         )
         Ok({})
       }
-    }
-  }
-
-  take(list: List<a>, n: Int) -> List<a> {
-    match list {
-      [] -> [],
-      [x, ..rest] -> if n <= 0 { [] } else { [x, ..take(rest, n - 1)] },
     }
   }
 

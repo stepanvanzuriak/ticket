@@ -1,14 +1,8 @@
 module Params
 
 uses
-  Ticket.Conn
-  Ticket.Errors
-  Ticket.Form
-  Std.Id
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Result
+  Ticket.{Conn, Errors, Form}
+  Std.{Id, List, Map, Option, Result}
 
 functions
   string(conn: Conn, key: String) -> Option<String> {

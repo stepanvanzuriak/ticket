@@ -1,10 +1,7 @@
 module Query
 
 uses
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Time
+  Std.{Id, Json, List, Option, Result, Time}
   Ticket.Db
 
 traits
@@ -13,15 +10,32 @@ traits
   }
 
 types
-  Column<r, a> = Column(String, String)
+  Column<r, a> = Column(String, String, function(String) -> Result<String, Option<a>>)
 
   Filter<r> = Filter(String, List<SqlValue>)
 
   Clause<r> = OrderBy(String, Bool) | Limit(Int) | Offset(Int)
 
+  Page<r> = { rows: List<r>, page: Int, per_page: Int, total: Int, pages: Int }
+
 functions
-  column(table: String, name: String) -> Column<r, a> {
-    Column(table, name)
+  column(table: String, name: String) -> Column<r, a> where Json<a> {
+    Column(table, name, decode_measure)
+  }
+
+  decode_measure(text: String) -> Result<String, Option<a>> where Json<a> {
+    let decoded: Result<JsonError, List<Option<a>>> = Json.decode(text)
+
+    match decoded {
+      Ok(values) -> Ok(Option.and_then(List.head(values), function(value) { value })),
+      Err(error) -> Err(Json.message(error)),
+    }
+  }
+
+  measure(column: Column<r, a>, text: String) -> Result<String, Option<a>> {
+    match column {
+      Column(_, _, decode) -> decode(text),
+    }
   }
 
   eq(column: Column<r, a>, value: a) -> Filter<r> where ToSql<a> {
@@ -38,6 +52,32 @@ functions
 
   gt(column: Column<r, a>, value: a) -> Filter<r> where ToSql<a> {
     compare(column, ">", value)
+  }
+
+  gte(column: Column<r, a>, value: a) -> Filter<r> where ToSql<a> {
+    compare(column, ">=", value)
+  }
+
+  lte(column: Column<r, a>, value: a) -> Filter<r> where ToSql<a> {
+    compare(column, "<=", value)
+  }
+
+  in_list(column: Column<r, a>, values: List<a>) -> Filter<r> where ToSql<a> {
+    if List.is_empty(values) {
+      Filter("0 = 1", [])
+    } else {
+      let marks = List.join(List.map(values, function(_) { "?" }), ", ")
+
+      Filter("#{quoted(column)} IN (#{marks})", List.map(values, to_sql))
+    }
+  }
+
+  any(filters: List<Filter<r>>) -> Filter<r> {
+    if List.is_empty(filters) { Filter("0 = 1", []) } else { joined(filters, " OR ") }
+  }
+
+  all(filters: List<Filter<r>>) -> Filter<r> {
+    if List.is_empty(filters) { Filter("1 = 1", []) } else { joined(filters, " AND ") }
   }
 
   like(column: Column<r, String>, pattern: String) -> Filter<r> {
@@ -68,9 +108,36 @@ functions
     Filter("#{quoted(column)} #{operator} ?", [to_sql(value)])
   }
 
+  joined(filters: List<Filter<r>>, separator: String) -> Filter<r> {
+    let parts = List.map(
+      filters,
+      function(filter) {
+        match filter {
+          Filter(sql, _) -> "(#{sql})",
+        }
+      },
+    )
+    let params = List.concat_map(
+      filters,
+      function(filter) {
+        match filter {
+          Filter(_, params) -> params,
+        }
+      },
+    )
+
+    Filter(List.join(parts, separator), params)
+  }
+
+  name(column: Column<r, a>) -> String {
+    match column {
+      Column(_, name, _) -> name,
+    }
+  }
+
   quoted(column: Column<r, a>) -> String {
     match column {
-      Column(table, name) -> "\"#{table}\".\"#{name}\"",
+      Column(table, name, _) -> "\"#{table}\".\"#{name}\"",
     }
   }
 
@@ -125,12 +192,20 @@ exports
   Column
   Filter
   Clause
+  Page
   column
   eq
   not_eq
   lt
   gt
+  gte
+  lte
+  in_list
+  any
+  all
   like
+  name
+  measure
   is_null
   order_asc
   order_desc

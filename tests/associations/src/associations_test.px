@@ -1,14 +1,8 @@
 module AssociationsTest
 
 uses
-  Std.Assert
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Result
-  Ticket.Db
-  Ticket.Query
-  Ticket.Test
+  Std.{Assert, Id, List, Option, Result}
+  Ticket.{Db, Query, Test}
   Schema
 
 hosts
@@ -249,6 +243,82 @@ functions
     )
   }
 
+  test_includes() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+
+        let loaded = Schema.posts_with_comments([first, second, third])
+        let line = function(entry) { "#{entry.post.title}=#{bodies(entry.comments)}" }
+
+        Assert.equal(
+          List.join(List.map(loaded, line), " "),
+          "First=[c1, c2] Second=[c3] Third=[]",
+        )
+      },
+    )
+  }
+
+  test_includes_queries() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+        let _ = Posts.insert(new_post("Fourth", bob.id, None))
+        let _ = Posts.insert(new_post("Fifth", bob.id, None))
+        let before = Test.statements()
+        let posts = Posts.all()
+        let loaded = Schema.posts_with_comments(posts)
+
+        Assert.equal(
+          "#{List.length(loaded)} #{Test.statements() - before}",
+          "5 2",
+        )
+      },
+    )
+  }
+
+  test_includes_nullable() {
+    with_db(
+      function() {
+        let ada = Users.insert({ name: "Ada" })
+        let bob = Users.insert({ name: "Bob" })
+        let first = Posts.insert(new_post("First", ada.id, Some(bob.id)))
+        let second = Posts.insert(new_post("Second", ada.id, None))
+        let third = Posts.insert(new_post("Third", bob.id, None))
+        let c1 = Comments.insert(new_comment("c1", first.id, None))
+        let c2 = Comments.insert(new_comment("c2", first.id, Some(c1.id)))
+        let _ = Comments.insert(new_comment("c3", second.id, None))
+
+        let loaded = Schema.users_with_posts_as_editor([ada, bob])
+        let line = function(entry) { "#{entry.user.name}=#{titles(entry.posts)}" }
+
+        Assert.equal(List.join(List.map(loaded, line), " "), "Ada=[] Bob=[First]")
+      },
+    )
+  }
+
+  test_includes_empty() {
+    with_db(
+      function() {
+        Assert.equal("#{List.length(Schema.posts_with_comments([]))}", "0")
+      },
+    )
+  }
+
   test_restrict_default() {
     with_db(
       function() {
@@ -327,6 +397,10 @@ exports
   test_has_many_by_post
   test_self_reference
   test_root_has_no_parent
+  test_includes
+  test_includes_queries
+  test_includes_nullable
+  test_includes_empty
   test_restrict_default
   test_cascade
   test_set_null

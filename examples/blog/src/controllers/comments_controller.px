@@ -1,64 +1,24 @@
 module CommentsController
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.Id
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Process
-  Std.Result
-  Std.Time
+  Std.{Http, Id, List, Map, Option, Result}
   Controllers.PostsController
   Models.Comment
   Paths
   Schema
-  Ticket.Action
-  Ticket.Auth
-  Ticket.Conn
-  Ticket.Db
-  Ticket.Error
-  Ticket.Errors
-  Ticket.Flash
-  Ticket.Params
-  Ticket.Response
-  Ticket.Session
+  Ticket.{Action, Auth, Conn, Db, Error, Errors, Flash, Params, Response, Session}
   Views.Layout
 
 functions
-  create(conn: Conn) -> Response / {
-    Posts,
-    Users,
-    Comments,
-    Throws<DbFailure>,
-    Throws<Halt>,
-    Process,
-    Random,
-    Clock,
-  } {
+  create(conn: Conn) -> Response / {..} {
     Session.handle(conn, add)
   }
 
-  destroy(conn: Conn) -> Response / {
-    Posts,
-    Comments,
-    Throws<DbFailure>,
-    Throws<Halt>,
-    Process,
-    Random,
-    Clock,
-  } {
+  destroy(conn: Conn) -> Response / {..} {
     Session.handle(conn, Action.before([Auth.require_login], remove))
   }
 
-  add(conn: Conn) -> Response / {
-    Posts,
-    Users,
-    Comments,
-    Throws<DbFailure>,
-    Throws<Halt>,
-  } {
+  add(conn: Conn) -> Response / {..} {
     let post = post_or_halt(conn)
     let decoded: Result<Errors, NewComment> = Params.record(
       with_post(conn, post),
@@ -85,7 +45,7 @@ functions
     }
   }
 
-  remove(conn: Conn) -> Response / {Posts, Comments, Throws<DbFailure>, Throws<Halt>} {
+  remove(conn: Conn) -> Response / {..} {
     let post = post_or_halt(conn)
     let comment = comment_or_halt(conn, post)
     let _ = Comments.delete(comment.id)
@@ -103,18 +63,14 @@ functions
     }
   }
 
-  post_or_halt(conn: Conn) -> Post / {Posts, Throws<DbFailure>, Throws<Halt>} {
+  post_or_halt(conn: Conn) -> Post / {..} {
     match Option.and_then(Params.id(conn, "post_id"), Posts.find) {
       Some(post) -> post,
       None -> throw Halt(Response.not_found()),
     }
   }
 
-  comment_or_halt(conn: Conn, post: Post) -> Comment / {
-    Comments,
-    Throws<DbFailure>,
-    Throws<Halt>,
-  } {
+  comment_or_halt(conn: Conn, post: Post) -> Comment / {..} {
     match Option.and_then(Params.id(conn, "id"), Comments.find) {
       Some(comment) -> if comment.post_id == post.id {
         comment

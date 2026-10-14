@@ -1,12 +1,8 @@
 module Main
 
 uses
-  Std.Http
-  Std.List
-  Std.Option
-  Std.Process
-  Ticket.Console
-  Ticket.Db
+  Std.{Http, List, Option, Process}
+  Ticket.{Console, Db}
   Routes
 
 hosts

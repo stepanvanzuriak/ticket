@@ -1,14 +1,8 @@
 module Csrf
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.Map
-  Std.Option
-  Std.Result
-  Ticket.Conn
-  Ticket.Html
-  Ticket.Response
+  Std.{Crypto, Http, Map, Option, Result}
+  Ticket.{Conn, Html, Response}
 
 functions
   safe(method: String) -> Bool {

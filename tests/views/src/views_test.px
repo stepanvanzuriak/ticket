@@ -1,9 +1,7 @@
 module ViewsTest
 
 uses
-  Std.Assert
-  Std.List
-  Std.Option
+  Std.{Assert, List, Option}
   Aliased
   Cards
   Items

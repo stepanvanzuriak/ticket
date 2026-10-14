@@ -1,8 +1,7 @@
 module Passthrough
 
 uses
-  Std.List
-  Std.Process
+  Std.{List, Process}
 
 hosts
   Node

@@ -1,12 +1,10 @@
 module Main
 
 uses
-  Std.Http
-  Std.Option
+  Std.{Http, Option}
   Layout
   Pages
-  Ticket.Html
-  Ticket.Response
+  Ticket.{Html, Response}
 
 hosts
   Node

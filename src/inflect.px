@@ -1,8 +1,7 @@
 module Inflect
 
 uses
-  Std.List
-  Std.Option
+  Std.{List, Option}
 
 functions
   singular(word: String) -> Option<String> {

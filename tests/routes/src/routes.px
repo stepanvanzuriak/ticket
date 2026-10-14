@@ -1,13 +1,9 @@
 module Routes
 
 uses
-  Std.Http
-  Std.Id
-  Std.Option
+  Std.{Http, Id, Option}
   Ticket.Conn
-  Controllers.PagesController
-  Controllers.PostsController
-  Controllers.CommentsController
+  Controllers.{PagesController, PostsController, CommentsController}
   Admin.UsersController
 
 routes

@@ -1,23 +1,10 @@
 module Main
 
 uses
-  Std.Fs
-  Std.List
-  Std.Option
-  Std.Process
-  Std.Result
-  Std.Time
+  Std.{Fs, List, Option, Process, Result, Time}
   Args
   App
-  Commands.Database
-  Commands.Generate
-  Commands.New
-  Commands.Passthrough
-  Commands.Repl
-  Commands.Routes
-  Commands.Scaffold
-  Commands.Server
-  Commands.Testing
+  Commands.{Database, Generate, New, Passthrough, Repl, Routes, Scaffold, Server, Testing}
 
 hosts
   Node

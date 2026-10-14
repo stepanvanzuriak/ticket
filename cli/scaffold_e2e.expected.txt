@@ -61,6 +61,8 @@
 18 destroy_controller: exit=0 remove  src/controllers/reports_controller.px |       remove  src/views/report_views.px |       remove  src/routes.px  the ReportsController lines routes=true
 18 model_validations_flag:   name  presence
 18 destroy_model: exit=0 remove  src/models/tag.px |         note  the `create_table tags` migration in src/schema.px was kept: add a `drop_table tags` migration to remove the table exists=false
+18 destroy_grouped_use:   Controllers.{PagesController, ItemsController}
+18 rerun_grouped_use: exit=0   Controllers.{PagesController, ItemsController}
 20 g_auth: exit=0 create  src/schema.px  V create_table users |         wire  src/main.px  migrate |       create  src/models/user.px |       create  src/controllers/sessions_controller.px |       create  src/controllers/registrations_controller.px |       create  src/views/session_views.px |       create  src/views/registration_views.px |       create  src/controllers/auth_controller_test.px |       append  src/routes.px  login, logout and signup routes to SessionsController and RegistrationsController |         note  protect actions with `Action.before([Auth.require_login], action)`; the `password_digest` column holds the hash, never the password
 20 g_auth_again: exit=0 identical,identical,identical,identical,identical,identical,identical,identical,note
 20 g_auth_checks: exit=0 diagnostics=none

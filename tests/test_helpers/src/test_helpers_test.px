@@ -1,18 +1,10 @@
 module TestHelpersTest
 
 uses
-  Std.Assert
-  Std.Crypto
-  Std.Http
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Process
-  Std.Time
+  Std.{Assert, Crypto, Http, List, Map, Option, Process, Time}
   Routes
   Schema
-  Ticket.Db
-  Ticket.Test
+  Ticket.{Db, Test}
 
 hosts
   Node

@@ -1,19 +1,8 @@
 module AuthTest
 
 uses
-  Std.Assert
-  Std.Crypto
-  Std.Http
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Result
-  Ticket.Auth
-  Ticket.Conn
-  Ticket.Errors
-  Ticket.Flash
-  Ticket.Response
-  Ticket.Session
+  Std.{Assert, Crypto, Http, List, Map, Option, Result}
+  Ticket.{Auth, Conn, Errors, Flash, Response, Session}
 
 hosts
   Node

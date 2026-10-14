@@ -1,17 +1,8 @@
 module Schema
 
 uses
-  Std.Id
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
-  Std.Time
-  Ticket.Db
-  Ticket.Form
-  Ticket.Migration
-  Ticket.Model
-  Ticket.Query
+  Std.{Id, Json, List, Option, Result, Time}
+  Ticket.{Db, Form, Migration, Model, Query}
 
 migrations
   20261001_100000 create_table users

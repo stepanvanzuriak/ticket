@@ -1,11 +1,7 @@
 module New
 
 uses
-  Std.Fs
-  Std.List
-  Std.Path
-  Std.Process
-  Std.Result
+  Std.{Fs, List, Path, Process, Result}
   Args
   Ticket.Inflect
 
@@ -45,10 +41,7 @@ functions
     version: String,
     use_path: Bool,
     skip_build: Bool,
-  ) -> Int / {
-    Process,
-    Fs,
-  } {
+  ) -> Int / {Process, Fs} {
     if occupied(target) {
       Log.error("error: `#{name}` already exists and isn't empty")
       1

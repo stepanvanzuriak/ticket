@@ -1,11 +1,7 @@
-
 module Article
 
 uses
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Table
+  Std.{Id, List, Option, Table}
 
 types
   Article = { id: Id<Article>, title: String }

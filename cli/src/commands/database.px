@@ -1,9 +1,7 @@
 module Database
 
 uses
-  Std.List
-  Std.Option
-  Std.Process
+  Std.{List, Option, Process}
   Args
 
 hosts

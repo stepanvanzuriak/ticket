@@ -41,3 +41,7 @@ export function restore() {
     random.bytes = real.bytes;
   }
 }
+
+export function statements() {
+  return globalThis.$ticketStatements ?? 0;
+}

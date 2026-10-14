@@ -2,8 +2,7 @@ module {{Models}}Controller
 
 uses
   Std.Http
-  Ticket.Conn
-  Ticket.Response
+  Ticket.{Conn, Response}
   Views.Layout
   Views.{{Model}}Views
 

@@ -1,8 +1,7 @@
 module Flash
 
 uses
-  Std.Map
-  Std.Option
+  Std.{Map, Option}
   Ticket.Conn
 
 functions

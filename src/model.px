@@ -1,20 +1,16 @@
 module Model
 
 uses
-  Std.Id
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
-  Ticket.Db
-  Ticket.Query
-  Ticket.Sql
+  Std.{Id, Json, List, Option, Result}
+  Ticket.{Db, Query, Sql}
 
 hosts
   Node
 
 types
   Total = { n: Int } derive(Json)
+
+  Measured = { n: String } derive(Json)
 
 functions
   find(table: String, id: Id<r>) -> Option<a> / {Db, Throws<DbFailure>} where Json<a> {
@@ -38,6 +34,56 @@ functions
     match List.head(totals) {
       Some(total) -> total.n,
       None -> 0,
+    }
+  }
+
+  paginate(
+    table: String,
+    filters: List<Filter<r>>,
+    clauses: List<Clause<r>>,
+    page: Int,
+    per_page: Int,
+  ) -> Page<a> / {Db, Throws<DbFailure>} where Json<a> {
+    let size = if per_page < 1 { 1 } else { per_page }
+    let current = if page < 1 { 1 } else { page }
+    let total = count(table, filters)
+    let paged = List.append(
+      clauses,
+      [Query.limit(size), Query.offset((current - 1) * size)],
+    )
+
+    {
+      rows: rows(Sql.select(table, filters, paged)),
+      page: current,
+      per_page: size,
+      total: total,
+      pages: (total + size - 1) / size,
+    }
+  }
+
+  measure(
+    table: String,
+    function_name: String,
+    column: Column<r, a>,
+    filters: List<Filter<r>>,
+  ) -> Option<a> / {Db, Throws<DbFailure>} {
+    let found: List<Measured> = rows(
+      Sql.aggregate(table, function_name, Query.name(column), filters),
+    )
+
+    match List.head(found) {
+      Some(row) -> match Query.measure(column, row.n) {
+        Ok(value) -> value,
+        Err(message) -> throw DbFailure(
+          {
+            kind: "decode",
+            code: "",
+            message: "an aggregate doesn't decode: #{message}",
+            sql: "",
+          },
+        ),
+      },
+      None -> None,
     }
   }
 
@@ -92,6 +138,8 @@ exports
   all
   filter
   count
+  paginate
+  measure
   insert
   update
   delete

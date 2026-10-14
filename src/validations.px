@@ -1,11 +1,7 @@
 module Validations
 
 uses
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Regex
-  Std.Time
+  Std.{Id, List, Option, Regex, Time}
   Ticket.Errors
 
 traits

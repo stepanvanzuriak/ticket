@@ -1,16 +1,8 @@
 module ActionTest
 
 uses
-  Std.Assert
-  Std.Http
-  Std.List
-  Std.Ref
-  Std.Result
-  Ticket.Action
-  Ticket.Conn
-  Ticket.Error
-  Ticket.Html
-  Ticket.Response
+  Std.{Assert, Http, List, Ref, Result}
+  Ticket.{Action, Conn, Error, Html, Response}
 
 functions
   conn(method: String) -> Conn {
