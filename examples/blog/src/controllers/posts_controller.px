@@ -1,108 +1,56 @@
 module PostsController
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.Id
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Process
-  Std.Result
-  Std.Time
+  Std.{Http, Id, List, Map, Option, Result}
   Models.Post
   Paths
   Schema
-  Ticket.Action
-  Ticket.Auth
-  Ticket.Conn
-  Ticket.Db
-  Ticket.Error
-  Ticket.Errors
-  Ticket.Flash
-  Ticket.Html
-  Ticket.Params
-  Ticket.Query
-  Ticket.Response
-  Ticket.Session
-  Views.Layout
-  Views.PostViews
+  Ticket.{
+    Action,
+    Auth,
+    Conn,
+    Db,
+    Error,
+    Errors,
+    Flash,
+    Html,
+    Params,
+    Query,
+    Response,
+    Session,
+  }
+  Views.{Layout, PostViews}
 
 functions
-  index(conn: Conn) -> Response / {
-    Posts,
-    Users,
-    Throws<DbFailure>,
-    Process,
-    Random,
-    Clock,
-  } {
+  index(conn: Conn) -> Response / {..} {
     Session.handle(conn, list)
   }
 
-  show(conn: Conn) -> Response / {
-    Posts,
-    Users,
-    Comments,
-    Throws<DbFailure>,
-    Throws<Halt>,
-    Process,
-    Random,
-    Clock,
-  } {
+  show(conn: Conn) -> Response / {..} {
     Session.handle(conn, details)
   }
 
-  new(conn: Conn) -> Response / {Process, Random, Clock} {
+  new(conn: Conn) -> Response / {..} {
     Session.handle(conn, Action.before([Auth.require_login], blank))
   }
 
-  create(conn: Conn) -> Response / {
-    Posts,
-    Users,
-    Throws<DbFailure>,
-    Throws<Halt>,
-    Process,
-    Random,
-    Clock,
-  } {
+  create(conn: Conn) -> Response / {..} {
     Session.handle(conn, Action.before([Auth.require_login], save))
   }
 
-  edit(conn: Conn) -> Response / {
-    Posts,
-    Throws<DbFailure>,
-    Throws<Halt>,
-    Process,
-    Random,
-    Clock,
-  } {
+  edit(conn: Conn) -> Response / {..} {
     Session.handle(conn, Action.before([Auth.require_login], form))
   }
 
-  update(conn: Conn) -> Response / {
-    Posts,
-    Throws<DbFailure>,
-    Throws<Halt>,
-    Process,
-    Random,
-    Clock,
-  } {
+  update(conn: Conn) -> Response / {..} {
     Session.handle(conn, Action.before([Auth.require_login], change))
   }
 
-  destroy(conn: Conn) -> Response / {
-    Posts,
-    Throws<DbFailure>,
-    Throws<Halt>,
-    Process,
-    Random,
-    Clock,
-  } {
+  destroy(conn: Conn) -> Response / {..} {
     Session.handle(conn, Action.before([Auth.require_login], remove))
   }
 
-  list(conn: Conn) -> Response / {Posts, Users, Throws<DbFailure>} {
+  list(conn: Conn) -> Response / {..} {
     let posts = Posts.filter([], [Query.order_desc(Schema.post_id)])
     let entries = List.map(
       posts,
@@ -112,13 +60,7 @@ functions
     Response.render(Layout.app(conn, "Posts", PostViews.index(conn, entries)))
   }
 
-  details(conn: Conn) -> Response / {
-    Posts,
-    Users,
-    Comments,
-    Throws<DbFailure>,
-    Throws<Halt>,
-  } {
+  details(conn: Conn) -> Response / {..} {
     let post = find_or_halt(conn)
 
     Response.render(
@@ -131,7 +73,7 @@ functions
     post: Post,
     fields: Map<String, String>,
     errors: Errors,
-  ) -> Html / {Users, Comments, Throws<DbFailure>} {
+  ) -> Html / {..} {
     let comments = Schema.post_comments_filter(
       post,
       [],
@@ -151,7 +93,7 @@ functions
     )
   }
 
-  save(conn: Conn) -> Response / {Posts, Users, Throws<DbFailure>, Throws<Halt>} {
+  save(conn: Conn) -> Response / {..} {
     let author = current_author(conn)
     let decoded: Result<Errors, NewPost> = Params.record(
       with_author(conn, author),
@@ -178,7 +120,7 @@ functions
     }
   }
 
-  form(conn: Conn) -> Response / {Posts, Throws<DbFailure>, Throws<Halt>} {
+  form(conn: Conn) -> Response / {..} {
     let post = find_or_halt(conn)
 
     Response.render(
@@ -190,7 +132,7 @@ functions
     )
   }
 
-  change(conn: Conn) -> Response / {Posts, Throws<DbFailure>, Throws<Halt>} {
+  change(conn: Conn) -> Response / {..} {
     let post = find_or_halt(conn)
     let decoded: Result<Errors, NewPost> = Params.record(
       with_author_id(conn, post.author_id),
@@ -223,7 +165,7 @@ functions
     }
   }
 
-  remove(conn: Conn) -> Response / {Posts, Throws<DbFailure>, Throws<Halt>} {
+  remove(conn: Conn) -> Response / {..} {
     let post = find_or_halt(conn)
     let _ = Posts.delete(post.id)
 
@@ -233,8 +175,11 @@ functions
     )
   }
 
-  current_author(conn: Conn) -> User / {Users, Throws<DbFailure>, Throws<Halt>} {
-    match Option.and_then(Auth.current_user_id(conn), function(id) { Users.find(Id(id)) }) {
+  current_author(conn: Conn) -> User / {..} {
+    match Option.and_then(
+      Auth.current_user_id(conn),
+      function(id) { Users.find(Id(id)) },
+    ) {
       Some(user) -> user,
       None -> throw Halt(Response.text(401, "log in first")),
     }
@@ -251,7 +196,7 @@ functions
     }
   }
 
-  find_or_halt(conn: Conn) -> Post / {Posts, Throws<DbFailure>, Throws<Halt>} {
+  find_or_halt(conn: Conn) -> Post / {..} {
     match Option.and_then(Params.id(conn, "id"), Posts.find) {
       Some(post) -> post,
       None -> throw Halt(Response.not_found()),

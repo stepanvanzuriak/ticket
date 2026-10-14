@@ -1,13 +1,8 @@
 module Main
 
 uses
-  Std.Http
-  Std.List
-  Std.Option
-  Std.Result
-  Std.Time
-  Ticket.Db
-  Ticket.Migrate
+  Std.{Http, List, Option, Result, Time}
+  Ticket.{Db, Migrate}
   Schema
 
 hosts

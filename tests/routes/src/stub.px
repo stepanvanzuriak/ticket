@@ -2,11 +2,8 @@
 module Stub
 
 uses
-  Std.Http
-  Std.List
-  Std.Map
-  Ticket.Conn
-  Ticket.Response
+  Std.{Http, List, Map}
+  Ticket.{Conn, Response}
 
 functions
   reply(conn: Conn, action: String) -> Response {

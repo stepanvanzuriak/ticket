@@ -313,6 +313,23 @@ try {
   row(18, "model_validations_flag", read(clean, "src/models/tag.px").split("\n").filter((l) => /^  \w+  /.test(l)).join(" | "));
   r = ticket(["destroy", "model", "Tag"], clean);
   row(18, "destroy_model", `exit=${r.status} ${lines(r)} exists=${existsSync(join(clean, "src/models/tag.px"))}`);
+
+  // A module group in `uses`: destroy drops one member, a rerun doesn't import a grouped controller twice.
+  ticket(["g", "scaffold", "Post", "title:String"], clean);
+  ticket(["g", "scaffold", "Item", "name:String"], clean);
+  writeFileSync(
+    join(clean, "src/routes.px"),
+    read(clean, "src/routes.px").replace(
+      "  Controllers.PagesController\n  Controllers.PostsController\n  Controllers.ItemsController\n",
+      "  Controllers.{PagesController, PostsController, ItemsController}\n",
+    ),
+  );
+  const imports = () => read(clean, "src/routes.px").split("\n").filter((l) => /^  Controllers\./.test(l)).join(" | ");
+  ticket(["destroy", "scaffold", "Post", "--force"], clean);
+  row(18, "destroy_grouped_use", imports());
+  ticket(["g", "scaffold", "Item", "name:String", "--skip"], clean);
+  r = spawnSync("polar", ["check", "--no-color"], { cwd: clean, encoding: "utf8" });
+  row(18, "rerun_grouped_use", `exit=${r.status} ${imports()}`);
   const authed = app("authed");
 
   r = ticket(["g", "auth"], authed);

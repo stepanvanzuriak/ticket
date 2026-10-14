@@ -1,9 +1,7 @@
 module Args
 
 uses
-  Std.List
-  Std.Option
-  Std.Result
+  Std.{List, Option, Result}
 
 types
   Flag = { name: String, value: Option<String> } derive(Show)

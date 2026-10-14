@@ -1,15 +1,8 @@
 module ValidationsTest
 
 uses
-  Std.Assert
-  Std.List
-  Std.Option
-  Std.Result
-  Ticket.Db
-  Ticket.Errors
-  Ticket.Conn
-  Ticket.Params
-  Ticket.Test
+  Std.{Assert, List, Option, Result}
+  Ticket.{Db, Errors, Conn, Params, Test}
   Post
   Schema
 

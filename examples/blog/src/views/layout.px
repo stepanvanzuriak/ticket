@@ -3,11 +3,7 @@ module Layout
 uses
   Std.Option
   Paths
-  Ticket.Auth
-  Ticket.Conn
-  Ticket.Csrf
-  Ticket.Flash
-  Ticket.Html
+  Ticket.{Auth, Conn, Csrf, Flash, Html}
 
 views
   app(conn: Conn, title: String, body: Html)

@@ -1042,8 +1042,15 @@ struct Association {
 }
 
 impl Association {
+  fn includes(&self) -> String {
+    let parent = snake(&self.target_record);
+    let suffix = self.has_many.strip_prefix(&format!("{parent}_")).unwrap_or(&self.has_many);
+
+    format!("{}_with_{suffix}", self.target_table)
+  }
+
   fn names(&self) -> Vec<String> {
-    vec![self.belongs_to.clone(), self.has_many.clone(), format!("{}_filter", self.has_many)]
+    vec![self.belongs_to.clone(), self.has_many.clone(), format!("{}_filter", self.has_many), self.includes()]
   }
 }
 
@@ -1150,6 +1157,11 @@ fn effect(table: &Table) -> Generated {
        all() -> List<{record}> / {{Throws<DbFailure>}}\n  \
        filter(filters: List<Filter<{record}>>, clauses: List<Clause<{record}>>) -> List<{record}> / {{Throws<DbFailure>}}\n  \
        count(filters: List<Filter<{record}>>) -> Int / {{Throws<DbFailure>}}\n  \
+       paginate(filters: List<Filter<{record}>>, clauses: List<Clause<{record}>>, page: Int, per_page: Int) \
+       -> Page<{record}> / {{Throws<DbFailure>}}\n  \
+       sum(column: Column<{record}, a>, filters: List<Filter<{record}>>) -> Option<a> / {{Throws<DbFailure>}}\n  \
+       max(column: Column<{record}, a>, filters: List<Filter<{record}>>) -> Option<a> / {{Throws<DbFailure>}}\n  \
+       min(column: Column<{record}, a>, filters: List<Filter<{record}>>) -> Option<a> / {{Throws<DbFailure>}}\n  \
        insert(row: New{record}) -> {record} / {{Throws<DbFailure>}}\n  \
        update(row: {record}) -> {record} / {{Throws<DbFailure>}}\n  \
        delete(id: Id<{record}>) -> Bool / {{Throws<DbFailure>}}\n}}"
@@ -1176,6 +1188,11 @@ fn binds(table: &Table, query: &str, model: &str) -> Generated {
        all() {{\n    {model}.all(\"{t}\")\n  }}\n\n  \
        filter(filters, clauses) {{\n    {model}.filter(\"{t}\", filters, clauses)\n  }}\n\n  \
        count(filters) {{\n    {model}.count(\"{t}\", filters)\n  }}\n\n  \
+       paginate(filters, clauses, page, per_page) {{\n    \
+       {model}.paginate(\"{t}\", filters, clauses, page, per_page)\n  }}\n\n  \
+       sum(column, filters) {{\n    {model}.measure(\"{t}\", \"SUM\", column, filters)\n  }}\n\n  \
+       max(column, filters) {{\n    {model}.measure(\"{t}\", \"MAX\", column, filters)\n  }}\n\n  \
+       min(column, filters) {{\n    {model}.measure(\"{t}\", \"MIN\", column, filters)\n  }}\n\n  \
        insert(row) {{\n    {model}.insert(\"{t}\", [{names}], [{values}])\n  }}\n\n  \
        update(row) {{\n    {model}.update(\"{t}\", [{names}], [{values}], row.id, {touch})\n  }}\n\n  \
        delete(id) {{\n    {model}.delete(\"{t}\", id)\n  }}\n}}"
@@ -1225,6 +1242,21 @@ fn association(a: &Association, query: &str) -> Generated {
       a.has_many
     ),
   );
+
+  let (parent, children) = (snake(target), a.table.as_str());
+  let suffix = a.has_many.strip_prefix(&format!("{parent}_")).unwrap_or(&a.has_many);
+  let wanted = if a.nullable { "List.map(ids, Some)" } else { "ids" };
+  let matches = if a.nullable { format!("child.{local} == Some(row.id)") } else { format!("child.{local} == row.id") };
+
+  source.push(&format!(
+    "\n\n{plural}_with_{suffix}(rows: List<{target}>) -> List<{{ {parent}: {target}, {children}: List<{record}> }}> \
+     / {{{effect}, Throws<DbFailure>}} {{\n  \
+     let ids = List.map(rows, function(row) {{ row.id }})\n  \
+     let found = {effect}.filter([{query}.in_list({column}, {wanted})], [{query}.order_asc({id})])\n\n  \
+     List.map(\n    rows,\n    function(row) {{\n      \
+     {{ {parent}: row, {children}: List.filter(found, function(child) {{ {matches} }}) }}\n    }},\n  )\n}}",
+    plural = a.target_table,
+  ));
   source.finish("functions", a.span)
 }
 

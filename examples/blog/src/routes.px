@@ -1,14 +1,9 @@
 module Routes
 
 uses
-  Std.Http
-  Std.Id
-  Std.Option
+  Std.{Http, Id, Option}
   Ticket.Conn
-  Controllers.CommentsController
-  Controllers.PostsController
-  Controllers.SessionsController
-  Controllers.UsersController
+  Controllers.{CommentsController, PostsController, SessionsController, UsersController}
 
 hosts
   Node

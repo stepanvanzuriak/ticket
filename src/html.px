@@ -1,9 +1,7 @@
 module Html
 
 uses
-  Std.Id
-  Std.List
-  Std.Option
+  Std.{Id, List, Option}
 
 traits
   Render<a> {

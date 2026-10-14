@@ -3,8 +3,7 @@ module PagesController
 uses
   Std.Http
   Layout
-  Ticket.Conn
-  Ticket.Response
+  Ticket.{Conn, Response}
   Views.Pages
 
 types

@@ -1,15 +1,8 @@
 module MigrateTest
 
 uses
-  Std.Assert
-  Std.Http
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
-  Std.Time
-  Ticket.Db
-  Ticket.Migrate
+  Std.{Assert, Http, Json, List, Option, Result, Time}
+  Ticket.{Db, Migrate}
   Schema
 
 hosts

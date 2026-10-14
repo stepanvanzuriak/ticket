@@ -1,16 +1,8 @@
 module FormsTest
 
 uses
-  Std.Assert
-  Std.Http
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Result
-  Std.Time
-  Ticket.Conn
-  Ticket.Errors
-  Ticket.Params
+  Std.{Assert, Http, Id, List, Option, Result, Time}
+  Ticket.{Conn, Errors, Params}
   Schema
 
 functions
@@ -91,7 +83,7 @@ functions
           "item[name]=Lamp&item[count]=3&item[price]=1&item[note]=&item[owner_id]=+&item[due]=",
         ),
       ),
-      "Ok(Lamp 3 1 false None None None)",
+      "Ok(Lamp 3 1.0 false None None None)",
     )
   }
 
@@ -130,7 +122,7 @@ functions
   test_float_forms() {
     Assert.equal(
       List.join(List.map(["3", "-2.5", "1e2", "0.5", ".5"], price), " "),
-      "3 -2.5 100 0.5 bad",
+      "3.0 -2.5 100.0 0.5 bad",
     )
   }
 

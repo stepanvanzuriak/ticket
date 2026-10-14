@@ -1,16 +1,8 @@
 module QueriesTest
 
 uses
-  Std.Assert
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Time
-  Ticket.Db
-  Ticket.Migration
-  Ticket.Query
-  Ticket.Sql
-  Ticket.Test
+  Std.{Assert, Id, List, Option, Time}
+  Ticket.{Db, Migration, Query, Sql, Test}
   Schema
 
 hosts
@@ -228,6 +220,151 @@ functions
     )
   }
 
+  test_filter_gte_lte() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [Query.gte(Schema.post_score, 2.0)],
+              [Query.order_asc(Schema.post_id)],
+            ),
+          ),
+          "[Second, Third]",
+        )
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [Query.lte(Schema.post_score, 1.5)],
+              [Query.order_asc(Schema.post_id)],
+            ),
+          ),
+          "[First, Fourth]",
+        )
+      },
+    )
+  }
+
+  test_in_list() {
+    seeded(
+      function(s) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [Query.in_list(Schema.post_id, [s.first.id, s.third.id])],
+              [Query.order_asc(Schema.post_id)],
+            ),
+          ),
+          "[First, Third]",
+        )
+      },
+    )
+  }
+
+  test_in_empty() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(Posts.filter([Query.in_list(Schema.post_id, [])], [])),
+          "[]",
+        )
+        Assert.equal(
+          statement(Sql.select("posts", [Query.in_list(Schema.post_title, ["a", "b"])], [])),
+          "SELECT * FROM \"posts\" WHERE (\"posts\".\"title\" IN (?, ?)) 2",
+        )
+      },
+    )
+  }
+
+  test_any() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [
+                Query.any(
+                  [
+                    Query.eq(Schema.post_title, "First"),
+                    Query.eq(Schema.post_title, "Third"),
+                  ],
+                ),
+              ],
+              [Query.order_asc(Schema.post_id)],
+            ),
+          ),
+          "[First, Third]",
+        )
+      },
+    )
+  }
+
+  test_any_all_nested() {
+    seeded(
+      function(_) {
+        Assert.equal(
+          titles(
+            Posts.filter(
+              [
+                Query.eq(Schema.post_published, true),
+                Query.any(
+                  [
+                    Query.all(
+                      [
+                        Query.gt(Schema.post_score, 1.0),
+                        Query.lt(Schema.post_score, 2.5),
+                      ],
+                    ),
+                    Query.eq(Schema.post_title, "Fourth"),
+                  ],
+                ),
+              ],
+              [Query.order_asc(Schema.post_id)],
+            ),
+          ),
+          "[First, Third, Fourth]",
+        )
+      },
+    )
+  }
+
+  test_any_all_empty() {
+    seeded(
+      function(_) {
+        Assert.equal(titles(Posts.filter([Query.any([])], [])), "[]")
+        Assert.equal(
+          titles(Posts.filter([Query.all([])], [Query.order_asc(Schema.post_id)])),
+          "[First, Second, Third, Fourth]",
+        )
+      },
+    )
+  }
+
+  test_aggregates() {
+    seeded(
+      function(_) {
+        Assert.equal(Posts.sum(Schema.post_score, []), Some(7.0))
+        Assert.equal(Posts.max(Schema.post_score, []), Some(3.0))
+        Assert.equal(Posts.min(Schema.post_score, []), Some(0.5))
+        Assert.equal(
+          Posts.max(Schema.post_title, [Query.eq(Schema.post_published, true)]),
+          Some("Third"),
+        )
+        Assert.equal(Posts.max(Schema.post_id, [Query.lt(Schema.post_score, 2.0)]), Some(Id(4)))
+      },
+    )
+  }
+
+  test_max_empty() {
+    seeded(
+      function(_) {
+        Assert.equal(Posts.max(Schema.post_score, [Query.eq(Schema.post_title, "none")]), None)
+        Assert.equal(Posts.sum(Schema.post_score, [Query.in_list(Schema.post_id, [])]), None)
+        Assert.equal(Posts.min(Schema.post_id, [Query.any([])]), None)
+      },
+    )
+  }
+
   test_count() {
     seeded(
       function(_) {
@@ -409,6 +546,14 @@ exports
   test_filter_nullable
   test_filters_and
   test_paging
+  test_filter_gte_lte
+  test_in_list
+  test_in_empty
+  test_any
+  test_any_all_nested
+  test_any_all_empty
+  test_aggregates
+  test_max_empty
   test_count
   test_ordering_by_several
   test_update_returns

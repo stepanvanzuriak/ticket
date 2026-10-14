@@ -1,9 +1,7 @@
 module QueryString
 
 uses
-  Std.List
-  Std.Map
-  Std.Url
+  Std.{List, Map, Url}
 
 functions
   parse(text: String) -> Map<String, String> {

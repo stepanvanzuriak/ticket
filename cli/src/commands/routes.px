@@ -1,8 +1,7 @@
 module Routes
 
 uses
-  Std.List
-  Std.Process
+  Std.{List, Process}
 
 hosts
   Node

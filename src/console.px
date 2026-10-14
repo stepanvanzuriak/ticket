@@ -1,12 +1,8 @@
 module Console
 
 uses
-  Std.List
-  Std.Option
-  Std.Process
-  Std.Result
-  Ticket.Db
-  Ticket.Migration
+  Std.{List, Option, Process, Result}
+  Ticket.{Db, Migration}
 
 hosts
   Node

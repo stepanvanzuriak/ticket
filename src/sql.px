@@ -1,10 +1,8 @@
 module Sql
 
 uses
-  Std.List
-  Std.Option
-  Ticket.Db
-  Ticket.Query
+  Std.{List, Option}
+  Ticket.{Db, Query}
 
 types
   Statement = { sql: String, params: List<SqlValue> }
@@ -33,6 +31,18 @@ functions
   count(table: String, filters: List<Filter<r>>) -> Statement {
     {
       sql: "SELECT COUNT(*) AS n FROM #{quote(table)}#{conditions(filters)}",
+      params: values(filters),
+    }
+  }
+
+  aggregate(
+    table: String,
+    function_name: String,
+    column: String,
+    filters: List<Filter<r>>,
+  ) -> Statement {
+    {
+      sql: "SELECT json_array(#{function_name}(\"#{column}\")) AS n FROM #{quote(table)}#{conditions(filters)}",
       params: values(filters),
     }
   }
@@ -149,6 +159,7 @@ exports
   find
   select
   count
+  aggregate
   insert
   update
   delete

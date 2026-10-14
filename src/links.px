@@ -1,9 +1,7 @@
 module Links
 
 uses
-  Ticket.Conn
-  Ticket.Forms
-  Ticket.Html
+  Ticket.{Conn, Forms, Html}
 
 view_component
   LinkTo(text: String, path: String)

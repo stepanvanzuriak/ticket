@@ -1,35 +1,19 @@
 module RegistrationsController
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.Id
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Process
-  Std.Result
-  Std.Time
+  Std.{Http, Id, List, Map, Option, Result}
   Models.{{Model}}
   Paths
   Schema
-  Ticket.Auth
-  Ticket.Conn
-  Ticket.Db
-  Ticket.Errors
-  Ticket.Flash
-  Ticket.Params
-  Ticket.Response
-  Ticket.Session
-  Views.Layout
-  Views.RegistrationViews
+  Ticket.{Auth, Conn, Db, Errors, Flash, Params, Response, Session}
+  Views.{Layout, RegistrationViews}
 
 functions
-  new(conn: Conn) -> Response / {Process, Random, Clock} {
+  new(conn: Conn) -> Response / {..} {
     Session.handle(conn, blank)
   }
 
-  create(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Async, Process, Random, Clock} {
+  create(conn: Conn) -> Response / {..} {
     Session.handle(conn, signup)
   }
 
@@ -39,7 +23,7 @@ functions
     )
   }
 
-  signup(conn: Conn) -> Response / {{{Models}}, Throws<DbFailure>, Async, Random} {
+  signup(conn: Conn) -> Response / {..} {
     let fields = Params.nested(conn, "{{model}}")
     let plain = Option.with_default(Map.get(fields, "password"), "")
     let confirmation = Option.with_default(Map.get(fields, "password_confirmation"), "")

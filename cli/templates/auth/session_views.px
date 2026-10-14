@@ -3,9 +3,7 @@ module SessionViews
 uses
   Std.Option
   Paths
-  Ticket.Conn
-  Ticket.Csrf
-  Ticket.Html
+  Ticket.{Conn, Csrf, Html}
 
 views
   new(conn: Conn, email: String, message: String)

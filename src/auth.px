@@ -1,16 +1,8 @@
 module Auth
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.Map
-  Std.Option
-  Std.Result
-  Ticket.Conn
-  Ticket.Errors
-  Ticket.Flash
-  Ticket.Response
-  Ticket.Session
+  Std.{Crypto, Http, Map, Option, Result}
+  Ticket.{Conn, Errors, Flash, Response, Session}
 
 functions
   user_key() -> String {

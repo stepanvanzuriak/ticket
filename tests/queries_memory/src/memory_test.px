@@ -1,13 +1,8 @@
 module MemoryTest
 
 uses
-  Std.Assert
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Table
-  Ticket.Db
-  Ticket.Query
+  Std.{Assert, Id, List, Option, Table}
+  Ticket.{Db, Query}
   Schema
 
 hosts
@@ -32,6 +27,30 @@ binds
 
     count(_) {
       List.length(Table.all(store))
+    }
+
+    paginate(_, _, page, per_page) {
+      let rows = Table.all(store)
+
+      {
+        rows: rows,
+        page: page,
+        per_page: per_page,
+        total: List.length(rows),
+        pages: 1,
+      }
+    }
+
+    sum(_, _) {
+      None
+    }
+
+    max(_, _) {
+      None
+    }
+
+    min(_, _) {
+      None
     }
 
     insert(row) {
@@ -70,6 +89,8 @@ functions
     Assert.equal(Option.map(Posts.find(a.id), function(p) { p.title }), Some("a"))
     Assert.equal(titles(Posts.all()), "a, b")
     Assert.equal(Posts.count([]), 2)
+    Assert.equal(Posts.paginate([], [], 1, 10).total, 2)
+    Assert.equal(Posts.max(Schema.post_id, []), None)
     Assert.equal(Posts.update({ ..a, title: "A" }).title, "A")
     Assert.equal(Posts.delete(a.id), true)
     Assert.equal(Posts.count([Query.eq(Schema.post_published, true)]), 1)

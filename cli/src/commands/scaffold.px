@@ -1,17 +1,10 @@
 module Scaffold
 
 uses
-  Std.Fs
-  Std.List
-  Std.Option
-  Std.Path
-  Std.Process
-  Std.Result
-  Std.Time
+  Std.{Fs, List, Option, Path, Process, Result, Time}
   Args
   Commands.Generate
-  Ticket.Errors
-  Ticket.Inflect
+  Ticket.{Errors, Inflect}
 
 hosts
   Node
@@ -46,7 +39,12 @@ functions
       ["scaffold", name, ..fields] -> scaffold(root, home, name, fields, flags),
       ["controller", name, ..actions] -> controller(root, home, name, actions, flags),
       ["model", name, ..fields] -> model(root, home, name, fields, flags),
-      ["auth"] -> auth(root, home, Option.with_default(Args.flag(parsed, "model"), "User"), flags),
+      ["auth"] -> auth(
+        root,
+        home,
+        Option.with_default(Args.flag(parsed, "model"), "User"),
+        flags,
+      ),
       _ -> Generate.usage(
         "`ticket g` takes `scaffold <Name> [field:Type…]`, `controller <Name> [action…]` or `auth [--model User]`",
       ),
@@ -442,8 +440,8 @@ functions
       } else {
         let end = Generate.zone_end(all, zone + 1, zone + 1)
         let routed = List.append(
-          Generate.take(all, end),
-          List.append([""], List.append(lines, Generate.drop(all, end))),
+          List.take(all, end),
+          List.append([""], List.append(lines, List.drop(all, end))),
         )
 
         Add(List.join(with_use(routed, controller), "\n"))
@@ -454,7 +452,7 @@ functions
   with_use(lines: List<String>, controller: String) -> List<String> {
     let line = "  Controllers.#{controller}"
 
-    if List.any(lines, function(l) { l == line }) {
+    if Generate.imports(lines, "Controllers.#{controller}") {
       lines
     } else {
       match Generate.index_of(lines, "uses", 0) {
@@ -462,7 +460,7 @@ functions
         Some(start) -> {
           let end = Generate.zone_end(lines, start + 1, start + 1)
 
-          List.append(Generate.take(lines, end), [line, ..Generate.drop(lines, end)])
+          List.append(List.take(lines, end), [line, ..List.drop(lines, end)])
         }
       }
     }
@@ -773,21 +771,17 @@ functions
 
     match routing(text, "SessionsController", auth_routes(), present) {
       Add(added) -> Add(
-        List.join(
-          with_use(String.split(added, "\n"), "RegistrationsController"),
-          "\n",
-        ),
+        List.join(with_use(String.split(added, "\n"), "RegistrationsController"), "\n"),
       ),
       other -> other,
     }
   }
 
-  auth(
-    root: String,
-    home: String,
-    name: String,
-    flags: Flags,
-  ) -> Int / {Process, Fs, Clock} {
+  auth(root: String, home: String, name: String, flags: Flags) -> Int / {
+    Process,
+    Fs,
+    Clock,
+  } {
     match names_for(name) {
       Err(message) -> Generate.usage(message),
       Ok(n) -> match Generate.model_entry(name, auth_fields()) {
@@ -1059,14 +1053,7 @@ functions
       },
       ["model", name] -> match names_for(name) {
         Err(message) -> Generate.usage(message),
-        Ok(n) -> finish_destroy(
-          root,
-          flags,
-          n,
-          model_targets(root, home, n),
-          true,
-          [],
-        ),
+        Ok(n) -> finish_destroy(root, flags, n, model_targets(root, home, n), true, []),
       },
       ["controller", name] -> match controller_names(name) {
         Err(message) -> Generate.usage(message),
@@ -1079,7 +1066,9 @@ functions
           [n.plural],
         ),
       },
-      ["auth"] -> match names_for(Option.with_default(Args.flag(parsed, "model"), "User")) {
+      ["auth"] -> match names_for(
+        Option.with_default(Args.flag(parsed, "model"), "User"),
+      ) {
         Err(message) -> Generate.usage(message),
         Ok(n) -> finish_destroy(
           root,
@@ -1167,8 +1156,8 @@ functions
       None -> [],
       Some(start) -> List.map(
         List.filter(
-          Generate.take(
-            Generate.drop(lines, start + 1),
+          List.take(
+            List.drop(lines, start + 1),
             Generate.zone_end(lines, start + 1, start + 1) - start - 1,
           ),
           function(line) { String.starts_with(line, "  ") },
@@ -1215,10 +1204,7 @@ functions
         },
       )
 
-      match Result.and_then(
-        removed,
-        function(_) { unroute(root, flags, routed) },
-      ) {
+      match Result.and_then(removed, function(_) { unroute(root, flags, routed) }) {
         Err(message) -> Generate.failed(message),
         Ok(changed) -> {
           if migration { note_migration(n) } else { {} }
@@ -1253,15 +1239,18 @@ functions
       Some(_) if List.is_empty(plurals) -> Ok(false),
       Some(text) -> {
         let lines = String.split(text, "\n")
+        let unwanted = function(name) {
+          List.any(plurals, function(p) { name == "Controllers.#{p}Controller" })
+        }
         let kept = List.filter(
-          lines,
+          Generate.without_uses(lines, unwanted),
           function(line) {
             !List.any(plurals, function(p) { String.contains(line, "#{p}Controller") })
           },
         )
         let what = List.join(List.map(plurals, function(p) { "#{p}Controller" }), ", ")
 
-        if List.length(kept) == List.length(lines) {
+        if kept == lines {
           say(flags, "skip", "#{routes_file()}  no lines for #{what}")
           Ok(false)
         } else {

@@ -49,7 +49,7 @@ instead: relative when the app sits under the checkout's parent directory (`../t
 
 ### Without the CLI
 
-Needs Polar 0.2.0 or newer (`polar --version`). Add Ticket straight from GitHub:
+Needs Polar 0.4.0 or newer (`polar --version`). Add Ticket straight from GitHub:
 
 ```sh
 polar add github.com/stepanvanzuriak/ticket     # newest tag; writes polar.toml + polar.lock
@@ -85,8 +85,11 @@ writes `router` by hand.
 
 ### Controllers
 
-A controller is a module of actions, each `action(conn: Conn) -> Response / {…}`. An
-action names its view and builds a response with `Ticket.Response`:
+A controller is a module of actions, each `action(conn: Conn) -> Response / {…}`. The row can
+be written out or left to the compiler with `/ {..}` (Polar 0.4.0), which is what generated
+controllers do: an action's row (its tables, `Throws<DbFailure>`, `Process`, `Random`, `Clock` for
+the session) is long and changes as the action does. An action names its view and builds a
+response with `Ticket.Response`:
 
 ```polar
 show(conn: Conn) -> Response / {Mut, Throws<Halt>} {
@@ -197,14 +200,8 @@ generates a record and an insert type per table, and `migrations` for the runner
 module Schema
 
 uses
-  Std.Id
-  Std.Json
-  Std.List
-  Std.Option
-  Ticket.Db
-  Ticket.Migration
-  Ticket.Model
-  Ticket.Query
+  Std.{Id, Json, List, Option}
+  Ticket.{Db, Migration, Model, Query}
 
 migrations
   20261001_120000 create_table users
@@ -260,10 +257,14 @@ index(conn: Conn) -> Response / {Posts, Throws<DbFailure>} {
 | `find(id)` | `Option<Post>` |
 | `all()` / `filter(filters, clauses)` | `List<Post>` |
 | `count(filters)` | `Int` |
+| `paginate(filters, clauses, page, per_page)` | `Page<Post>` = `{ rows, page, per_page, total, pages }`. `page` below 1 is 1; a page past the end has no rows |
+| `sum(column, filters)` / `max(column, filters)` / `min(column, filters)` | `Option<a>` for the column's type: `None` over no rows |
 | `insert(NewPost)` / `update(Post)` | the stored `Post`. `update` sets every column, and `updated_at` |
 | `delete(id)` | `Bool`: whether a row was there |
 
-Filters are `Query.eq`, `not_eq`, `lt`, `gt`, `like` and `is_null`, and are ANDed. Clauses are
+Filters are `Query.eq`, `not_eq`, `lt`, `gt`, `gte`, `lte`, `in_list`, `like` and `is_null`, and are ANDed.
+`Query.any([f1, f2])` is OR and `Query.all([…])` AND, and nest. `in_list(col, [])` and `any([])` match nothing,
+`all([])` everything. Clauses are
 `order_asc`, `order_desc`, `limit` and `offset`. A column from another table, or a value of the
 wrong type, is a compile error. A database failure is thrown as `DbFailure(DbError)`
 (`kind` is `unique`, `foreign_key`, `not_found` for an `update` with no row, …). A test can bind
@@ -281,6 +282,10 @@ Schema.user_posts_as_author(user)        // has_many: List<Post>, by id
 Schema.user_posts_as_author_filter(user, [Query.eq(Schema.post_title, "Hi")], [Query.order_desc(Schema.post_id)])
 Schema.post_comments(post)               // a column named `<record>_id` drops the `_as_…`
 ```
+
+`Schema.posts_with_comments(posts)` loads the has_many for a whole list with one extra `IN` query (not one per
+post), as `List<{ post: Post, comments: List<Comment> }>`. It is `<target table>_with_<has_many without the
+record prefix>`, so `users_with_posts_as_author(users)`.
 
 The belongs_to is `<record>_<name>`, and the has_many `<target record>_<referencing table>`, with
 `_as_<name>` unless the column is `<target record>_id` (so two references to one table, or a
@@ -303,8 +308,7 @@ module Post
 
 uses
   Std.Result
-  Ticket.Errors
-  Ticket.Validations
+  Ticket.{Errors, Validations}
   Schema
 
 validations

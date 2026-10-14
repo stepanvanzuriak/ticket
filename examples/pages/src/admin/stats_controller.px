@@ -1,16 +1,10 @@
 module StatsController
 
 uses
-  Std.Http
-  Std.List
-  Std.Option
-  Std.Result
+  Std.{Http, List, Option, Result}
   Layout
   Models.Article
-  Ticket.Action
-  Ticket.Conn
-  Ticket.Params
-  Ticket.Response
+  Ticket.{Action, Conn, Params, Response}
   Views.Admin
 
 functions

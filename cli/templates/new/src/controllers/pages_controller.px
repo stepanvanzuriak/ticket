@@ -1,18 +1,12 @@
 module PagesController
 
 uses
-  Std.Crypto
   Std.Http
-  Std.Process
-  Std.Time
-  Ticket.Conn
-  Ticket.Response
-  Ticket.Session
-  Views.Layout
-  Views.Pages
+  Ticket.{Conn, Response, Session}
+  Views.{Layout, Pages}
 
 functions
-  home(conn: Conn) -> Response / {Process, Random, Clock} {
+  home(conn: Conn) -> Response / {..} {
     Session.handle(conn, page)
   }
 

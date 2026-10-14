@@ -1,0 +1,15 @@
+module InListWrongType
+
+uses
+  Std.List
+  Ticket.Db
+  Ticket.Query
+  Schema
+
+hosts
+  Node
+
+functions
+  run() -> List<Post> / {Posts, Throws<DbFailure>} {
+    Posts.filter([Query.in_list(Schema.post_title, [1])], [])
+  }

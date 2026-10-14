@@ -1,14 +1,8 @@
 module Conn
 
 uses
-  Ticket.Cookies
-  Ticket.Error
-  Ticket.QueryString
-  Std.Http
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Url
+  Ticket.{Cookies, Error, QueryString}
+  Std.{Http, List, Map, Option, Url}
 
 types
   Signing = { secret: String, max_age: Int, secure: Bool, expires: Int }

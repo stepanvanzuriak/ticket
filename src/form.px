@@ -1,13 +1,7 @@
 module Form
 
 uses
-  Std.Id
-  Std.Json
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Result
-  Std.Time
+  Std.{Id, Json, List, Map, Option, Result, Time}
   Ticket.Errors
 
 traits

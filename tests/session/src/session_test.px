@@ -1,21 +1,8 @@
 module SessionTest
 
 uses
-  Std.Assert
-  Std.Crypto
-  Std.Http
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Time
-  Ticket.Conn
-  Ticket.Csrf
-  Ticket.Flash
-  Ticket.Forms
-  Ticket.Html
-  Ticket.Links
-  Ticket.Response
-  Ticket.Session
+  Std.{Assert, Crypto, Http, List, Map, Option, Time}
+  Ticket.{Conn, Csrf, Flash, Forms, Html, Links, Response, Session}
 
 hosts
   Node

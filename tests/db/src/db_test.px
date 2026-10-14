@@ -1,11 +1,7 @@
 module DbTest
 
 uses
-  Std.Assert
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
+  Std.{Assert, Json, List, Option, Result}
   Ticket.Db
 
 types
@@ -392,7 +388,7 @@ functions
           shown(whole, posts)
         },
       ),
-      "Ok([1 first 2 false None])",
+      "Ok([1 first 2.0 false None])",
     )
   }
 

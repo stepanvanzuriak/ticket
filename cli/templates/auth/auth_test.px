@@ -1,17 +1,10 @@
 module AuthControllerTest
 
 uses
-  Std.Assert
-  Std.Crypto
-  Std.List
-  Std.Option
-  Std.Process
-  Std.Time
+  Std.{Assert, Crypto, List, Option, Process, Time}
   Routes
   Schema
-  Ticket.Auth
-  Ticket.Db
-  Ticket.Test
+  Ticket.{Auth, Db, Test}
 
 hosts
   Node

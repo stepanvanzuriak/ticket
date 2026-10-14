@@ -1,16 +1,8 @@
 module ConnTest
 
 uses
-  Std.Assert
-  Std.Http
-  Std.Id
-  Std.List
-  Std.Map
-  Std.Option
-  Ticket.Conn
-  Ticket.Cookies
-  Ticket.Params
-  Ticket.QueryString
+  Std.{Assert, Http, Id, List, Map, Option}
+  Ticket.{Conn, Cookies, Params, QueryString}
 
 functions
   show_map(map: Map<String, String>) -> String {

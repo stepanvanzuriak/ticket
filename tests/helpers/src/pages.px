@@ -2,13 +2,8 @@
 module Pages
 
 uses
-  Std.List
-  Std.Map
-  Ticket.Conn
-  Ticket.Errors
-  Ticket.Forms
-  Ticket.Html
-  Ticket.Links
+  Std.{List, Map}
+  Ticket.{Conn, Errors, Forms, Html, Links}
 
 views
   title(value: String, errors: Errors)

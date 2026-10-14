@@ -1,43 +1,22 @@
 module SessionsController
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Process
-  Std.Time
+  Std.{Http, Id, List, Option}
   Paths
   Schema
-  Ticket.Auth
-  Ticket.Conn
-  Ticket.Db
-  Ticket.Flash
-  Ticket.Params
-  Ticket.Query
-  Ticket.Response
-  Ticket.Session
-  Views.Layout
-  Views.SessionViews
+  Ticket.{Auth, Conn, Db, Flash, Params, Query, Response, Session}
+  Views.{Layout, SessionViews}
 
 functions
-  new(conn: Conn) -> Response / {Process, Random, Clock} {
+  new(conn: Conn) -> Response / {..} {
     Session.handle(conn, blank)
   }
 
-  create(conn: Conn) -> Response / {
-    Users,
-    Throws<DbFailure>,
-    Async,
-    Process,
-    Random,
-    Clock,
-  } {
+  create(conn: Conn) -> Response / {..} {
     Session.handle(conn, attempt)
   }
 
-  destroy(conn: Conn) -> Response / {Process, Random, Clock} {
+  destroy(conn: Conn) -> Response / {..} {
     Session.handle(conn, leave)
   }
 
@@ -45,7 +24,7 @@ functions
     Response.render(Layout.app(conn, "Log in", SessionViews.new(conn, "", "")))
   }
 
-  attempt(conn: Conn) -> Response / {Users, Throws<DbFailure>, Async} {
+  attempt(conn: Conn) -> Response / {..} {
     let email = Option.with_default(Params.string(conn, "email"), "")
     let password = Option.with_default(Params.string(conn, "password"), "")
     let found = List.head(Users.filter([Query.eq(Schema.user_email, email)], []))

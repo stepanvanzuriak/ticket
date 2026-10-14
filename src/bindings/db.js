@@ -186,6 +186,8 @@ function values(params) {
 async function attempt(sql, action, connected = true) {
   let db = null;
 
+  globalThis.$ticketStatements = (globalThis.$ticketStatements ?? 0) + 1;
+
   try {
     db = connected ? await current() : null;
     return { ok: await action(db) };

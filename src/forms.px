@@ -1,13 +1,8 @@
 module Forms
 
 uses
-  Std.List
-  Std.Map
-  Std.Option
-  Ticket.Conn
-  Ticket.Csrf
-  Ticket.Errors
-  Ticket.Html
+  Std.{List, Map, Option}
+  Ticket.{Conn, Csrf, Errors, Html}
 
 types
   Choice = { value: String, label: String }

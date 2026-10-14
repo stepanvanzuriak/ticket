@@ -1,13 +1,8 @@
 module Response
 
 uses
-  Ticket.Conn
-  Ticket.Html
-  Ticket.Signed
-  Std.Http
-  Std.Json
-  Std.List
-  Std.Option
+  Ticket.{Conn, Html, Signed}
+  Std.{Http, Json, List, Option}
 
 functions
   with_type(status: Int, kind: String, body: String) -> Response {

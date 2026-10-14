@@ -1,11 +1,8 @@
 module Main
 
 uses
-  Std.Time
-  Std.Process
-  Ticket.Console
-  Ticket.Db
-  Ticket.Migrate
+  Std.{Time, Process}
+  Ticket.{Console, Db, Migrate}
   Schema
 
 hosts

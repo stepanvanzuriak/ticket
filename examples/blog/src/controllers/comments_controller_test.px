@@ -1,23 +1,19 @@
 module CommentsControllerTest
 
 uses
-  Std.Assert
-  Std.Crypto
-  Std.List
-  Std.Option
-  Std.Process
-  Std.Time
+  Std.{Assert, List, Option}
   Routes
   Schema
-  Ticket.Db
-  Ticket.Test
+  Ticket.{Db, Test}
 
 hosts
   Node
 
 functions
   seed() {
-    let ann = Users.insert({ name: "Ann", email: "ann@example.com", password_digest: "x" })
+    let ann = Users.insert(
+      { name: "Ann", email: "ann@example.com", password_digest: "x" },
+    )
     let post = Posts.insert(
       {
         title: "Hello, Ticket",
@@ -76,7 +72,11 @@ functions
       function() {
         seed()
 
-        let reply = Test.delete(Routes.router, Test.login_as(Test.client(), 1), "/posts/1/comments/1")
+        let reply = Test.delete(
+          Routes.router,
+          Test.login_as(Test.client(), 1),
+          "/posts/1/comments/1",
+        )
 
         Test.assert_redirect(reply, "/posts/1")
         Test.assert_body_not_contains(Test.follow(Routes.router, reply), "First!")

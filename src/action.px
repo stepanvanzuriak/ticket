@@ -2,9 +2,7 @@ module Action
 
 uses
   Ticket.Conn
-  Std.Http
-  Std.List
-  Std.Result
+  Std.{Http, List, Result}
 
 types
   Filter = function(Conn) -> Result<Response, Conn>

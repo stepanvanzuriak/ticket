@@ -1,9 +1,7 @@
 module Routes
 
 uses
-  Std.Http
-  Std.Id
-  Std.Option
+  Std.{Http, Id, Option}
   Ticket.Conn
   Controllers.ThingsController
 

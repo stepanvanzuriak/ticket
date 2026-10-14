@@ -1,11 +1,7 @@
 module App
 
 uses
-  Std.Fs
-  Std.List
-  Std.Option
-  Std.Path
-  Std.Result
+  Std.{Fs, List, Option, Path, Result}
 
 hosts
   Node

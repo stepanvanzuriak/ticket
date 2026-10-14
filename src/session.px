@@ -1,18 +1,8 @@
 module Session
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Process
-  Std.Result
-  Std.Time
-  Ticket.Conn
-  Ticket.Csrf
-  Ticket.Response
-  Ticket.Signed
+  Std.{Crypto, Http, List, Map, Option, Process, Result, Time}
+  Ticket.{Conn, Csrf, Response, Signed}
 
 types
   Config = { secret: String, max_age: Int, secure: Bool }

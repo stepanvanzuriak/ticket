@@ -1,17 +1,8 @@
 module Main
 
 uses
-  Std.Crypto
-  Std.Http
-  Std.Id
-  Std.List
-  Std.Option
-  Std.Process
-  Std.Time
-  Ticket.Auth
-  Ticket.Console
-  Ticket.Db
-  Ticket.Migrate
+  Std.{Http, Id, List, Option, Process, Time}
+  Ticket.{Auth, Console, Db, Migrate}
   Routes
   Schema
 
@@ -31,10 +22,14 @@ functions
     Migrate.run(Schema.migrations, command, step, version)
   }
 
-  seed() -> {} / {Users, Posts, Comments, Db, Throws<DbFailure>, Random, Async} {
+  seed() -> {} / {..} {
     let digest = Auth.hash_password("password")
-    let ann = Users.insert({ name: "Ann", email: "ann@example.com", password_digest: digest })
-    let bob = Users.insert({ name: "Bob", email: "bob@example.com", password_digest: digest })
+    let ann = Users.insert(
+      { name: "Ann", email: "ann@example.com", password_digest: digest },
+    )
+    let bob = Users.insert(
+      { name: "Bob", email: "bob@example.com", password_digest: digest },
+    )
     let first = Posts.insert(
       {
         title: "Hello, Ticket",

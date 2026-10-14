@@ -1,18 +1,10 @@
 module {{Model}}Views
 
 uses
-  Std.Id
-  Std.List
-  Std.Map
-  Std.Option
-  Std.Time
+  Std.{Id, List, Map, Option, Time}
   Paths
   Schema
-  Ticket.Conn
-  Ticket.Errors
-  Ticket.Forms
-  Ticket.Html
-  Ticket.Links
+  Ticket.{Conn, Errors, Forms, Html, Links}
 
 view_component
   {{Model}}Fields(conn: Conn, action: String, method: String, fields: Map<String, String>, errors: Errors, submit: String)

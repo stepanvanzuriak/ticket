@@ -1,10 +1,7 @@
 module Db
 
 uses
-  Std.Json
-  Std.List
-  Std.Option
-  Std.Result
+  Std.{Json, List, Option, Result}
 
 hosts
   Node

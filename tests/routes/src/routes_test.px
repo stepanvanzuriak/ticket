@@ -1,11 +1,7 @@
 module RoutesTest
 
 uses
-  Std.Assert
-  Std.Http
-  Std.Id
-  Std.List
-  Std.Option
+  Std.{Assert, Http, Id, List, Option}
   Routes
 
 functions
