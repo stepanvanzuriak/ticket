@@ -1,11 +1,11 @@
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { request as send } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { errorPage, filterParams, locate, serve } from "./serve.mjs";
+import { errorPage, filterParams, locate, serve, withDefaults } from "./serve.mjs";
 
 const pages = fileURLToPath(new URL("../examples/pages/", import.meta.url));
 const dist = `${pages}dist/`;
@@ -121,7 +121,7 @@ try {
   dev.server.close();
 }
 
-const logged = await start({ toml: '[server]\nfilter_params = ["ssn"]\n', files });
+const logged = await start({ toml: '[server]\nfilter_params = ["ssn"]\n', files, log: "text" });
 
 try {
   await raw(logged.base, "GET", "/about");
@@ -223,3 +223,101 @@ try {
   withPages.server.close();
   without.server.close();
 }
+
+// Production hardening: default headers, /up, the JSON log, graceful shutdown.
+const hardened = await start({ files });
+
+try {
+  r = await raw(hardened.base, "GET", "/about");
+  line("22", "headers", ["x-content-type-options", "x-frame-options", "referrer-policy"].map((name) => `${name}=${r.headers[name]}`).join(" "));
+
+  const overridden = await withDefaults(async () => new Response("x", { headers: { "x-frame-options": "DENY" } }))(
+    new Request("http://x/"),
+  );
+  line("22", "headers_override", `${overridden.headers.get("x-frame-options")} nosniff=${overridden.headers.get("x-content-type-options")}`);
+
+  r = await raw(hardened.base, "GET", "/up");
+  line("23", "up", `${r.status} ${r.text} ${r.headers["x-frame-options"]}`);
+
+  hardened.lines.length = 0;
+  r = await raw(hardened.base, "GET", "/about");
+
+  const entry = JSON.parse(hardened.lines[0]);
+  line(
+    "24",
+    "json_log",
+    `${["method", "path", "status", "duration", "request_id"].map((key) => `${key}=${entry[key] !== undefined && entry[key] !== null}`).join(" ")} id_matches=${entry.request_id === r.headers["x-request-id"]}`,
+  );
+} finally {
+  hardened.server.close();
+}
+
+async function launched(toml) {
+  const root = mkdtempSync(join(tmpdir(), "ticket-shutdown-"));
+  const manifest = join(root, "manifest.json");
+
+  mkdirSync(join(root, "public"));
+  writeFileSync(join(root, "ticket.toml"), toml);
+  writeFileSync(
+    manifest,
+    JSON.stringify({ version: 1, project: "pages", main: "routes.js", hosts: { Node: dist }, root, options: { port: 0, env: "production" } }),
+  );
+
+  const child = spawn(process.execPath, [fileURLToPath(new URL("./serve.mjs", import.meta.url)), manifest], {
+    env: { ...process.env, TICKET_ENV: "production" },
+  });
+  const exited = new Promise((resolve) => child.on("exit", (code) => resolve(code)));
+  let out = "";
+  const base = await new Promise((resolve, reject) => {
+    child.stdout.on("data", (chunk) => {
+      out += chunk;
+
+      const found = out.match(/http:\/\/[\d.]+:\d+/);
+
+      if (found) {
+        resolve(found[0]);
+      }
+    });
+    child.on("exit", () => reject(new Error(`launcher exited early: ${out}`)));
+  });
+
+  return { child, exited, base };
+}
+
+// Opens a POST whose body is still arriving: an in-flight request the launcher can't answer yet.
+function pending(base) {
+  const { port } = new URL(base);
+  const req = send({ host: "127.0.0.1", port, method: "POST", path: "/data", headers: { "content-type": "text/plain", "content-length": "4" } });
+  const done = new Promise((resolve) => {
+    req.on("response", (res) => {
+      res.resume();
+      res.on("end", () => resolve(res.statusCode));
+    });
+    req.on("error", () => resolve("cut"));
+  });
+
+  req.write("ab");
+
+  return { req, done };
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const drain = await launched("");
+const slow = pending(drain.base);
+
+await wait(200);
+drain.child.kill("SIGTERM");
+await wait(200);
+
+const refusedAfter = await raw(drain.base, "GET", "/up").then(() => "answered", () => "refused");
+
+slow.req.end("cd");
+line("25", "sigterm_drains", `response=${await slow.done !== "cut"} exit=${await drain.exited} new_connection=${refusedAfter}`);
+
+const stuck = await launched("[server]\nshutdown_timeout = 1\n");
+const hung = pending(stuck.base);
+
+await wait(200);
+stuck.child.kill("SIGTERM");
+line("26", "sigterm_timeout", `exit=${await stuck.exited} request=${await hung.done}`);

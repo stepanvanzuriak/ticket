@@ -20,8 +20,11 @@ database = "db/development.sqlite3"
 # Files served at the root, before the router. `public/404.html` and `public/500.html` are
 # the production error pages.
 # public = "public"
-# One line per request in the log (`request`), or none (`off`).
-# log = "request"
+# One line per request: `json` (the default in production), `text` (the default in
+# development) or `off`. `request` is another name for `text`.
+# log = "json"
+# Seconds a SIGTERM or SIGINT waits for in-flight requests before cutting them.
+# shutdown_timeout = 10
 # Names, besides password, token, secret and cookie, whose values are logged as [FILTERED].
 # filter_params = ["ssn"]
 # Largest request body, and the largest multipart upload. Over the limit answers 413.

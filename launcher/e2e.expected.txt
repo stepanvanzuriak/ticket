@@ -56,3 +56,9 @@
 20 upload: 200 a.txt text/plain 5 note=hello
 20 upload_not_forgeable: 422 no file note=n
 21 too_big: 413 {"error":"request too large"}
+22 headers: x-content-type-options=nosniff x-frame-options=SAMEORIGIN referrer-policy=strict-origin-when-cross-origin
+22 headers_override: DENY nosniff=nosniff
+23 up: 200 ok SAMEORIGIN
+24 json_log: method=true path=true status=true duration=true request_id=true id_matches=true
+25 sigterm_drains: response=true exit=0 new_connection=refused
+26 sigterm_timeout: exit=1 request=cut

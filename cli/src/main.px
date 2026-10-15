@@ -10,7 +10,7 @@ hosts
   Node
 
 constants
-  version: String = "0.1.0"
+  version: String = "0.2.0"
 
 functions
   main() -> {} / {Process, Fs, Clock} {

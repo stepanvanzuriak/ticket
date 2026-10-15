@@ -121,6 +121,11 @@ try {
   const leftover = files(app).filter((file) => readFileSync(join(app, file), "utf8").includes("{{"));
 
   row(9, "new_files", `exit=${result.status} created=${created.join(",")}`);
+  row(
+    9,
+    "new_dockerfile",
+    `dockerfile=${yes(existsSync(join(app, "Dockerfile")))} ignore=${yes(existsSync(join(app, ".dockerignore")))}`,
+  );
   row("+", "new_public", files(join(app, "public")).join(","));
   row(9, "new_files_on_disk", `same=${yes(created.join() === files(app).join())} placeholders=${leftover.length}`);
   row(
