@@ -37,6 +37,7 @@
 14 flash_deleted: notice=Post was destroyed.
 15 csrf_rejected: 403 Invalid authenticity token posts_changed=false
 16 csrf_ok: 303 posts_changed=true
+16 json_csrf: without_header=403 changed=false with_header=303 changed=true
 17 static_file: 200 text/css; charset=utf-8 true
 17 request_log: Started GET "/app.css" 200 (Nms) | Started GET "/nope" 404 (Nms) | Started POST "/posts" 303 (Nms)  params={"post":{"title":"Logged post","body":"x"},"password":"[FILTERED]","authenticity_token":"[FILTERED]"}
 19 ticket_test: exit=0 pass=14

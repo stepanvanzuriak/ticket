@@ -4,7 +4,26 @@ uses
   Ticket.{Conn, Errors, Form}
   Std.{Id, List, Map, Option, Result}
 
+types
+  UploadedFile = { name: String, content_type: String, size: Int, path: String }
+
 functions
+  file(conn: Conn, name: String) -> Option<UploadedFile> {
+    let at = function(field: String) { Map.get(conn.form, "__file[#{name}][#{field}]") }
+
+    match at("path") {
+      None -> None,
+      Some(path) -> Some(
+        {
+          name: Option.with_default(at("name"), ""),
+          content_type: Option.with_default(at("content_type"), ""),
+          size: Option.with_default(Option.and_then(at("size"), Int.parse), 0),
+          path: path,
+        },
+      ),
+    }
+  }
+
   string(conn: Conn, key: String) -> Option<String> {
     match Map.get(conn.path_params, key) {
       Some(value) -> Some(value),
@@ -65,6 +84,8 @@ functions
   }
 
 exports
+  UploadedFile
+  file
   id
   int
   nested

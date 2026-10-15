@@ -1,7 +1,8 @@
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { createServer } from "node:http";
-import { extname, isAbsolute, join, resolve, sep } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, extname, isAbsolute, join, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
 
@@ -336,17 +337,193 @@ function routerHandler(rt, router, options) {
   };
 }
 
-export function nodeListener(handler, { limit = 1_000_000 } = {}) {
+const SIZE_UNITS = { "": 1, B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 };
+
+export function parseSize(value, fallback) {
+  if (typeof value === "number") {
+    return value;
+  }
+
+  const match = /^\s*(\d+)\s*([kmg]?b?)?\s*$/i.exec(String(value ?? ""));
+  const unit = match === null ? undefined : SIZE_UNITS[(match[2] ?? "").toUpperCase().replace(/^([KMG])$/, "$1B")];
+
+  return unit === undefined ? fallback : Number(match[1]) * unit;
+}
+
+// Flattens a JSON value into `a[b]=1&c[0]=x` pairs, the shape a form body has.
+function flatten(value, key, out) {
+  if (value === null || value === undefined) {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => flatten(item, `${key}[${i}]`, out));
+  } else if (typeof value === "object") {
+    for (const [name, item] of Object.entries(value)) {
+      flatten(item, key === "" ? name : `${key}[${name}]`, out);
+    }
+  } else {
+    out.append(key, String(value));
+  }
+}
+
+const jsonError = (status, error) => ({ status, body: JSON.stringify({ error }) });
+
+function multipartParts(buffer, boundary) {
+  const delimiter = Buffer.from(`--${boundary}`);
+  const parts = [];
+  let at = buffer.indexOf(delimiter);
+
+  while (at !== -1) {
+    const start = at + delimiter.length;
+
+    if (buffer.subarray(start, start + 2).toString() === "--") {
+      break;
+    }
+
+    const next = buffer.indexOf(delimiter, start);
+
+    if (next === -1) {
+      throw new Error("unterminated multipart body");
+    }
+
+    const part = buffer.subarray(start + 2, next - 2);
+    const split = part.indexOf("\r\n\r\n");
+
+    if (split === -1) {
+      throw new Error("malformed multipart part");
+    }
+
+    const headers = {};
+
+    for (const line of part.subarray(0, split).toString("utf8").split("\r\n")) {
+      const colon = line.indexOf(":");
+
+      if (colon > 0) {
+        headers[line.slice(0, colon).trim().toLowerCase()] = line.slice(colon + 1).trim();
+      }
+    }
+
+    parts.push({ headers, data: part.subarray(split + 4) });
+    at = next;
+  }
+
+  return parts;
+}
+
+// Turns JSON and multipart bodies into a urlencoded form body, so the Polar side reads one
+// shape. Files are saved to a temp dir and described by `__file[<field>][...]` fields.
+export function normalizeBody(headers, buffer, { tmp = tmpdir() } = {}) {
+  const kind = String(headers["content-type"] ?? "").toLowerCase();
+  const rest = { ...headers };
+
+  delete rest["x-ticket-body"];
+
+  if (kind.startsWith("application/json")) {
+    let value;
+
+    try {
+      value = JSON.parse(buffer.toString("utf8"));
+    } catch {
+      return { error: jsonError(400, "malformed JSON") };
+    }
+
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return { error: jsonError(400, "JSON body must be an object") };
+    }
+
+    const out = new URLSearchParams();
+
+    flatten(value, "", out);
+
+    return {
+      headers: { ...rest, "content-type": "application/x-www-form-urlencoded", "x-ticket-body": "json" },
+      body: out.toString(),
+    };
+  }
+
+  if (kind.startsWith("multipart/form-data")) {
+    const boundary = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(headers["content-type"])?.slice(1).find(Boolean);
+
+    if (boundary === undefined) {
+      return { error: jsonError(400, "multipart body has no boundary") };
+    }
+
+    const out = new URLSearchParams();
+    let dir;
+
+    try {
+      for (const { headers: h, data } of multipartParts(buffer, boundary)) {
+        const disposition = h["content-disposition"] ?? "";
+        const name = /\bname="([^"]*)"/.exec(disposition)?.[1];
+
+        if (name === undefined || name.startsWith("__file")) {
+          continue;
+        }
+
+        const filename = /\bfilename="([^"]*)"/.exec(disposition)?.[1];
+
+        if (filename === undefined) {
+          out.append(name, data.toString("utf8"));
+          continue;
+        }
+
+        dir ??= mkdtempSync(join(tmp, "ticket-upload-"));
+
+        const path = join(dir, `${out.size}-${basename(filename) || "upload"}`);
+
+        writeFileSync(path, data);
+        out.append(`__file[${name}][name]`, filename);
+        out.append(`__file[${name}][content_type]`, h["content-type"] ?? "application/octet-stream");
+        out.append(`__file[${name}][size]`, String(data.length));
+        out.append(`__file[${name}][path]`, path);
+      }
+    } catch (e) {
+      return { error: jsonError(400, e.message) };
+    }
+
+    return { headers: { ...rest, "content-type": "application/x-www-form-urlencoded" }, body: out.toString() };
+  }
+
+  // A plain form must not be able to claim file metadata or a JSON origin.
+  if (kind.startsWith("application/x-www-form-urlencoded")) {
+    const out = new URLSearchParams(buffer.toString("utf8"));
+
+    for (const key of [...out.keys()]) {
+      if (key.startsWith("__file")) {
+        out.delete(key);
+      }
+    }
+
+    return { headers: rest, body: out.toString() };
+  }
+
+  return { headers: rest, body: buffer };
+}
+
+export function nodeListener(handler, { limit = 1_000_000, uploadLimit = 10_485_760, tmp } = {}) {
   return async (req, res) => {
+    const multipart = String(req.headers["content-type"] ?? "").toLowerCase().startsWith("multipart/form-data");
+    const max = multipart ? uploadLimit : limit;
+    const refuse = () => {
+      res.writeHead(413, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "request too large" }));
+    };
+
+    if (Number(req.headers["content-length"] ?? 0) > max) {
+      refuse();
+      req.resume();
+      return;
+    }
+
     const chunks = [];
     let size = 0;
 
     for await (const chunk of req) {
       size += chunk.length;
 
-      if (size > limit) {
-        res.writeHead(413, { "content-type": "application/json" });
-        res.end(JSON.stringify({ error: "request too large" }));
+      if (size > max) {
+        refuse();
         return;
       }
 
@@ -354,10 +531,29 @@ export function nodeListener(handler, { limit = 1_000_000 } = {}) {
     }
 
     const bodyless = req.method === "GET" || req.method === "HEAD";
+    let sent = req.headers;
+    let body = bodyless ? undefined : Buffer.concat(chunks);
+
+    delete sent["x-ticket-body"];
+
+    if (!bodyless) {
+      const normalized = normalizeBody(sent, body, { tmp });
+
+      if (normalized.error !== undefined) {
+        res.writeHead(normalized.error.status, { "content-type": "application/json" });
+        res.end(normalized.error.body);
+        return;
+      }
+
+      sent = normalized.headers;
+      body = typeof normalized.body === "string" ? Buffer.from(normalized.body) : normalized.body;
+      delete sent["content-length"];
+    }
+
     const request = new Request(new URL(req.url, "http://localhost"), {
       method: req.method,
-      headers: Object.entries(req.headers).filter(([, v]) => typeof v === "string"),
-      body: bodyless ? undefined : Buffer.concat(chunks),
+      headers: Object.entries(sent).filter(([, v]) => typeof v === "string"),
+      body,
     });
     const response = await handler(request);
     const headers = {};
@@ -394,6 +590,8 @@ export function serverSettings(manifest) {
     ...options,
     log: options.log ?? given.log ?? "request",
     filter_params: options.filter_params ?? given.filter_params ?? [],
+    max_body: options.max_body ?? given.max_body ?? "1MB",
+    max_upload: options.max_upload ?? given.max_upload ?? "10MB",
     public: root === undefined ? undefined : resolve(root, folder),
   };
 }
@@ -428,7 +626,12 @@ export async function serve(manifest, hooks = {}) {
   const answered = async (request) =>
     (await routed(request)) ?? errorPage("404", request, undefined, options);
   const logged = requestLog(options, hooks.write ?? console.log)(answered);
-  const listener = createServer(nodeListener(logged));
+  const listener = createServer(
+    nodeListener(logged, {
+      limit: parseSize(options.max_body, 1_048_576),
+      uploadLimit: parseSize(options.max_upload, 10_485_760),
+    }),
+  );
   const hostname = options.hostname ?? "127.0.0.1";
 
   await new Promise((resolve, reject) => {

@@ -13,6 +13,9 @@ routes
   root         -> PagesController.home
   get  /about  -> PagesController.about  as about
   get  /boom   -> PagesController.boom
+  post /upload -> PagesController.upload
+  get  /data   -> PagesController.data
+  post /data   -> PagesController.data
 
   resources articles  -> ArticlesController  only index show new create
 

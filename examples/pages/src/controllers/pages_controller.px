@@ -1,13 +1,14 @@
 module PagesController
 
 uses
-  Std.Http
+  Std.{Http, Json, Option}
   Layout
-  Ticket.{Conn, Response}
+  Ticket.{Conn, Params, Response}
   Views.Pages
 
 types
   Boom = Boom(String)
+  Data = { title: String } derive(Json)
 
 functions
   home(conn: Conn) -> Response {
@@ -18,6 +19,30 @@ functions
     Response.render(Layout.app(conn, "About", Pages.about()))
   }
 
+  upload(conn: Conn) -> Response {
+    let note = Option.with_default(Params.string(conn, "note"), "")
+
+    match Params.file(conn, "doc") {
+      Some(file) -> Response.text(
+        200,
+        "#{file.name} #{file.content_type} #{Int.to_string(file.size)} note=#{note}",
+      ),
+      None -> Response.text(422, "no file note=#{note}"),
+    }
+  }
+
+  data(conn: Conn) -> Response {
+    Response.respond_to(
+      conn,
+      function() { Response.text(200, "html") },
+      function() {
+        let data: Data = { title: Option.with_default(Params.string(conn, "post[title]"), "") }
+
+        Response.json(200, data)
+      },
+    )
+  }
+
   boom(conn: Conn) -> Response / {Throws<Boom>} {
     throw Boom("the boom action blew up")
   }
@@ -25,4 +50,6 @@ functions
 exports
   about
   boom
+  data
   home
+  upload

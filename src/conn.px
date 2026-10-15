@@ -5,6 +5,8 @@ uses
   Std.{Http, List, Map, Option, Url}
 
 types
+  Format = HtmlFormat | JsonFormat
+
   Signing = { secret: String, max_age: Int, secure: Bool, expires: Int }
 
   Conn = {
@@ -25,7 +27,7 @@ types
 
 functions
   from_request(request: Request) -> Conn {
-    let path = path_of(request.path)
+    let path = strip_format(path_of(request.path))
 
     {
       request: request,
@@ -125,6 +127,42 @@ functions
     List.map(List.filter(String.split(path, "/"), function(s) { s != "" }), Url.decode)
   }
 
+  strip_format(path: String) -> String {
+    if String.ends_with(path, ".json") && String.length(path) > 6
+      && !String.ends_with(path, "/.json") {
+      String.slice(path, 0, String.length(path) - 5)
+    } else {
+      path
+    }
+  }
+
+  format(conn: Conn) -> Format {
+    if String.ends_with(path_of(conn.request.path), ".json") {
+      JsonFormat
+    } else if String.contains(String.lowercase(header(conn, "accept")), "application/json")
+      && !String.contains(String.lowercase(header(conn, "accept")), "text/html") {
+      JsonFormat
+    } else {
+      HtmlFormat
+    }
+  }
+
+  acceptable(conn: Conn) -> Bool {
+    let accept = String.lowercase(header(conn, "accept"))
+
+    accept == ""
+      || String.ends_with(path_of(conn.request.path), ".json")
+      || String.contains(accept, "*/*")
+      || String.contains(accept, "text/html")
+      || String.contains(accept, "application/json")
+      || String.contains(accept, "text/*")
+      || String.contains(accept, "application/*")
+  }
+
+  from_json(conn: Conn) -> Bool {
+    Http.header(conn.request.headers, "x-ticket-body") == "json"
+  }
+
   form_of(request: Request) -> Map<String, String> {
     let kind = String.lowercase(Http.header(request.headers, "content-type"))
 
@@ -136,8 +174,12 @@ functions
   }
 
 exports
+  Format
   Signing
   Conn
+  acceptable
+  format
+  from_json
   for_head
   from_request
   header

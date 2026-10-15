@@ -1,0 +1,100 @@
+module FormatTest
+
+uses
+  Std.{Assert, Http, List, Option, Result}
+  Ticket.{Conn, Csrf, Params, Response}
+
+functions
+  conn(path: String, accept: String) -> Conn {
+    Conn.from_request(
+      {
+        method: "GET",
+        path: path,
+        query: "",
+        headers: [{ name: "Accept", value: accept }],
+        body: "",
+      },
+    )
+  }
+
+  show(format: Format) -> String {
+    match format {
+      JsonFormat -> "Json",
+      HtmlFormat -> "Html",
+    }
+  }
+
+  page(c: Conn) -> Response {
+    Response.respond_to(
+      c,
+      function() { Response.text(200, "html") },
+      function() { Response.text(200, "json") },
+    )
+  }
+
+  test_format() {
+    Assert.equal(
+      "#{show(Conn.format(conn("/posts.json", "text/html")))} #{show(Conn.format(conn("/posts", "application/json")))} #{show(Conn.format(conn("/posts", "")))}",
+      "Json Json Html",
+    )
+  }
+
+  test_respond_both() {
+    Assert.equal(
+      "#{page(conn("/posts.json", "")).body} #{page(conn("/posts", "")).body} #{Int.to_string(page(conn("/posts", "image/png")).status)}",
+      "json html 406",
+    )
+  }
+
+  test_json_extension_routes() {
+    Assert.equal(conn("/posts.json", "").path, "/posts")
+  }
+
+  post(headers: List<Header>) -> Conn {
+    Conn.from_request(
+      { method: "POST", path: "/posts", query: "", headers: headers, body: "post[title]=Hi" },
+    )
+  }
+
+  test_json_csrf() {
+    let marked = [
+      { name: "x-ticket-body", value: "json" },
+      { name: "x-ticket-request", value: "1" },
+    ]
+    let bare = [{ name: "x-ticket-body", value: "json" }]
+
+    Assert.equal(
+      "#{show_result(Csrf.verify(post(marked)))} #{show_result(Csrf.verify(post(bare)))}",
+      "ok refused",
+    )
+  }
+
+  show_result(result: Result<Response, Conn>) -> String {
+    match result {
+      Ok(_) -> "ok",
+      Err(_) -> "refused",
+    }
+  }
+
+  test_file() {
+    let c = Conn.from_request(
+      {
+        method: "POST",
+        path: "/",
+        query: "",
+        headers: [{ name: "content-type", value: "application/x-www-form-urlencoded" }],
+        body: "__file[doc][path]=%2Ftmp%2Fx&__file[doc][name]=a.txt&__file[doc][size]=5&__file[doc][content_type]=text%2Fplain",
+      },
+    )
+
+    match Params.file(c, "doc") {
+      Some(f) -> Assert.equal("#{f.name} #{Int.to_string(f.size)} #{f.path}", "a.txt 5 /tmp/x"),
+      None -> Assert.equal("none", "some"),
+    }
+  }
+exports
+  test_format
+  test_respond_both
+  test_json_extension_routes
+  test_json_csrf
+  test_file

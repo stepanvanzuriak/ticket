@@ -25,6 +25,21 @@ functions
     with_type(status, "application/json", Json.encode(value))
   }
 
+  respond_to(
+    conn: Conn,
+    html: function() -> Response / {| e},
+    json: function() -> Response / {| e},
+  ) -> Response / {| e} {
+    if !Conn.acceptable(conn) {
+      text(406, "not acceptable")
+    } else {
+      match Conn.format(conn) {
+        JsonFormat -> json(),
+        HtmlFormat -> html(),
+      }
+    }
+  }
+
   empty(status: Int) -> Response {
     { status: status, headers: [], body: "" }
   }
@@ -123,6 +138,7 @@ exports
   redirect_to
   render
   render_status
+  respond_to
   text
   view
   with_header
