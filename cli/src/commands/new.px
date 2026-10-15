@@ -50,6 +50,7 @@ functions
       let substitutions = [
         { placeholder: "{{app}}", value: name },
         { placeholder: "{{App}}", value: Inflect.pascal(name) },
+        { placeholder: "{{polar_version}}", value: polar_version(home) },
         {
           placeholder: "{{ticket_dependency}}",
           value: dependency(target, home, version, use_path),
@@ -129,6 +130,23 @@ functions
       "{ path = \"#{ticket_path(target, home)}\" }"
     } else {
       "{ git = \"#{repository}\", version = \"v#{version}\" }"
+    }
+  }
+
+  // The Polar release Ticket itself builds with: the Dockerfile installs the same one.
+  polar_version(home: String) -> String / {Fs} {
+    match Fs.read(Path.join(home, "polar.toml")) {
+      Ok(text) -> match List.filter(
+        String.split(text, "\n"),
+        function(line) { String.starts_with(line, "polar = \"") },
+      ) {
+        [line, ..others] -> match String.split(line, "\"") {
+          [_, version, ..others] -> version,
+          _ -> "",
+        },
+        [] -> "",
+      },
+      Err(_) -> "",
     }
   }
 

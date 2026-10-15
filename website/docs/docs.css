@@ -132,28 +132,6 @@ a:focus-visible, button:focus-visible {
   .bar .links a:first-child, .bar .links a.polar-badge { display: none; }
 }
 
-.construction {
-  margin: 0;
-  padding: 0.4rem 1rem;
-  background: var(--butter);
-  color: var(--night);
-  border-top: 3px solid var(--night);
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-align: center;
-}
-.construction a { color: var(--night); }
-.construction .dot {
-  display: inline-block;
-  width: 0.65em;
-  height: 0.65em;
-  margin-right: 0.45rem;
-  border: 2px solid var(--night);
-  border-radius: 50%;
-  background: var(--tangerine);
-  vertical-align: -0.02em;
-}
-
 .menu {
   display: inline-flex;
   align-items: center;

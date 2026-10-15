@@ -1,5 +1,6 @@
 import { createReadStream, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { basename, extname, isAbsolute, join, resolve, sep } from "node:path";
@@ -247,9 +248,24 @@ export function requestLog(options, write = console.log) {
     const response = await handler(request);
     const ms = Math.round(performance.now() - started);
     const params = peek === null ? undefined : await requestParams(peek, extra).catch(() => undefined);
-    const shown = params === undefined || Object.keys(params).length === 0 ? "" : `  params=${JSON.stringify(params)}`;
+    const path = loggedPath(request.url, extra);
+    const present = params !== undefined && Object.keys(params).length > 0;
 
-    write(`Started ${request.method} "${loggedPath(request.url, extra)}" ${response.status} (${ms}ms)${shown}`);
+    if (options.log === "json") {
+      write(
+        JSON.stringify({
+          time: new Date().toISOString(),
+          method: request.method,
+          path,
+          status: response.status,
+          duration: ms,
+          request_id: response.headers.get("x-request-id") ?? request.headers.get("x-request-id"),
+          ...(present ? { params } : {}),
+        }),
+      );
+    } else {
+      write(`Started ${request.method} "${path}" ${response.status} (${ms}ms)${present ? `  params=${JSON.stringify(params)}` : ""}`);
+    }
 
     return response;
   };
@@ -580,15 +596,80 @@ export function nodeListener(handler, { limit = 1_000_000, uploadLimit = 10_485_
   };
 }
 
+const defaultHeaders = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "SAMEORIGIN",
+  "referrer-policy": "strict-origin-when-cross-origin",
+};
+
+// Answers `/up` before anything else, tags every response with a request id and fills in the
+// security headers an action didn't set itself.
+export function withDefaults(handler) {
+  return async (request) => {
+    const id = request.headers.get("x-request-id") || randomUUID();
+    const { pathname } = new URL(request.url);
+    const response =
+      pathname === "/up" && (request.method === "GET" || request.method === "HEAD")
+        ? new Response(request.method === "HEAD" ? null : "ok", {
+            status: 200,
+            headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+          })
+        : await handler(request);
+    const headers = new Headers(response.headers);
+
+    for (const [name, value] of Object.entries(defaultHeaders)) {
+      if (!headers.has(name)) {
+        headers.set(name, value);
+      }
+    }
+
+    headers.set("x-request-id", id);
+
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  };
+}
+
+// Stops accepting, lets in-flight requests finish, then exits 0; at the timeout, cuts them and exits 1.
+export function shutdown(listener, { timeout = 10, exit = process.exit, close = async () => {}, log = console.error } = {}) {
+  let stopping = false;
+
+  return (signal) => {
+    if (stopping) {
+      listener.closeAllConnections();
+      exit(1);
+      return;
+    }
+
+    stopping = true;
+    log(`${signal} received, shutting down`);
+
+    const timer = setTimeout(() => {
+      listener.closeAllConnections();
+      exit(1);
+    }, timeout * 1000);
+
+    timer.unref();
+    listener.close(async (error) => {
+      clearTimeout(timer);
+      await close().catch(() => {});
+      exit(error === undefined ? 0 : 1);
+    });
+    listener.closeIdleConnections();
+  };
+}
+
 export function serverSettings(manifest) {
   const root = manifest.root;
   const given = root === undefined ? {} : (readConfig(root).server ?? {});
   const options = manifest.options ?? {};
   const folder = options.public ?? given.public ?? "public";
+  const env = process.env.TICKET_ENV || options.env;
 
   return {
     ...options,
-    log: options.log ?? given.log ?? "request",
+    env,
+    log: options.log ?? given.log ?? ((env ?? "production") === "production" ? "json" : "text"),
+    shutdown_timeout: options.shutdown_timeout ?? given.shutdown_timeout ?? 10,
     filter_params: options.filter_params ?? given.filter_params ?? [],
     max_body: options.max_body ?? given.max_body ?? "1MB",
     max_upload: options.max_upload ?? given.max_upload ?? "10MB",
@@ -625,7 +706,7 @@ export async function serve(manifest, hooks = {}) {
   const routed = rt.http.compose(...handlers);
   const answered = async (request) =>
     (await routed(request)) ?? errorPage("404", request, undefined, options);
-  const logged = requestLog(options, hooks.write ?? console.log)(answered);
+  const logged = requestLog(options, hooks.write ?? console.log)(withDefaults(answered));
   const listener = createServer(
     nodeListener(logged, {
       limit: parseSize(options.max_body, 1_048_576),
@@ -762,18 +843,24 @@ export function taskArgs(argv) {
   return dash === -1 ? rest : rest.slice(dash + 1);
 }
 
-export function withPortFromEnv(manifest, port) {
-  if (port === undefined || port === "") {
-    return manifest;
+export function withPortFromEnv(manifest, port, host) {
+  const options = { ...manifest.options };
+
+  if (port !== undefined && port !== "") {
+    options.port = Number(port);
   }
 
-  return { ...manifest, options: { ...manifest.options, port: Number(port) } };
+  if (host !== undefined && host !== "") {
+    options.hostname = host;
+  }
+
+  return { ...manifest, options };
 }
 
 const settings = {
   database: { adapter: "string", database: "string", migrate: "string" },
   session: { secret: "string", max_age: "number" },
-  server: { public: "string", log: "string", filter_params: "array" },
+  server: { public: "string", log: "string", filter_params: "array", shutdown_timeout: "number" },
 };
 
 export function readConfig(root) {
@@ -845,8 +932,8 @@ export function parseConfig(text, file) {
       fail(`\`${key}\` must be a ${kind === "array" ? "list of strings" : kind}`);
     }
 
-    if (table === "server" && key === "log" && value !== "request" && value !== "off") {
-      fail("`log` must be \"request\" or \"off\"");
+    if (table === "server" && key === "log" && !["request", "text", "json", "off"].includes(value)) {
+      fail("`log` must be \"json\", \"text\", \"request\" or \"off\"");
     }
 
     if (table === "database" && key === "migrate" && value !== "auto" && value !== "manual") {
@@ -1015,17 +1102,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       }
     }
 
-    const listener = await serve(withPortFromEnv(manifest, process.env.PORT));
+    const listener = await serve(withPortFromEnv(manifest, process.env.PORT, process.env.HOST));
     const { address, port } = listener.address();
 
     console.log(`${manifest.project} is listening on http://${address}:${port}`);
 
-    const stop = () => {
-      listener.closeAllConnections();
-      listener.close();
-    };
+    const settings = serverSettings(withPortFromEnv(manifest, process.env.PORT, process.env.HOST));
+    const stop = shutdown(listener, { timeout: settings.shutdown_timeout });
 
-    process.once("SIGINT", stop);
-    process.once("SIGTERM", stop);
+    process.on("SIGINT", () => stop("SIGINT"));
+    process.on("SIGTERM", () => stop("SIGTERM"));
   }
 }

@@ -1,0 +1,7 @@
+dist/
+.polar/
+node_modules/
+*.sqlite3*
+.git/
+Dockerfile
+.dockerignore
