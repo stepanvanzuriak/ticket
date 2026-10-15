@@ -128,7 +128,8 @@ functions
   }
 
   strip_format(path: String) -> String {
-    if String.ends_with(path, ".json") && String.length(path) > 6
+    if String.ends_with(path, ".json")
+      && String.length(path) > 6
       && !String.ends_with(path, "/.json") {
       String.slice(path, 0, String.length(path) - 5)
     } else {
@@ -139,7 +140,10 @@ functions
   format(conn: Conn) -> Format {
     if String.ends_with(path_of(conn.request.path), ".json") {
       JsonFormat
-    } else if String.contains(String.lowercase(header(conn, "accept")), "application/json")
+    } else if String.contains(
+      String.lowercase(header(conn, "accept")),
+      "application/json",
+    )
       && !String.contains(String.lowercase(header(conn, "accept")), "text/html") {
       JsonFormat
     } else {

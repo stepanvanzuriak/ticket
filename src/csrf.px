@@ -21,7 +21,9 @@ functions
   }
 
   verify(conn: Conn) -> Result<Response, Conn> {
-    if safe(conn.method) || json_client(conn) || conn.csrf != "" && Crypto.equal(conn.csrf, sent(conn)) {
+    if safe(conn.method)
+      || json_client(conn)
+      || conn.csrf != "" && Crypto.equal(conn.csrf, sent(conn)) {
       Ok(conn)
     } else {
       Err(Response.text(403, "Invalid authenticity token"))
