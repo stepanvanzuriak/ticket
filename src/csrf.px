@@ -9,6 +9,10 @@ functions
     method == "GET" || method == "HEAD" || method == "OPTIONS"
   }
 
+  json_client(conn: Conn) -> Bool {
+    Conn.from_json(conn) && Conn.header(conn, "x-ticket-request") != ""
+  }
+
   sent(conn: Conn) -> String {
     match Map.get(conn.form, "authenticity_token") {
       Some(token) -> token,
@@ -17,7 +21,9 @@ functions
   }
 
   verify(conn: Conn) -> Result<Response, Conn> {
-    if safe(conn.method) || conn.csrf != "" && Crypto.equal(conn.csrf, sent(conn)) {
+    if safe(conn.method)
+      || json_client(conn)
+      || conn.csrf != "" && Crypto.equal(conn.csrf, sent(conn)) {
       Ok(conn)
     } else {
       Err(Response.text(403, "Invalid authenticity token"))

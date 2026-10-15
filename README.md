@@ -340,6 +340,22 @@ table's effect (`Posts`), so it needs `Std.List`, `Ticket.Db` and `Ticket.Query`
 Fields read as `Int`, `Float` (JSON number syntax), `String`, `Bool` (`true`, `on`, `1`; an
 absent checkbox is false), `Id<…>` and `Time` (ISO-8601). A blank `Option` field is `None`.
 
+### JSON and uploads
+
+A `application/json` object body is flattened into the same form map, so `{"post":{"title":"x"}}`
+reaches `Params.record(conn, "post")` like a form does. Malformed JSON is a 400 with a JSON
+error body. A JSON request skips the CSRF form token only when it carries an `x-ticket-request`
+header, which a cross-site form cannot set.
+
+`Conn.format(conn)` is `HtmlFormat` or `JsonFormat`, from a `.json` path extension (which wins)
+or the `Accept` header; the extension is dropped before routing. `Response.respond_to(conn, html, json)`
+runs the matching branch and answers 406 for an `Accept` that allows neither.
+
+A `multipart/form-data` upload is saved to a temp file by the launcher; `Params.file(conn, "doc")`
+gives `Some({ name, content_type, size, path })`, and text fields still reach `Params`. The temp
+file is not kept, so the app copies it. `[server] max_body` (default `"1MB"`) and `max_upload`
+(default `"10MB"`) answer 413 before the body is read in full.
+
 ### Launcher tasks
 
 `polar start -- <task>` runs a task against the built app instead of serving:

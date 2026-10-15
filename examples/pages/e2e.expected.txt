@@ -19,6 +19,9 @@
   root_path         GET   /              PagesController.home
   about_path        GET   /about         PagesController.about
                     GET   /boom          PagesController.boom
+                    POST  /upload        PagesController.upload
+                    GET   /data          PagesController.data
+                    POST  /data          PagesController.data
   articles_path     GET   /articles      ArticlesController.index
   new_article_path  GET   /articles/new  ArticlesController.new
                     POST  /articles      ArticlesController.create

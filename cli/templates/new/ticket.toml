@@ -24,3 +24,6 @@ database = "db/development.sqlite3"
 # log = "request"
 # Names, besides password, token, secret and cookie, whose values are logged as [FILTERED].
 # filter_params = ["ssn"]
+# Largest request body, and the largest multipart upload. Over the limit answers 413.
+# max_body = "1MB"
+# max_upload = "10MB"

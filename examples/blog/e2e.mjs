@@ -173,6 +173,22 @@ try {
   r = await visit("POST", "/posts", "post[title]=With+a+token&post[body]=x");
   row(16, "csrf_ok", `${r.status} posts_changed=${count("posts") !== total}`);
 
+  const sendJson = async (headers) => {
+    const response = await fetch(`${base}/posts`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "content-type": "application/json", cookie: browser.cookie, ...headers },
+      body: JSON.stringify({ post: { title: "Json post", body: "x" } }),
+    });
+
+    return response.status;
+  };
+  const jsonBase = count("posts");
+  const refused = await sendJson({});
+  const refusedChanged = count("posts") !== jsonBase;
+  const allowed = await sendJson({ "x-ticket-request": "1" });
+  row(16, "json_csrf", `without_header=${refused} changed=${refusedChanged} with_header=${allowed} changed=${count("posts") !== jsonBase}`);
+
   log.length = 0;
   r = await visit("GET", "/app.css");
   row(17, "static_file", `${r.status} ${r.type} ${r.text.includes("font-family")}`);

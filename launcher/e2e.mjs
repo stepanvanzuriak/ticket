@@ -192,6 +192,33 @@ try {
   line("18", "prod_404_plain", `${r.status} ${r.text}`);
   r = await raw(withPages.base, "GET", "/articles/99", { accept: "text/html" });
   line("18", "action_404_stays", `${r.status} ${r.text}`);
+
+  const json = { "content-type": "application/json" };
+
+  r = await raw(withPages.base, "POST", "/data.json", json, '{"post":{"title":"Hi"}}');
+  line("19", "json_body", `${r.status} ${r.text}`);
+  r = await raw(withPages.base, "POST", "/data", json, "{");
+  line("19", "bad_json", `${r.status} ${r.headers["content-type"]} ${r.text}`);
+  r = await raw(withPages.base, "GET", "/data.json", { accept: "text/html" });
+  line("19", "format_json", `${r.status} ${r.headers["content-type"]}`);
+  r = await raw(withPages.base, "GET", "/data");
+  line("19", "respond_html", `${r.status} ${r.text}`);
+  r = await raw(withPages.base, "GET", "/data", { accept: "image/png" });
+  line("19", "not_acceptable", `${r.status}`);
+
+  const boundary = "XBOUNDARYX";
+  const multipart = [
+    `--${boundary}\r\nContent-Disposition: form-data; name="note"\r\n\r\nhello\r\n`,
+    `--${boundary}\r\nContent-Disposition: form-data; name="doc"; filename="a.txt"\r\nContent-Type: text/plain\r\n\r\n12345\r\n`,
+    `--${boundary}--\r\n`,
+  ].join("");
+
+  r = await raw(withPages.base, "POST", "/upload", { "content-type": `multipart/form-data; boundary=${boundary}` }, multipart);
+  line("20", "upload", `${r.status} ${r.text}`);
+  r = await raw(withPages.base, "POST", "/upload", { "content-type": "application/x-www-form-urlencoded" }, "__file[doc][path]=%2Fetc%2Fpasswd&__file[doc][name]=x&note=n");
+  line("20", "upload_not_forgeable", `${r.status} ${r.text}`);
+  r = await raw(withPages.base, "POST", "/upload", { "content-type": "application/x-www-form-urlencoded" }, "x=" + "a".repeat(2 * 1024 * 1024));
+  line("21", "too_big", `${r.status} ${r.text}`);
 } finally {
   withPages.server.close();
   without.server.close();
