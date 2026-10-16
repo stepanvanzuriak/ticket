@@ -1,0 +1,9 @@
+{
+  "name": "ticket-dev",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only: the `pg` driver for the Postgres test suite (TICKET_TEST_POSTGRES). Ticket itself has no npm dependencies.",
+  "devDependencies": {
+    "pg": "8.13.1"
+  }
+}

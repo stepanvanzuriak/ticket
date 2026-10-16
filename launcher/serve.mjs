@@ -993,6 +993,10 @@ const adapters = {
     locate: (database, root) =>
       database === ":memory:" || isAbsolute(database) ? database : resolve(root, database),
   },
+  postgres: {
+    database: "postgres://localhost/postgres",
+    locate: (database) => database,
+  },
 };
 
 export function databaseConfig(root, config, env) {

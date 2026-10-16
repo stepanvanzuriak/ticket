@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Postgres adapter: `adapter = "postgres"` in `[database]`, on the `pg` package (an app dependency, not bundled)
+- `Db.dialect()`; `Ticket.Sql` functions take a dialect first, and `Migration.up_sql_for`/`down_sql_for`/`sql_for`
+  generate DDL for it (`up_sql`/`down_sql`/`sql` stay SQLite)
+- `TICKET_TEST_POSTGRES` runs the test helpers (`with_db`) and `scripts/test.sh` against Postgres
+
+### Breaking
+
+- `Sql.find`, `select`, `count`, `aggregate`, `insert`, `update` and `delete` take a `dialect: String` as their first
+  argument (`"sqlite"` or `"postgres"`)
+
 ## 0.2.0
 
 Closes F4. Needs Polar 0.4.0 or newer; 0.1.0 doesn't build on it, so apps should depend on `v0.2.0`.

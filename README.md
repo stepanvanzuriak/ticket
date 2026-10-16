@@ -2,7 +2,7 @@
 
 A Rails-shaped web framework written in [Polar](https://polar-lang.vercel.app/), for Polar projects.
 
-> Version 0.2.0. Controllers, views and components, resource routing, SQLite with migrations and typed queries,
+> Version 0.2.0. Controllers, views and components, resource routing, SQLite or Postgres with migrations and typed queries,
 > validations, forms, sessions, flash and CSRF, generators, and a test runner, all in Polar.
 
 ## Getting started
@@ -126,3 +126,21 @@ scripts/test.sh     runs every project above (polar test, check snapshots, fmt, 
 
 Needs the Polar toolchain (`polar` on `PATH`) and Node ≥ 22.5
 (`node:sqlite`).
+
+### Postgres
+
+SQLite is the default. For Postgres, add the `pg` package to your app's `package.json` and set the adapter in
+`ticket.toml` (or `TICKET_DATABASE_ADAPTER` / `TICKET_DATABASE`):
+
+```toml
+[database]
+adapter  = "postgres"
+database = "postgres://app:secret@localhost:5432/app"
+```
+
+Models, queries and migrations don't change. Each transaction pins one pooled connection, so concurrent requests
+don't see each other's uncommitted rows (SQLite still serialises them). A failing statement aborts a Postgres
+transaction until the savepoint around it is rolled back.
+
+`TICKET_TEST_POSTGRES=postgres://… scripts/test.sh` also runs the test projects on Postgres (it drops and recreates
+the `public` schema of that database).

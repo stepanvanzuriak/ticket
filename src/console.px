@@ -18,7 +18,11 @@ functions
         migrations,
         {},
         function(_, m) {
-          List.fold(Migration.up_sql(m), {}, function(_, sql) { run(Db.script(sql)) })
+          List.fold(
+            Migration.up_sql_for(m, Db.dialect()),
+            {},
+            function(_, sql) { run(Db.script(sql)) },
+          )
         },
       )
       Log.info(

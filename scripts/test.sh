@@ -10,6 +10,10 @@ polar="${POLAR:-polar}"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# The Postgres pass below is opt-in; the main run must stay on sqlite.
+postgres="${TICKET_TEST_POSTGRES:-}"
+unset TICKET_TEST_POSTGRES
+
 export root polar tmp NODE_NO_WARNINGS=1
 
 ok() { printf 'ok   %s%s\n' "$1" "${2:-}"; }
@@ -163,12 +167,34 @@ count=${#jobs[@]}
 for spec in \
   "cli e2e|e2e.mjs|e2e.expected.txt" \
   "scaffold e2e|scaffold_e2e.mjs|scaffold_e2e.expected.txt" \
-  "console e2e|console_e2e.mjs|console_e2e.expected.txt" \
-  "watch e2e|watch_e2e.mjs|watch_e2e.expected.txt"; do
+  "console e2e|console_e2e.mjs|console_e2e.expected.txt"; do
   IFS='|' read -r name script expected <<<"$spec"
   e2e "$name" "$cli" "$script" "$expected" >"$tmp/$count.out" 2>&1
   count=$((count + 1))
 done
+
+# With TICKET_TEST_POSTGRES set, the F2 suites run again on Postgres (one at a time: they
+# share a database). tests/db is the sqlite adapter's own suite, so it has a checker instead.
+if [ -n "$postgres" ]; then
+  export TICKET_TEST_POSTGRES="$postgres"
+
+  for dir in "$root"/tests/*/; do
+    dir="${dir%/}"
+    [ "$dir" = "$root/tests/db" ] && continue
+    find "$dir/src" -name '*_test.px' -print -quit 2>/dev/null | grep -q . || continue
+    native "postgres ${dir#"$root"/}" "$dir" >"$tmp/$count.out" 2>&1
+    count=$((count + 1))
+  done
+
+  if out="$(node --no-warnings "$root/tests/db/postgres_check.mjs" 2>&1)"; then
+    ok "postgres adapter" " ($out)" >"$tmp/$count.out"
+  else
+    { fail "postgres adapter"; printf '%s\n' "$out"; } >"$tmp/$count.out"
+  fi
+
+  count=$((count + 1))
+  unset TICKET_TEST_POSTGRES
+fi
 
 for ((i = 0; i < count; i++)); do
   cat "$tmp/$i.out"

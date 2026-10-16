@@ -14,22 +14,22 @@ types
 
 functions
   find(table: String, id: Id<r>) -> Option<a> / {Db, Throws<DbFailure>} where Json<a> {
-    rows(Sql.find(table, Id.value(id))) |> List.head
+    rows(Sql.find(Db.dialect(), table, Id.value(id))) |> List.head
   }
 
   all(table: String) -> List<a> / {Db, Throws<DbFailure>} where Json<a> {
-    rows(Sql.select(table, [], []))
+    rows(Sql.select(Db.dialect(), table, [], []))
   }
 
   filter(table: String, filters: List<Filter<r>>, clauses: List<Clause<r>>) -> List<a> / {
     Db,
     Throws<DbFailure>,
   } where Json<a> {
-    rows(Sql.select(table, filters, clauses))
+    rows(Sql.select(Db.dialect(), table, filters, clauses))
   }
 
   count(table: String, filters: List<Filter<r>>) -> Int / {Db, Throws<DbFailure>} {
-    let totals: List<Total> = rows(Sql.count(table, filters))
+    let totals: List<Total> = rows(Sql.count(Db.dialect(), table, filters))
 
     match List.head(totals) {
       Some(total) -> total.n,
@@ -53,7 +53,7 @@ functions
     )
 
     {
-      rows: rows(Sql.select(table, filters, paged)),
+      rows: rows(Sql.select(Db.dialect(), table, filters, paged)),
       page: current,
       per_page: size,
       total: total,
@@ -68,7 +68,7 @@ functions
     filters: List<Filter<r>>,
   ) -> Option<a> / {Db, Throws<DbFailure>} {
     let found: List<Measured> = rows(
-      Sql.aggregate(table, function_name, Query.name(column), filters),
+      Sql.aggregate(Db.dialect(), table, function_name, Query.name(column), filters),
     )
 
     match List.head(found) {
@@ -91,7 +91,7 @@ functions
     Db,
     Throws<DbFailure>,
   } where Json<a> {
-    returned(Sql.insert(table, columns, params))
+    returned(Sql.insert(Db.dialect(), table, columns, params))
   }
 
   update(
@@ -101,11 +101,11 @@ functions
     id: Id<r>,
     touch: Bool,
   ) -> a / {Db, Throws<DbFailure>} where Json<a> {
-    returned(Sql.update(table, columns, params, Id.value(id), touch))
+    returned(Sql.update(Db.dialect(), table, columns, params, Id.value(id), touch))
   }
 
   delete(table: String, id: Id<r>) -> Bool / {Db, Throws<DbFailure>} {
-    let statement = Sql.delete(table, Id.value(id))
+    let statement = Sql.delete(Db.dialect(), table, Id.value(id))
 
     match Db.exec(statement.sql, statement.params) {
       Ok(changes) -> changes.changes > 0,
