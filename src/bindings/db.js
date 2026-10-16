@@ -5,6 +5,7 @@ import { dirname } from "node:path";
 
 const adapters = {
   sqlite: { open: openSqlite },
+  postgres: { open: openPostgres },
 };
 
 let client = null;
@@ -26,6 +27,14 @@ export async function connect(config) {
     await replace(config.adapter, config.database);
     return {};
   }, false);
+}
+
+export async function dialect() {
+  try {
+    return (await current()).dialect;
+  } catch {
+    return "sqlite";
+  }
 }
 
 export async function query(sql, params) {
@@ -56,21 +65,24 @@ export async function within_transaction(body, commit) {
     return savepoint(outer, body, commit);
   }
 
-  while (active !== null) {
-    await active.done;
+  const root = await current();
+  let release = null;
+
+  // SQLite has one connection, so a transaction holds every other Db call off.
+  // Postgres pins one pooled connection to the transaction and lets the rest run.
+  if (root.serial) {
+    while (active !== null) {
+      await active.done;
+    }
+
+    active = { done: new Promise((resolve) => (release = resolve)) };
   }
 
-  let release;
-
-  active = { done: new Promise((resolve) => (release = resolve)) };
-
   try {
-    const db = await current();
-
-    await db.begin();
+    const db = await root.begin();
 
     try {
-      const result = await inside.run({ depth: 0 }, body);
+      const result = await inside.run({ depth: 0, db }, body);
 
       await db.script(commit(result) ? "COMMIT" : "ROLLBACK");
       return result;
@@ -80,10 +92,14 @@ export async function within_transaction(body, commit) {
       }
 
       throw error;
+    } finally {
+      await db.release?.();
     }
   } finally {
-    active = null;
-    release();
+    if (release !== null) {
+      active = null;
+      release();
+    }
   }
 }
 
@@ -94,7 +110,7 @@ async function savepoint(outer, body, commit) {
   await db.script(`SAVEPOINT ${name}`);
 
   try {
-    const result = await inside.run({ depth: outer.depth + 1 }, body);
+    const result = await inside.run({ depth: outer.depth + 1, db: outer.db }, body);
 
     if (!commit(result)) {
       await db.script(`ROLLBACK TO ${name}`);
@@ -119,6 +135,12 @@ async function idle() {
 }
 
 async function current() {
+  const pinned = inside.getStore()?.db;
+
+  if (pinned !== undefined) {
+    return pinned;
+  }
+
   if (client !== null) {
     return client;
   }
@@ -152,18 +174,29 @@ async function replace(name, database) {
     );
   }
 
+  // The test helpers ask for `:memory:`; point them at Postgres when it's set up for tests.
+  const testing = database === ":memory:" && name === "sqlite" && process.env.TICKET_TEST_POSTGRES;
+  const target = testing ? process.env.TICKET_TEST_POSTGRES : database;
+  const chosen = testing ? adapters.postgres : adapter;
   let opened;
 
   try {
-    opened = await adapter.open(database);
+    opened = await chosen.open(target, { fresh: Boolean(testing) });
   } catch (error) {
-    throw new DbFailure("connection", `can't open ${name} database \`${database}\`: ${error.message}`);
+    throw new DbFailure(
+      "connection",
+      `can't open ${testing ? "postgres" : name} database \`${redact(target)}\`: ${error.message}`,
+    );
   }
 
   const previous = client;
 
   client = opened;
   await previous?.close();
+}
+
+function redact(database) {
+  return database.replace(/^([a-z]+:\/\/[^:/@]*):[^@]*@/i, "$1:***@");
 }
 
 function values(params) {
@@ -218,7 +251,9 @@ async function openSqlite(database) {
     db.exec("PRAGMA journal_mode = WAL");
   }
 
-  return {
+  const self = {
+    dialect: "sqlite",
+    serial: true,
     all(sql, params) {
       const statement = db.prepare(sql);
       const booleans = statement
@@ -247,6 +282,7 @@ async function openSqlite(database) {
     },
     begin() {
       db.exec("BEGIN IMMEDIATE");
+      return self;
     },
     inTransaction() {
       return db.isTransaction;
@@ -256,6 +292,8 @@ async function openSqlite(database) {
       db.close();
     },
   };
+
+  return self;
 }
 
 function sqliteValue({ type, value }) {
@@ -278,4 +316,127 @@ function sqliteFailure(error) {
     sqliteKinds[code] ?? (code === 1 && /syntax error|no such/.test(message) ? "syntax" : "other");
 
   return { kind, code: code === undefined ? "" : String(code), message };
+}
+
+async function openPostgres(database, { fresh = false } = {}) {
+  let pg;
+
+  try {
+    pg = await import("pg");
+  } catch {
+    throw new Error("the `pg` package isn't installed; add it to the app's package.json");
+  }
+
+  const { Pool, types } = pg.default ?? pg;
+  // int8 (COUNT, SUM of integers) and numeric (AVG) arrive as strings by default.
+  const parsers = {
+    getTypeParser: (oid, format) =>
+      oid === 20 || oid === 1700 ? Number : types.getTypeParser(oid, format),
+  };
+  const pool = new Pool({ connectionString: database, types: parsers });
+
+  pool.on("error", () => {});
+
+  try {
+    await pool.query("SELECT 1");
+
+    if (fresh) {
+      await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public");
+    }
+  } catch (error) {
+    await pool.end().catch(() => {});
+    throw error;
+  }
+
+  const connection = (runner, pinned) => ({
+    dialect: "postgres",
+    serial: false,
+    async all(sql, params) {
+      const result = await runner.query(numbered(sql), params.map(postgresValue));
+
+      return result.rows;
+    },
+    async run(sql, params) {
+      const result = await runner.query(numbered(sql), params.map(postgresValue));
+
+      return { changes: result.rowCount ?? 0, last_id: Number(result.rows?.[0]?.id ?? 0) };
+    },
+    async script(sql) {
+      await runner.query(sql);
+
+      if (pinned !== undefined && /^\s*(COMMIT|ROLLBACK)\s*$/i.test(sql)) {
+        pinned.open = false;
+      }
+    },
+    async begin() {
+      const client = await pool.connect();
+      const state = { open: false };
+      const db = connection(client, state);
+
+      db.inTransaction = () => state.open;
+      db.release = () => client.release();
+
+      try {
+        await client.query("BEGIN");
+        state.open = true;
+      } catch (error) {
+        client.release();
+        throw error;
+      }
+
+      return db;
+    },
+    inTransaction() {
+      return false;
+    },
+    failure: postgresFailure,
+    async close() {
+      await pool.end();
+    },
+  });
+
+  return connection(pool);
+}
+
+// `?` is the portable placeholder; Postgres wants `$1`, `$2`, ... Quoted text is left alone.
+function numbered(sql) {
+  let count = 0;
+  let quote = null;
+  let out = "";
+
+  for (const char of sql) {
+    if (quote !== null) {
+      quote = char === quote ? null : quote;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "?") {
+      out += `$${++count}`;
+      continue;
+    }
+
+    out += char;
+  }
+
+  return out;
+}
+
+function postgresValue({ type, value }) {
+  return type === "null" ? null : value;
+}
+
+const postgresKinds = {
+  23505: "unique",
+  23503: "foreign_key",
+  23502: "not_null",
+  23514: "check",
+  42601: "syntax",
+  "42P01": "syntax",
+  42703: "syntax",
+};
+
+function postgresFailure(error) {
+  const code = error?.code === undefined ? "" : String(error.code);
+  const message = error?.message ?? String(error);
+
+  return { kind: postgresKinds[code] ?? "other", code, message };
 }

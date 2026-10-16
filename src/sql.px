@@ -10,11 +10,15 @@ types
   Parts = { orders: List<String>, limit: Option<Int>, offset: Option<Int> }
 
 functions
-  find(table: String, id: Int) -> Statement {
+  find(dialect: String, table: String, id: Int) -> Statement {
     { sql: "SELECT * FROM #{quote(table)} WHERE \"id\" = ?", params: [SqlInt(id)] }
   }
 
-  select(table: String, filters: List<Filter<r>>, clauses: List<Clause<r>>) -> Statement {
+  select(
+    dialect: String,
+    table: String,
+    filters: List<Filter<r>>, clauses: List<Clause<r>>,
+  ) -> Statement {
     let parts = List.fold(clauses, { orders: [], limit: None, offset: None }, add_clause)
     let order = if List.is_empty(parts.orders) {
       ""
@@ -23,12 +27,12 @@ functions
     }
 
     {
-      sql: "SELECT * FROM #{quote(table)}#{conditions(filters)}#{order}#{paging(parts)}",
+      sql: "SELECT * FROM #{quote(table)}#{conditions(filters)}#{order}#{paging(dialect, parts)}",
       params: values(filters),
     }
   }
 
-  count(table: String, filters: List<Filter<r>>) -> Statement {
+  count(dialect: String, table: String, filters: List<Filter<r>>) -> Statement {
     {
       sql: "SELECT COUNT(*) AS n FROM #{quote(table)}#{conditions(filters)}",
       params: values(filters),
@@ -36,18 +40,25 @@ functions
   }
 
   aggregate(
+    dialect: String,
     table: String,
     function_name: String,
     column: String,
     filters: List<Filter<r>>,
   ) -> Statement {
+    let wrapped = if dialect == "postgres" {
+      "json_build_array(#{function_name}(\"#{column}\"))::text"
+    } else {
+      "json_array(#{function_name}(\"#{column}\"))"
+    }
+
     {
-      sql: "SELECT json_array(#{function_name}(\"#{column}\")) AS n FROM #{quote(table)}#{conditions(filters)}",
+      sql: "SELECT #{wrapped} AS n FROM #{quote(table)}#{conditions(filters)}",
       params: values(filters),
     }
   }
 
-  insert(table: String, columns: List<String>, params: List<SqlValue>) -> Statement {
+  insert(dialect: String, table: String, columns: List<String>, params: List<SqlValue>) -> Statement {
     if List.is_empty(columns) {
       { sql: "INSERT INTO #{quote(table)} DEFAULT VALUES RETURNING *", params: [] }
     } else {
@@ -62,6 +73,7 @@ functions
   }
 
   update(
+    dialect: String,
     table: String,
     columns: List<String>,
     params: List<SqlValue>,
@@ -70,13 +82,13 @@ functions
   ) -> Statement {
     let sets = List.map(columns, function(column) { "#{quote(column)} = ?" })
     let all = if touch {
-      List.append(sets, ["\"updated_at\" = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"])
+      List.append(sets, ["\"updated_at\" = #{now(dialect)}"])
     } else {
       sets
     }
 
     if List.is_empty(all) {
-      find(table, id)
+      find(dialect, table, id)
     } else {
       {
         sql: "UPDATE #{quote(table)} SET #{List.join(all, ", ")} WHERE \"id\" = ? RETURNING *",
@@ -85,7 +97,7 @@ functions
     }
   }
 
-  delete(table: String, id: Int) -> Statement {
+  delete(dialect: String, table: String, id: Int) -> Statement {
     { sql: "DELETE FROM #{quote(table)} WHERE \"id\" = ?", params: [SqlInt(id)] }
   }
 
@@ -133,11 +145,23 @@ functions
     }
   }
 
-  paging(parts: Parts) -> String {
+  now(dialect: String) -> String {
+    if dialect == "postgres" {
+      "now()"
+    } else {
+      "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+    }
+  }
+
+  paging(dialect: String, parts: Parts) -> String {
     match parts.limit {
       Some(count) -> " LIMIT #{count}#{skipping(parts.offset)}",
       None -> match parts.offset {
-        Some(skip) -> " LIMIT -1 OFFSET #{skip}",
+        Some(skip) -> if dialect == "postgres" {
+          " OFFSET #{skip}"
+        } else {
+          " LIMIT -1 OFFSET #{skip}"
+        },
         None -> "",
       },
     }

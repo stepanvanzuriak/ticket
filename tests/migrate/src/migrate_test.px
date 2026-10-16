@@ -16,7 +16,11 @@ types
 functions
   tables() -> String / {Db} {
     let names: Result<DbError, List<Name>> = Db.all(
-      "select name from sqlite_master where name not like 'sqlite_%' order by name",
+      if Db.dialect() == "postgres" {
+        "select name from (select tablename as name from pg_tables where schemaname = 'public' union all select indexname as name from pg_indexes where schemaname = 'public' and indexname not like '%_pkey') t order by name"
+      } else {
+        "select name from sqlite_master where name not like 'sqlite_%' order by name"
+      },
       [],
     )
 

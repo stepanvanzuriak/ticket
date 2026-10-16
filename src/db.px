@@ -19,6 +19,7 @@ types
 
 effects
   Db {
+    dialect() -> String
     connect(config: DbConfig) -> Result<DbError, {}>
     query(sql: String, params: List<SqlValue>) -> Result<DbError, String>
     exec(sql: String, params: List<SqlValue>) -> Result<DbError, Changes>

@@ -127,7 +127,7 @@ functions
   test_connect_memory() {
     Assert.equal(
       "#{shown(Db.connect({ adapter: "mysql", database: "x" }), unit)} #{shown(Db.connect({ adapter: "sqlite", database: ":memory:" }), unit)}",
-      "Err(kind=connection code= message=unknown database adapter `mysql`; the adapters are: sqlite sql=) Ok({})",
+      "Err(kind=connection code= message=unknown database adapter `mysql`; the adapters are: sqlite, postgres sql=) Ok({})",
     )
   }
 

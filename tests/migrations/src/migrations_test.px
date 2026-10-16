@@ -19,16 +19,18 @@ functions
     }
   }
 
-  each(list: List<Migration>, sql: function(Migration) -> List<String>) -> {} / {
+  each(list: List<Migration>, sql: function(Migration, String) -> List<String>) -> {} / {
     Db,
     Throws<Failed>,
   } {
+    let dialect = Db.dialect()
+
     List.fold(
       list,
       {},
       function(_, m) {
         List.fold(
-          sql(m),
+          sql(m, dialect),
           {},
           function(_, statement) {
             match Db.script(statement) {
@@ -43,7 +45,11 @@ functions
 
   tables() -> String / {Db} {
     let names: Result<DbError, List<Name>> = Db.all(
-      "select name from sqlite_master where name not like 'sqlite_%' order by name",
+      if Db.dialect() == "postgres" {
+        "select name from (select tablename as name from pg_tables where schemaname = 'public' union all select indexname as name from pg_indexes where schemaname = 'public' and indexname not like '%_pkey') t order by name"
+      } else {
+        "select name from sqlite_master where name not like 'sqlite_%' order by name"
+      },
       [],
     )
 
@@ -340,7 +346,7 @@ functions
   test_down_all() {
     with_db(
       function() {
-        each(List.reverse(Schema.migrations), Migration.down_sql)
+        each(List.reverse(Schema.migrations), Migration.down_sql_for)
         Assert.equal(tables(), "[]")
       },
     )
@@ -349,8 +355,8 @@ functions
   test_up_again() {
     with_db(
       function() {
-        each(List.reverse(Schema.migrations), Migration.down_sql)
-        each(Schema.migrations, Migration.up_sql)
+        each(List.reverse(Schema.migrations), Migration.down_sql_for)
+        each(Schema.migrations, Migration.up_sql_for)
         Assert.equal(tables(), "[events, index_users_on_email, posts, users]")
       },
     )

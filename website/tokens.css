@@ -1,0 +1,215 @@
+/* Shared by the landing page and the docs. */
+
+:root {
+  --bubblegum: #ff4fa3;
+  --grape: #8b5cf6;
+  --mint: #4fe3c1;
+  --butter: #ffc94a;
+  --tangerine: #ff8a2a;
+  --night: #1d0b3a;
+  --polar: #0d3557;
+  --polar-ice: #8db9d4;
+
+  --bg: #fff3f9;
+  --surface: #ffe3f1;
+  --ink: var(--night);
+  --muted: #5b4780;
+  --line: #f3c6de;
+  --link: #6d3ce0;
+  --code-bg: var(--night);
+  --code-ink: #efe6ff;
+  --code-kw: #ff8ccb;
+  --code-type: #ffc94a;
+  --code-str: #9ff5dc;
+  --code-dim: #8f7bb8;
+  --code-error: #ff8ccb;
+  --out-bg: #2a1352;
+  --out-line: #3d2170;
+  --note: var(--mint);
+  --tip: var(--butter);
+  --shadow: var(--night);
+
+  --display: "Unbounded", system-ui, sans-serif;
+  --body: "Bricolage Grotesque", system-ui, sans-serif;
+  --mono: "Martian Mono", ui-monospace, monospace;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14072b;
+    --surface: #22104a;
+    --ink: #fbf1ff;
+    --muted: #c3b2e6;
+    --line: #36205f;
+    --link: #ffc94a;
+    --code-bg: #0c0320;
+    --out-bg: #1b0b3a;
+    --out-line: #2c1556;
+    --shadow: var(--grape);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #14072b;
+  --surface: #22104a;
+  --ink: #fbf1ff;
+  --muted: #c3b2e6;
+  --line: #36205f;
+  --link: #ffc94a;
+  --code-bg: #0c0320;
+  --out-bg: #1b0b3a;
+  --out-line: #2c1556;
+  --shadow: var(--grape);
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 2px;
+}
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--bubblegum);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+pre,
+code {
+  font-family: var(--mono);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── wordmark, polar badge, theme toggle ─────────────── */
+
+.wordmark {
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  text-shadow: 0.05em 0.05em 0 var(--bubblegum);
+}
+
+.polar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.8rem 0.25rem 0.3rem;
+  border-radius: 999px;
+  background: var(--polar);
+  color: #f2f6f9;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.polar-badge .flake {
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--polar-ice);
+  color: var(--polar);
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 0.7rem;
+}
+.polar-badge:hover {
+  background: #2c6e96;
+  text-decoration: none;
+}
+
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  background: var(--surface);
+}
+.theme-toggle svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.theme-toggle .moon {
+  display: none;
+}
+:root[data-resolved-theme="dark"] .theme-toggle .sun {
+  display: none;
+}
+:root[data-resolved-theme="dark"] .theme-toggle .moon {
+  display: block;
+}
+
+/* ── copy buttons ────────────────────────────────────── */
+
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1.5px solid var(--out-line);
+  border-radius: 999px;
+  background: var(--code-bg);
+  color: var(--code-dim);
+  font: 600 0.75rem/1 var(--body);
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease;
+}
+.copy:hover {
+  color: var(--code-ink);
+  border-color: var(--code-dim);
+}
+.copy svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+.copy.done {
+  color: var(--mint);
+  border-color: var(--mint);
+}

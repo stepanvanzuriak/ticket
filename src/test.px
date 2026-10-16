@@ -343,11 +343,17 @@ functions
     Fixture.reset()
     ready(Db.connect({ adapter: "sqlite", database: ":memory:" }))
 
+    let dialect = Db.dialect()
+
     List.fold(
       migrations,
       {},
       function(_, m) {
-        List.fold(Migration.up_sql(m), {}, function(_, sql) { ready(Db.script(sql)) })
+        List.fold(
+          Migration.up_sql_for(m, dialect),
+          {},
+          function(_, sql) { ready(Db.script(sql)) },
+        )
       },
     )
 

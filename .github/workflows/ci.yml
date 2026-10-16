@@ -11,6 +11,18 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ticket_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      TICKET_TEST_POSTGRES: postgres://postgres:postgres@localhost:5432/ticket_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,5 +37,6 @@ jobs:
           export POLAR_VERSION
           curl -fsSL https://polar-lang.vercel.app/install.sh | sh
           echo "$HOME/.polar/bin" >> "$GITHUB_PATH"
+      - run: npm install --no-audit --no-fund
       - run: polar --version
       - run: scripts/test.sh

@@ -110,7 +110,12 @@ functions
 
   apply_one(m: Migration, forward: Bool) -> Result<DbError, {}> / {Db, Clock} {
     let verb = if forward { "migrat" } else { "revert" }
-    let statements = if forward { Migration.up_sql(m) } else { Migration.down_sql(m) }
+    let dialect = Db.dialect()
+    let statements = if forward {
+      Migration.up_sql_for(m, dialect)
+    } else {
+      Migration.down_sql_for(m, dialect)
+    }
 
     Log.info("== #{m.version} #{m.name}: #{verb}ing")
 

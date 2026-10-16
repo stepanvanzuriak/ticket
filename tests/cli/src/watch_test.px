@@ -1,0 +1,186 @@
+module WatchTest
+
+uses
+  Std.{Assert, Fs, Http, List, Option, Path, Process, Result, Test, Time}
+
+hosts
+  Node
+
+functions
+  home() -> String / {Process} {
+    Path.normalize(Path.join(Process.cwd(), "../.."))
+  }
+
+  shim() -> String / {Process} {
+    Path.join(home(), "bin/ticket")
+  }
+
+  row(n: Int, name: String, text: String) -> String {
+    "#{n} #{name}: #{text}"
+  }
+
+  // Stands in for a sleep: waits for a line that never comes.
+  pause(child: Child, ms: Int) -> {} / {Async} {
+    let _ = Process.wait_for_line(child, "(?!)", ms)
+
+    {}
+  }
+
+  copy_app(from: String, to: String) -> {} / {Fs, Process, Throws<Failed>} {
+    let files = match Fs.walk(from) {
+      Ok(list) -> list,
+      Err(error) -> throw Failed("can't read #{from}: #{error.message}"),
+    }
+
+    List.fold(
+      files,
+      {},
+      function(_, file) {
+        if String.starts_with(file, "dist/") || String.starts_with(file, ".polar/") {
+          {}
+        } else {
+          let target = Path.join(to, file)
+          let text = match Fs.read(Path.join(from, file)) {
+            Ok(text) -> text,
+            Err(error) -> throw Failed("can't read #{file}: #{error.message}"),
+          }
+          let fixed = if file == "polar.toml" {
+            String.replace(text, "path = \"../..\"", "path = \"#{home()}\"")
+          } else {
+            text
+          }
+
+          let _ = Fs.mkdir_all(Path.dirname(target))
+
+          match Fs.write(target, fixed) {
+            Ok(_) -> {},
+            Err(error) -> throw Failed("can't write #{file}: #{error.message}"),
+          }
+        }
+      },
+    )
+  }
+
+  present(value: Option<String>) -> Bool {
+    match value {
+      Some(_) -> true,
+      None -> false,
+    }
+  }
+
+  body_at(port: String) -> Option<String> / {Net} {
+    match Test.get("http://127.0.0.1:#{port}/") {
+      Ok(response) -> Some("#{response.status} #{String.trim(response.body)}"),
+      Err(_) -> None,
+    }
+  }
+
+  // Polls until the body satisfies `want`, giving up after `tries` x 200 ms.
+  until(
+    child: Child,
+    port: String,
+    want: function(String) -> Bool,
+    tries: Int,
+  ) -> String / {Async, Net} {
+    let seen = Option.with_default(body_at(port), "none")
+
+    if want(seen) {
+      seen
+    } else if tries <= 0 {
+      "timeout (last: #{seen})"
+    } else {
+      pause(child, 200)
+      until(child, port, want, tries - 1)
+    }
+  }
+
+  test_watch() {
+    let fixture = Path.join(home(), "cli/fixtures/console_app")
+    let refused = Process.output(
+      shim(),
+      ["server", "--watch"],
+      Process.with_env(
+        Process.in_dir(Process.inherit(), fixture),
+        "TICKET_ENV",
+        "production",
+      ),
+    )
+    let production = row(
+      3,
+      "production",
+      "exit=#{refused.code} #{String.trim(refused.stderr)}",
+    )
+
+    let rows = Fs.with_temp_dir(
+      "ticket-watch-",
+      function(dir) {
+        let app = Path.join(dir, "app")
+
+        copy_app(Path.join(home(), "examples/hello"), app)
+
+        let options = Process.with_env(
+          Process.in_dir(Process.inherit(), app),
+          "TICKET_ENV",
+          "",
+        )
+        // `-p 0` would pick a new port on every reload, so a fixed port is chosen from the clock.
+        let port = "#{20000 + Time.millis(Clock.now()) % 20000}"
+        let child = Process.spawn(shim(), ["server", "--watch", "-p", port], options)
+        let _ = Process.wait_for_line(
+          child,
+          "listening on http://127\\.0\\.0\\.1:#{port}",
+          90000,
+        )
+
+        let first = until(child, port, function(t) { String.starts_with(t, "200") }, 100)
+        let view = Path.join(app, "src/pages.px")
+        let source = match Fs.read(view) {
+          Ok(text) -> text,
+          Err(_) -> "",
+        }
+        let _ = Fs.write(view, String.replace(source, "Hello from", "Reloaded by"))
+        let second = until(
+          child,
+          port,
+          function(t) { String.contains(t, "Reloaded by") },
+          300,
+        )
+        let alive = present(body_at(port))
+        let reload = row(
+          1,
+          "reload",
+          "#{String.contains(first, "Hello from")} -> #{String.contains(second, "Reloaded by")} same_port=#{alive}",
+        )
+
+        let _ = Fs.write(
+          view,
+          String.replace(
+            source,
+            "home(name: String)",
+            "home(name: String)\n    <h1>{missing_name}</h1>\n",
+          ),
+        )
+        let diagnostics = Process.wait_for_line(child, "error\\[POLAR", 30000)
+        let after = Option.with_default(body_at(port), "none")
+        let broken = row(
+          2,
+          "broken_edit",
+          if String.contains(after, "Reloaded by") {
+            "old body served"
+          } else {
+            "still=#{after}"
+          },
+        )
+        let printed = row(
+          2,
+          "diagnostics",
+          if present(diagnostics) { "printed" } else { "none" },
+        )
+        let _ = Process.stop(child)
+
+        [reload, broken, printed]
+      },
+    )
+
+    Test.assert_snapshot("watch_e2e", "#{List.join([production, ..rows], "\n")}\n")
+  }
