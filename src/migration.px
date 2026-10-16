@@ -54,7 +54,10 @@ functions
     match change {
       CreateTable(table, columns) -> {
         let defined = List.join(
-          [primary_key(dialect), ..List.map(columns, function(c) { column_sql(c, dialect) })],
+          [
+            primary_key(dialect),
+            ..List.map(columns, function(c) { column_sql(c, dialect) }),
+          ],
           ", ",
         )
 
@@ -109,7 +112,10 @@ functions
         " DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
       },
       _ -> Option.with_default(
-        Option.map(column.default, function(value) { " DEFAULT #{literal(value, dialect)}" }),
+        Option.map(
+          column.default,
+          function(value) { " DEFAULT #{literal(value, dialect)}" },
+        ),
         "",
       ),
     }

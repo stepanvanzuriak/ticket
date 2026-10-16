@@ -17,7 +17,8 @@ functions
   select(
     dialect: String,
     table: String,
-    filters: List<Filter<r>>, clauses: List<Clause<r>>,
+    filters: List<Filter<r>>,
+    clauses: List<Clause<r>>,
   ) -> Statement {
     let parts = List.fold(clauses, { orders: [], limit: None, offset: None }, add_clause)
     let order = if List.is_empty(parts.orders) {
@@ -58,7 +59,12 @@ functions
     }
   }
 
-  insert(dialect: String, table: String, columns: List<String>, params: List<SqlValue>) -> Statement {
+  insert(
+    dialect: String,
+    table: String,
+    columns: List<String>,
+    params: List<SqlValue>,
+  ) -> Statement {
     if List.is_empty(columns) {
       { sql: "INSERT INTO #{quote(table)} DEFAULT VALUES RETURNING *", params: [] }
     } else {
@@ -146,11 +152,7 @@ functions
   }
 
   now(dialect: String) -> String {
-    if dialect == "postgres" {
-      "now()"
-    } else {
-      "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
-    }
+    if dialect == "postgres" { "now()" } else { "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')" }
   }
 
   paging(dialect: String, parts: Parts) -> String {
